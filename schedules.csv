@@ -1,0 +1,4 @@
+Process ID,Process Name,Executable Path,Arguments,Program Type,Schedule Interval,Start Time,End Time,Day of Week,Frequency,Enabled,Last Run Time,Next Run Time,Status,Dependencies,Comments
+1,Data Backup,C:\Users\xzyoi\Desktop\python\task_schedule\test\subprocessTest.py,,python,1440,,,,1,True,2024-09-18 07:56:18.280135,,,,
+1,file write,C:\Users\xzyoi\Desktop\python\task_schedule\test\call.py,,python,1440,,,,1,True,2024-09-18 07:56:18.280135,,,,
+1,update web chack,C:\Users\xzyoi\Desktop\python\web-update-cheacker\bk\selenium\web-cheackerV3.py,,python,770,,,,1,True,2024-09-18 07:56:18.280135,,,,
