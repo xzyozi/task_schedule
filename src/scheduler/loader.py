@@ -5,7 +5,7 @@ import yaml
 from apscheduler.schedulers.base import BaseScheduler
 from pydantic import ValidationError
 
-from .models import JobConfig
+from .models import Config, JobConfig
 
 def load_jobs_from_config(scheduler: BaseScheduler, config_path: str):
     """Loads jobs from a YAML file and adds them to the scheduler."""
@@ -17,7 +17,8 @@ def load_jobs_from_config(scheduler: BaseScheduler, config_path: str):
                 logging.warning(f"Configuration file {config_path} is empty.")
                 return
 
-        validated_jobs: List[JobConfig] = [JobConfig(**config) for config in raw_configs]
+        validated_config = Config.model_validate(raw_configs)
+        validated_jobs: List[JobConfig] = validated_config.root
 
     except FileNotFoundError:
         logging.error(f"Configuration file not found: {config_path}")

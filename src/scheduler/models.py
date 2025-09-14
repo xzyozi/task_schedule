@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, RootModel, validator
 
 
 class CronTrigger(BaseModel):
@@ -46,5 +46,6 @@ class JobConfig(BaseModel):
             return IntervalTrigger(**v)
         raise ValueError(f"Unsupported trigger type: {trigger_type}")
 
-class Config(BaseModel):
-    __root__: List[JobConfig]
+class Config(RootModel[List[JobConfig]]):
+    """A root model for a list of job configurations."""
+    pass
