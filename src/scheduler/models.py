@@ -1,51 +1,48 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, RootModel, validator
+from pydantic import BaseModel, Field
+from sqlalchemy import Boolean, Column, Integer, JSON, String
+from sqlalchemy.ext.declarative import declarative_base
 
+# --- SQLAlchemy Models ---
 
-class CronTrigger(BaseModel):
-    type: str = 'cron'
-    year: Optional[Union[int, str]] = None
-    month: Optional[Union[int, str]] = None
-    day: Optional[Union[int, str]] = None
-    week: Optional[Union[int, str]] = None
-    day_of_week: Optional[Union[int, str]] = None
-    hour: Optional[Union[int, str]] = None
-    minute: Optional[Union[int, str]] = None
-    second: Optional[Union[int, str]] = None
-    timezone: Optional[str] = 'UTC'
+Base = declarative_base()
 
-class IntervalTrigger(BaseModel):
-    type: str = 'interval'
-    weeks: int = 0
-    days: int = 0
-    hours: int = 0
-    minutes: int = 0
-    seconds: int = 0
-    timezone: Optional[str] = 'UTC'
+class JobDefinition(Base):
+    """SQLAlchemy model for storing job definitions in the database."""
+    __tablename__ = 'job_definitions'
+
+    id = Column(String, primary_key=True, index=True)
+    func = Column(String, nullable=False)
+    
+    # The trigger is split into type and its config for easier querying
+    trigger_type = Column(String, nullable=False)
+    trigger_config = Column(JSON, nullable=False)
+
+    args = Column(JSON, default=list, nullable=False)
+    kwargs = Column(JSON, default=dict, nullable=False)
+    
+    # APScheduler control settings
+    max_instances = Column(Integer, default=1, nullable=False)
+    coalesce = Column(Boolean, default=False, nullable=False)
+    misfire_grace_time = Column(Integer, nullable=True, default=3600)
+
+    def __repr__(self):
+        return f"<JobDefinition(id='{self.id}', func='{self.func}')>"
+
+# --- Pydantic Models ---
+# This model will be useful for API validation and for representing job data.
 
 class JobConfig(BaseModel):
+    """Pydantic model for job configuration, used for validation."""
     id: str
     func: str
-    trigger: Union[CronTrigger, IntervalTrigger]
+    trigger: Dict[str, Any]
     args: Optional[List[Any]] = Field(default_factory=list)
     kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    replace_existing: bool = True
     max_instances: int = 1
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
 
-    @validator("trigger", pre=True)
-    def validate_trigger_type(cls, v):
-        if not isinstance(v, dict):
-            raise ValueError("Trigger must be a dictionary")
-        trigger_type = v.get("type")
-        if trigger_type == "cron":
-            return CronTrigger(**v)
-        elif trigger_type == "interval":
-            return IntervalTrigger(**v)
-        raise ValueError(f"Unsupported trigger type: {trigger_type}")
-
-class Config(RootModel[List[JobConfig]]):
-    """A root model for a list of job configurations."""
-    pass
+    class Config:
+        from_attributes = True
