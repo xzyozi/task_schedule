@@ -2,14 +2,26 @@ import time
 import logging
 
 from .database import init_db
-from .loader import sync_jobs_from_db
+import sys
+import time
+import logging
+
+from .database import init_db
+from .loader import sync_jobs_from_db, seed_db_from_yaml
 from .scheduler import start_scheduler, scheduler
 
 def main():
     """The main entry point for the scheduler service."""
-    # Initialize the database and create tables if they don't exist
+    # Initialize the database first, as both seeding and running need it.
     init_db()
 
+    # Check for command-line arguments
+    if len(sys.argv) > 1 and sys.argv[1].lower() == 'seed':
+        config_path = "jobs.yaml"
+        seed_db_from_yaml(config_path)
+        return  # Exit after seeding
+
+    # --- Default execution: start the scheduler ---
     start_scheduler()
 
     # Perform an initial sync on startup

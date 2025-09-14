@@ -1,3 +1,10 @@
 old/
 **/__pycache__/
 .*
+jobs.sqlite
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
