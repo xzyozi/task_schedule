@@ -2,13 +2,12 @@ import logging
 import yaml
 
 from pydantic import ValidationError
-from sqlalchemy.orm import sessionmaker
 
-from .database import engine
+from .database import engine, SessionLocal # Import SessionLocal from database.py
 from .models import JobDefinition, JobConfig
 
-# Create a configured "Session" class
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Create a configured "Session" class # Removed
+# SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) # Removed
 
 def sync_jobs_from_db():
     """Synchronizes jobs from the database with the scheduler."""
