@@ -1,0 +1,29 @@
+# jobs.yaml
+- id: 'daily_sales_report'
+  func: 'scheduler.tasks.reporting:send_daily_report'
+  trigger:
+    type: 'cron'
+    day_of_week: 'mon-fri'
+    hour: 8
+    minute: 0
+    timezone: 'Asia/Tokyo'
+  args:
+    - 'sales-team@example.com'
+  kwargs:
+    template_name: 'daily_summary.html'
+    include_projections: true
+  replace_existing: true
+  max_instances: 1
+  misfire_grace_time: 3600 # 1 hour
+
+- id: 'api_health_check'
+  func: 'scheduler.tasks.monitoring:check_api_status'
+  trigger:
+    type: 'interval'
+    minutes: 5
+  kwargs:
+    api_endpoint: 'https://api.example.com/health'
+    timeout_seconds: 10
+  replace_existing: true
+  max_instances: 1
+  coalesce: true
