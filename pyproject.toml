@@ -23,7 +23,6 @@ dependencies = [
     "pydantic-settings",
     "fastapi",
     "uvicorn[standard]",
-    "watchdog",
 ]
 
 [project.optional-dependencies]
