@@ -1,6 +1,11 @@
 old/
 **/__pycache__/
 .*
+venv/
+env/
+ENV/
+.venv/
+.Python
 jobs.sqlite
 test/subprocessTest.py
 test/test.conf
