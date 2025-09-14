@@ -1,15 +1,34 @@
 import time
 import logging
 
-from .loader import load_jobs_from_config
+from .database import init_db
+from .loader import sync_jobs_from_db
 from .scheduler import start_scheduler, scheduler
-
-CONFIG_PATH = "jobs.yaml"
 
 def main():
     """The main entry point for the scheduler service."""
+    # Initialize the database and create tables if they don't exist
+    init_db()
+
     start_scheduler()
-    load_jobs_from_config(scheduler, CONFIG_PATH)
+
+    # Perform an initial sync on startup
+    logging.info("Performing initial job sync...")
+    try:
+        sync_jobs_from_db()
+    except Exception as e:
+        logging.critical(f"Initial job sync failed: {e}", exc_info=True)
+        # For now, we'll log it as critical and continue.
+
+    # Schedule the sync function to run periodically
+    scheduler.add_job(
+        sync_jobs_from_db,
+        "interval",
+        seconds=60,  # This can be made configurable
+        id="internal_db_sync",
+        replace_existing=True,
+    )
+    logging.info("Scheduled periodic job sync every 60 seconds.")
 
     print("Scheduler started. Press Ctrl+C to exit.")
 
