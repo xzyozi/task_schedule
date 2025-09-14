@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from .database import SessionLocal
 from .models import JobDefinition, JobConfig
-
+from .scheduler import scheduler 
 app = FastAPI(title="Resilient Task Scheduler API")
 
 # Dependency to get DB session
