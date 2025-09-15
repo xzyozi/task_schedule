@@ -1,11 +1,12 @@
 import sys
 import time
 import logging
+import atexit
 
 import uvicorn
 
 from .database import init_db
-from .loader import sync_jobs_from_db, seed_db_from_yaml
+from .loader import sync_jobs_from_db, seed_db_from_yaml, load_and_validate_jobs, apply_job_config, start_config_watcher
 from .scheduler import start_scheduler, scheduler
 from .main import app # Import the FastAPI app
 
@@ -22,6 +23,23 @@ def main():
 
     # --- Default execution: start the scheduler and API ---
     start_scheduler()
+
+    config_path = "jobs.yaml" # Define the path to your job configuration file
+
+    # Load and apply initial job configurations from YAML
+    logging.info(f"Loading initial job configurations from {config_path}...")
+    initial_jobs = load_and_validate_jobs(config_path)
+    if initial_jobs:
+        apply_job_config(scheduler, initial_jobs)
+        logging.info("Initial job configurations applied.")
+    else:
+        logging.warning("No initial job configurations loaded from YAML.")
+
+    # Start watching the job configuration file for changes
+    logging.info(f"Starting file watcher for {config_path}...")
+    watcher = start_config_watcher(scheduler, config_path)
+    atexit.register(lambda: watcher.stop())
+    logging.info("File watcher started.")
 
     # Perform an initial sync on startup
     logging.info("Performing initial job sync...")

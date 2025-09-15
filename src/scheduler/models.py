@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, validator
 from sqlalchemy import Boolean, Column, Integer, JSON, String
 
 from .database import Base # Import Base from database.py
@@ -32,6 +32,29 @@ class JobDefinition(Base):
 # --- Pydantic Models ---
 # This model will be useful for API validation and for representing job data.
 
+class BaseTrigger(BaseModel):
+    type: str
+    timezone: Optional[str] = 'UTC'
+
+class CronTrigger(BaseTrigger):
+    type: str = 'cron'
+    year: Optional[str] = None
+    month: Optional[str] = None
+    day: Optional[str] = None
+    week: Optional[str] = None
+    day_of_week: Optional[str] = None
+    hour: Optional[str] = None
+    minute: Optional[str] = None
+    second: Optional[str] = None
+
+class IntervalTrigger(BaseTrigger):
+    type: str = 'interval'
+    weeks: int = 0
+    days: int = 0
+    hours: int = 0
+    minutes: int = 0
+    seconds: int = 0
+
 class JobConfig(BaseModel):
     """Pydantic model for job configuration, used for validation."""
     id: str
@@ -39,11 +62,23 @@ class JobConfig(BaseModel):
     trigger: Dict[str, Any]
     args: Optional[List[Any]] = Field(default_factory=list)
     kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    replace_existing: bool = True
     max_instances: int = 1
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
 
     model_config = ConfigDict(from_attributes=True)
+
+    _trigger_model: Optional[BaseTrigger] = None
+
+    @validator('trigger', pre=True)
+    def validate_trigger_type(cls, v):
+        trigger_type = v.get('type')
+        if trigger_type == 'cron':
+            return CronTrigger(**v)
+        elif trigger_type == 'interval':
+            return IntervalTrigger(**v)
+        raise ValueError(f"Unsupported trigger type: {trigger_type}")
 
 # --- Error Response Model ---
 class ErrorResponse(BaseModel):

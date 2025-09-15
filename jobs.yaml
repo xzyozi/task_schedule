@@ -1,11 +1,11 @@
 # jobs.yaml
 - id: 'daily_sales_report'
-  func: 'scheduler.tasks.reporting:send_daily_report'
+  func: 'scheduler.tasks.reporting.send_daily_report'
   trigger:
     type: 'cron'
     day_of_week: 'mon-fri'
-    hour: 8
-    minute: 0
+    hour: '8'
+    minute: '0'
     timezone: 'Asia/Tokyo'
   args:
     - 'sales-team@example.com'
@@ -17,7 +17,7 @@
   misfire_grace_time: 3600 # 1 hour
 
 - id: 'api_health_check'
-  func: 'scheduler.tasks.monitoring:check_api_status'
+  func: 'scheduler.tasks.monitoring.check_api_status'
   trigger:
     type: 'interval'
     minutes: 5
