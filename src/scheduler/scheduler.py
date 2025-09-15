@@ -53,13 +53,17 @@ def job_error_listener(event):
             new_kwargs = job.kwargs.copy()
             new_kwargs['retry_count'] = current_retries + 1
 
+            # Create kwargs for the rescheduled job, excluding internal retry_count
+            job_func_kwargs = new_kwargs.copy()
+            job_func_kwargs.pop('retry_count', None) # Ensure retry_count is not passed to the job function
+
             retry_time = datetime.now() + timedelta(seconds=RETRY_DELAY_SECONDS)
             scheduler.add_job(
                 job.func,
                 'date',
                 run_date=retry_time,
                 args=job.args,
-                kwargs=new_kwargs,
+                kwargs=job_func_kwargs,
                 id=f"{job.id}_retry_{current_retries + 1}", # Unique ID for retry job
                 replace_existing=True # Important for persistent job stores
             )

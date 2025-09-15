@@ -1,5 +1,5 @@
 import logging
-from tenacity import retry, wait_fixed, stop_after_attempt, before_log, after_log
+from tenacity import retry, wait_fixed, stop_after_attempt, before_log, after_log, retry_if_exception_type
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -28,7 +28,7 @@ SessionLocal = None
     before=before_log(logger, logging.INFO),
     after=after_log(logger, logging.WARNING),
     reraise=True,
-    retry=(OperationalError) # Only retry on OperationalError for connection
+    retry=retry_if_exception_type(OperationalError) # Only retry on OperationalError for connection
 )
 def _create_engine_with_retries():
     """
