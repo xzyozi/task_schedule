@@ -1,0 +1,39 @@
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "resilient-task-scheduler"
+version = "0.1.0"
+description = "A resilient, persistent, and manageable task scheduling service."
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "apscheduler",
+    "sqlalchemy",
+    "psycopg2-binary", # for PostgreSQL
+    "pyyaml",
+    "pydantic",
+    "pydantic-settings",
+    "fastapi",
+    "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "black",
+    "ruff",
+]
+
+[project.scripts]
+task-scheduler = "scheduler.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

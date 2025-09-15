@@ -1,3 +1,35 @@
 old/
 **/__pycache__/
 .*
+venv/
+env/
+ENV/
+.venv/
+.Python
+jobs.sqlite
+test/subprocessTest.py
+test/test.conf
+test/test.txt
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# test
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.pyre/
+
+
+
