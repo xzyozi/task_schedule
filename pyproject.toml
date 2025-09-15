@@ -23,6 +23,7 @@ dependencies = [
     "pydantic-settings",
     "fastapi",
     "uvicorn[standard]",
+    "tenacity",
 ]
 
 [project.optional-dependencies]
@@ -30,6 +31,7 @@ dev = [
     "pytest",
     "black",
     "ruff",
+    "httpx",
 ]
 
 [project.scripts]
