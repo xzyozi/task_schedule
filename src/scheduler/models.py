@@ -1,12 +1,11 @@
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, ConfigDict
 from sqlalchemy import Boolean, Column, Integer, JSON, String
-from sqlalchemy.ext.declarative import declarative_base
+
+from .database import Base # Import Base from database.py
 
 # --- SQLAlchemy Models ---
-
-Base = declarative_base()
 
 class JobDefinition(Base):
     """SQLAlchemy model for storing job definitions in the database."""
@@ -44,5 +43,9 @@ class JobConfig(BaseModel):
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
+# --- Error Response Model ---
+class ErrorResponse(BaseModel):
+    """Pydantic model for consistent error responses."""
+    detail: str
