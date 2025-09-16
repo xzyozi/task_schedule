@@ -11,6 +11,9 @@ test/subprocessTest.py
 test/test.conf
 test/test.txt
 
+# logs
+log/*
+
 # Build artifacts
 build/
 dist/
@@ -30,6 +33,4 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 .pyre/
-
-
 
