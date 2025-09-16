@@ -1,10 +1,35 @@
 import logging
 import os
+import copy
+import sys
 from logging.handlers import RotatingFileHandler
 
 _logger_initialized = False
 
-def setup_logging(log_file_path="app.log", console_level=logging.INFO, file_level=logging.DEBUG):
+class ColoredFormatter(logging.Formatter):
+    """ANSIカラー対応のフォーマッター"""
+    COLORS = {
+        "DEBUG": "\033[0;36m",  # CYAN
+        # "NOTICE": "\033[1;34m",  # LIGHT BLUE
+        "INFO": "\033[0;32m",  # GREEN
+        # "ALERT": "\033[0;35m",  # PURPLE
+        "WARNING": "\033[0;33m",  # YELLOW
+        "ERROR": "\033[0;31m",  # RED
+        "CRITICAL": "\033[0;37;41m",  # WHITE ON RED
+        "RESET": "\033[0m",  # RESET COLOR
+    }
+
+    def format(self, record):
+        colored_record = copy.copy(record)
+        levelname = colored_record.levelname
+        seq = self.COLORS.get(levelname, self.COLORS["RESET"])
+        colored_record.levelname = f"{seq}{levelname}{self.COLORS['RESET']}"
+        return super().format(colored_record)
+
+def setup_logging(log_file_path="app.log", 
+                  use_colors=True, 
+                  console_level=logging.INFO, 
+                  file_level=logging.DEBUG):
     """
     Configures a logger that outputs to both console and a rotating file.
     This function should ideally be called once at the application's entry point.
@@ -22,11 +47,15 @@ def setup_logging(log_file_path="app.log", console_level=logging.INFO, file_leve
         root_logger.removeHandler(handler)
 
     # Console Handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(console_level)
-    console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    console_handler.setFormatter(console_formatter)
-    root_logger.addHandler(console_handler)
+    log_format = "[%(filename)s:%(lineno)d %(funcName)s]%(asctime)s[%(levelname)s] - %(message)s"
+    date_format = "%H:%M:%S"
+
+    # 標準出力のハンドラー
+    stream_handler = logging.StreamHandler(sys.stdout)
+    formatter = ColoredFormatter(log_format, datefmt=date_format) if use_colors else logging.Formatter(log_format, datefmt=date_format)
+    stream_handler.setFormatter(formatter)
+
+    root_logger.addHandler(stream_handler)
 
     # Ensure the log directory exists before creating the file handler
     log_dir = os.path.dirname(log_file_path)
@@ -46,7 +75,7 @@ def setup_logging(log_file_path="app.log", console_level=logging.INFO, file_leve
         '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
     )
     file_handler.setFormatter(file_formatter)
-    root_logger.addHandler(file_handler)
+    # root_logger.addHandler(file_handler)
 
     # Set specific loggers for libraries that might be too verbose
     logging.getLogger('apscheduler').setLevel(logging.WARNING)
