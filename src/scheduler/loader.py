@@ -1,5 +1,6 @@
 import logging
 import yaml
+import json
 from pydantic import ValidationError
 from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
@@ -11,13 +12,19 @@ from .models import JobDefinition, JobConfig
 from .scheduler import scheduler # Import scheduler here to avoid circular dependency issues at module load time
 
 
+import json
+
 def load_and_validate_jobs(config_path: str) -> List[JobConfig]:
     """YAMLファイルを読み込み、Pydanticモデルでバリデーションする"""
     try:
         with open(config_path, 'r') as f:
             raw_configs = yaml.safe_load(f)
         
-        validated_jobs = [JobConfig(**config) for config in raw_configs]
+        if raw_configs is None:
+            logging.warning(f"Configuration file {config_path} is empty or contains no valid YAML. No jobs to load.")
+            return []
+
+        validated_jobs = [JobConfig.model_validate(config) for config in raw_configs]
         return validated_jobs
     except FileNotFoundError:
         logging.error(f"Configuration file not found: {config_path}")
@@ -32,7 +39,12 @@ def load_and_validate_jobs(config_path: str) -> List[JobConfig]:
 def _resolve_func_path(func_path: str):
     """Resolves a string function path to a callable function object."""
     try:
-        module_path, func_name = func_path.rsplit('.', 1)
+        # Support both '.' and ':' as separators for backward compatibility
+        if ':' in func_path:
+            module_path, func_name = func_path.rsplit(':', 1)
+        else:
+            module_path, func_name = func_path.rsplit('.', 1)
+            
         module = import_module(module_path)
         func_obj = getattr(module, func_name)
         return func_obj
@@ -60,8 +72,19 @@ def apply_job_config(scheduler_instance, job_configs):
 
     # 新規追加または更新されるべきジョブを適用
     for job_config in job_configs:
+        logging.debug(f"DEBUG: In apply_job_config - job_config type: {type(job_config)}")
+        logging.debug(f"DEBUG: In apply_job_config - job_config.id: {job_config.id}")
         try:
-            trigger_dict = job_config.trigger.dict()
+            logging.debug(f"DEBUG: Before model_dump - job_config.trigger type: {type(job_config.trigger)}")
+            logging.debug(f"DEBUG: Before model_dump - job_config.trigger content: {job_config.trigger}")
+            if isinstance(job_config.trigger, dict):
+                # If it's still a dict, it means Pydantic didn't convert it.
+                # This should not happen with the discriminator, but as a fallback:
+                trigger_dict = job_config.trigger.copy()
+            else:
+                trigger_dict = job_config.trigger.model_dump()
+            logging.debug(f"DEBUG: trigger_dict type after model_dump: {type(trigger_dict)}")
+            logging.debug(f"DEBUG: trigger_dict content after model_dump: {trigger_dict}")
             trigger_type = trigger_dict.pop('type')
             
             func_obj = _resolve_func_path(job_config.func)
@@ -69,8 +92,8 @@ def apply_job_config(scheduler_instance, job_configs):
             scheduler_instance.add_job(
                 func=func_obj,
                 trigger=trigger_type,
-                args=job_config.args,
-                kwargs=job_config.kwargs,
+                args=list(job_config.args),
+                kwargs=dict(job_config.kwargs),
                 id=job_config.id,
                 replace_existing=job_config.replace_existing,
                 max_instances=job_config.max_instances,
@@ -108,9 +131,19 @@ def start_config_watcher(scheduler_instance, config_path):
 
 
 def sync_jobs_from_db():
-    """Synchronizes jobs from the database with the scheduler."""
+    """
+    Synchronizes jobs from the database with the scheduler.
+    This function is designed to be process-safe, ensuring the database
+    is initialized in the process where it's called.
+    """
+    # Ensure the database is initialized in the current process, especially
+    # important when called from a new process spawned by ProcessPoolExecutor.
+    if not database.SessionLocal:
+        logging.info("Database not initialized in this process. Initializing now...")
+        database.init_db()
+
     # Import scheduler here to avoid circular dependency issues at module load time
-    from .scheduler import scheduler 
+    from .scheduler import scheduler
 
     logging.info("Syncing jobs from database...")
     db = database.SessionLocal()
@@ -124,19 +157,22 @@ def sync_jobs_from_db():
         scheduled_job_ids = {job.id for job in scheduled_jobs}
 
         # 3. Remove jobs that are in the scheduler but not in the database
-        jobs_to_remove = desired_job_ids.difference(scheduled_job_ids)
+        jobs_to_remove = scheduled_job_ids - desired_job_ids
         for job_id in jobs_to_remove:
             try:
                 scheduler.remove_job(job_id)
-                logging.info(f"Removed job '{job_id}' as it is no longer in the database.")
+                logging.info(
+                    f"Removed job '{job_id}' from scheduler as it is no longer in the database."
+                )
             except Exception as e:
-                logging.error(f"Error removing job '{job_id}': {e}")
+                logging.error(f"Error removing job '{job_id}' from scheduler: {e}")
 
         # 4. Add or update jobs that are in the database
         for job_def in jobs_in_db:
             try:
+                func_obj = _resolve_func_path(job_def.func)
                 scheduler.add_job(
-                    func=job_def.func,
+                    func=func_obj,
                     trigger=job_def.trigger_type,
                     args=job_def.args,
                     kwargs=job_def.kwargs,
@@ -147,10 +183,10 @@ def sync_jobs_from_db():
                     misfire_grace_time=job_def.misfire_grace_time,
                     **job_def.trigger_config,
                 )
-                logging.info(f"Successfully added/updated job: {job_def.id}")
+                logging.info(f"Successfully synced (added/updated) job: {job_def.id}")
             except Exception as e:
-                logging.error(f"Failed to add/update job {job_def.id}: {e}")
-        
+                logging.error(f"Failed to sync (add/update) job {job_def.id}: {e}")
+
         logging.info("Job synchronization complete.")
 
     finally:
@@ -191,7 +227,10 @@ def seed_db_from_yaml(yaml_path: str):
     try:
         for job_config in validated_jobs:
             # Map the Pydantic object to the SQLAlchemy model
-            trigger_config = job_config.trigger.copy()
+            if isinstance(job_config.trigger, dict):
+                trigger_config = job_config.trigger.copy()
+            else:
+                trigger_config = job_config.trigger.model_dump()
             trigger_type = trigger_config.pop('type')
 
             job_definition = JobDefinition(

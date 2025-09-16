@@ -2,8 +2,11 @@ import sys
 import time
 import logging
 import atexit
+import subprocess 
 
-import uvicorn
+import uvicorn 
+
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s")
 
 from .database import init_db
 from .loader import sync_jobs_from_db, seed_db_from_yaml, load_and_validate_jobs, apply_job_config, start_config_watcher
@@ -60,9 +63,13 @@ def main():
 
     print("Scheduler and API started. Press Ctrl+C to exit.")
 
-    # Start the FastAPI application using uvicorn
-    # This call is blocking and will keep the main thread alive
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Start the FastAPI application using uvicorn in a separate process
+    # This allows the main thread to continue and the scheduler to run in the background
+    uvicorn_command = ["uvicorn", "src.scheduler.main:app", "--host", "0.0.0.0", "--port", "8001"]
+    subprocess.Popen(uvicorn_command)
 
     # The atexit.register(shutdown_scheduler) in scheduler.py will handle cleanup
     # when the process exits (e.g., on Ctrl+C)
+
+if __name__ == "__main__":
+    main()

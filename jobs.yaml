@@ -27,3 +27,13 @@
   replace_existing: true
   max_instances: 1
   coalesce: true
+
+- id: daily_sales_report
+  func: tasks.reporting.generate_sales_report
+  trigger:
+    type: cron
+    hour: "2"
+    minute: "0"
+  kwargs:
+    report_type: "daily"
+    email_recipients: ["sales@example.com"]
