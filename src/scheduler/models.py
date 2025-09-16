@@ -59,7 +59,7 @@ class JobConfig(BaseModel):
     """Pydantic model for job configuration, used for validation."""
     id: str
     func: str
-    trigger: Dict[str, Any]
+    trigger: CronTrigger | IntervalTrigger # Changed to accept Pydantic models directly
     args: Optional[List[Any]] = Field(default_factory=list)
     kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
     replace_existing: bool = True
@@ -68,17 +68,6 @@ class JobConfig(BaseModel):
     misfire_grace_time: Optional[int] = 3600
 
     model_config = ConfigDict(from_attributes=True)
-
-    _trigger_model: Optional[BaseTrigger] = None
-
-    @validator('trigger', pre=True)
-    def validate_trigger_type(cls, v):
-        trigger_type = v.get('type')
-        if trigger_type == 'cron':
-            return CronTrigger(**v)
-        elif trigger_type == 'interval':
-            return IntervalTrigger(**v)
-        raise ValueError(f"Unsupported trigger type: {trigger_type}")
 
 # --- Error Response Model ---
 class ErrorResponse(BaseModel):

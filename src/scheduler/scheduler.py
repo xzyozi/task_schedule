@@ -1,5 +1,4 @@
 import atexit
-import logging
 from datetime import datetime, timedelta
 
 from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
@@ -8,10 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR
 
 from .config import settings
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+from util import logger
 
 # Retry parameters
 MAX_RETRIES = 3
