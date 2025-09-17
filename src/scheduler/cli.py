@@ -62,7 +62,7 @@ def main():
 
     # Start the FastAPI application using uvicorn
     # This call is blocking and will keep the main thread alive
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run("scheduler.main:app", host="0.0.0.0", port=8000, reload=True)
 
     # The atexit.register(shutdown_scheduler) in scheduler.py will handle cleanup
     # when the process exits (e.g., on Ctrl+C)
