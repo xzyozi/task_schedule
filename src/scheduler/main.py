@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from scheduler.database import SessionLocal # Changed import
 from .models import JobDefinition, JobConfig, ErrorResponse # Added ErrorResponse
 from .scheduler import scheduler 
+from util import logger
 
 app = FastAPI(title="Resilient Task Scheduler API")
 
@@ -48,6 +49,7 @@ def read_jobs(db: Session = Depends(get_db)):
 def create_job(job: JobConfig, db: Session = Depends(get_db)):
     db_job = db.query(JobDefinition).filter(JobDefinition.id == job.id).first()
     if db_job:
+        logger.warning(f"Attempted to create job with existing ID: {job.id}")
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Job with this ID already exists"
@@ -71,6 +73,7 @@ def create_job(job: JobConfig, db: Session = Depends(get_db)):
     db.add(db_job)
     db.commit()
     db.refresh(db_job)
+    logger.info(f"Job '{job.id}' created successfully.")
     return JobConfig.model_validate(db_job)
 
 @app.get(
@@ -84,10 +87,12 @@ def create_job(job: JobConfig, db: Session = Depends(get_db)):
 def read_job(job_id: str, db: Session = Depends(get_db)):
     job = db.query(JobDefinition).filter(JobDefinition.id == job_id).first()
     if job is None:
+        logger.warning(f"Attempted to read non-existent job: {job_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found"
         )
+    logger.info(f"Job '{job_id}' read successfully.")
     return JobConfig.model_validate(job)
 
 @app.put(
@@ -101,6 +106,7 @@ def read_job(job_id: str, db: Session = Depends(get_db)):
 def update_job(job_id: str, job: JobConfig, db: Session = Depends(get_db)):
     db_job = db.query(JobDefinition).filter(JobDefinition.id == job_id).first()
     if db_job is None:
+        logger.warning(f"Attempted to update non-existent job: {job_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found"
@@ -121,6 +127,7 @@ def update_job(job_id: str, job: JobConfig, db: Session = Depends(get_db)):
 
     db.commit()
     db.refresh(db_job)
+    logger.info(f"Job '{job_id}' updated successfully.")
     return JobConfig.model_validate(db_job)
 
 @app.delete(
@@ -134,6 +141,7 @@ def update_job(job_id: str, job: JobConfig, db: Session = Depends(get_db)):
 def delete_job(job_id: str, db: Session = Depends(get_db)):
     db_job = db.query(JobDefinition).filter(JobDefinition.id == job_id).first()
     if db_job is None:
+        logger.warning(f"Attempted to delete non-existent job: {job_id}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found"
@@ -141,6 +149,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db)):
     
     db.delete(db_job)
     db.commit()
+    logger.info(f"Job '{job_id}' deleted successfully.")
     return
 
 
@@ -174,13 +183,16 @@ def get_scheduled_jobs():
 def pause_scheduled_job(job_id: str):
     try:
         scheduler.pause_job(job_id)
+        logger.info(f"Job '{job_id}' paused successfully.")
         return {"message": f"Job '{job_id}' paused successfully."}
     except JobLookupError:
+        logger.warning(f"Attempted to pause non-existent job: '{job_id}'")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job '{job_id}' not found."
         )
     except Exception as e:
+        logger.error(f"An unexpected error occurred while pausing job '{job_id}': {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred while pausing job '{job_id}': {e}"
@@ -197,13 +209,16 @@ def pause_scheduled_job(job_id: str):
 def resume_scheduled_job(job_id: str):
     try:
         scheduler.resume_job(job_id)
+        logger.info(f"Job '{job_id}' resumed successfully.")
         return {"message": f"Job '{job_id}' resumed successfully."}
     except JobLookupError:
+        logger.warning(f"Attempted to resume non-existent job: '{job_id}'")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job '{job_id}' not found."
         )
     except Exception as e:
+        logger.error(f"An unexpected error occurred while resuming job '{job_id}': {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred while resuming job '{job_id}': {e}"
@@ -222,16 +237,19 @@ def run_scheduled_job_immediately(job_id: str):
         # This is the recommended way to trigger a job immediately in APScheduler
         # It respects max_instances and other job settings
         scheduler.modify_job(job_id, next_run_time=datetime.now())
+        logger.info(f"Job '{job_id}' scheduled for immediate execution.")
         return {"message": f"Job '{job_id}' scheduled for immediate execution."}
     except JobLookupError:
+        logger.warning(f"Attempted to run non-existent job immediately: '{job_id}'")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job '{job_id}' not found."
         )
     except Exception as e:
+        logger.error(f"An unexpected error occurred while triggering job '{job_id}' for immediate execution: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred while triggering job '{job_id}': {e}"
+            detail=f"An unexpected error occurred while triggering job '{job_id}' for immediate execution: {e}"
         )
 
 
