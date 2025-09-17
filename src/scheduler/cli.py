@@ -10,7 +10,7 @@ from .loader import sync_jobs_from_db, seed_db_from_yaml, load_and_validate_jobs
 from .scheduler import start_scheduler, scheduler
 from .main import app # Import the FastAPI app
 from util import logger
-from scheduler.tasks.webgui_tasks import start_flask_webgui # Added for WebGUI
+from scheduler.tasks.webgui_launcher import start_flask_webgui # Updated import for WebGUI
 
 def main():
     """The main entry point for the scheduler service."""

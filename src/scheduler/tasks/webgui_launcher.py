@@ -7,18 +7,9 @@ def start_flask_webgui(port: int = 5000):
     """Starts the Flask WebGUI as a subprocess."""
     logger.info(f"Attempting to start Flask WebGUI on port {port}...")
     try:
-        # Determine the path to the webgui.py script
-        webgui_script_path = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)),
-            '..',
-            'webgui.py'
-        )
-        # Normalize the path to handle different OS path separators
-        webgui_script_path = os.path.normpath(webgui_script_path)
-
-        # Set FLASK_APP environment variable
+        # Set FLASK_APP environment variable to the module path
         env = os.environ.copy()
-        env['FLASK_APP'] = webgui_script_path
+        env['FLASK_APP'] = 'webgui.app' # Reference the Flask app by its module path
         env['FLASK_RUN_PORT'] = str(port)
 
         # Use sys.executable to ensure the correct Python interpreter is used
