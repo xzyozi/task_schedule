@@ -1,6 +1,7 @@
 import sys
 import time
 import atexit
+import argparse # Added for argument parsing
 
 import uvicorn
 
@@ -9,17 +10,39 @@ from .loader import sync_jobs_from_db, seed_db_from_yaml, load_and_validate_jobs
 from .scheduler import start_scheduler, scheduler
 from .main import app # Import the FastAPI app
 from util import logger
+from scheduler.tasks.webgui_tasks import start_flask_webgui # Added for WebGUI
 
 def main():
     """The main entry point for the scheduler service."""
+    parser = argparse.ArgumentParser(description="Resilient Task Scheduler CLI.")
+    parser.add_argument(
+        "--seed",
+        action="store_true",
+        help="Seed the database with initial job configurations from jobs.yaml and exit."
+    )
+    parser.add_argument(
+        "--with-gui",
+        action="store_true",
+        help="Start the Flask WebGUI alongside the scheduler and API."
+    )
+    args = parser.parse_args()
+
     # Initialize the database first, as both seeding and running need it.
     init_db()
 
     # Check for command-line arguments
-    if len(sys.argv) > 1 and sys.argv[1].lower() == 'seed':
+    if args.seed:
         config_path = "jobs.yaml"
         seed_db_from_yaml(config_path)
         return  # Exit after seeding
+
+    # Start Flask WebGUI if --with-gui is present
+    if args.with_gui:
+        logger.info("Starting Flask WebGUI...")
+        # Run Flask in a separate process.
+        # The port can be made configurable if needed.
+        start_flask_webgui(port=5000) # Default Flask port
+        logger.info("Flask WebGUI started.")
 
     # --- Default execution: start the scheduler and API ---
     start_scheduler()
@@ -62,7 +85,13 @@ def main():
 
     # Start the FastAPI application using uvicorn
     # This call is blocking and will keep the main thread alive
-    uvicorn.run("scheduler.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run(
+        "scheduler.main:app",
+        host="0.0.0.0",
+        port=8000,
+        # reload=True # ホットリロードはユーザーの要求により無効化されました。
+                     # 再度有効にするには、この行のコメントを解除してください。
+    )
 
     # The atexit.register(shutdown_scheduler) in scheduler.py will handle cleanup
     # when the process exits (e.g., on Ctrl+C)

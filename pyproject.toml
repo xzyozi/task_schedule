@@ -25,6 +25,7 @@ dependencies = [
     "uvicorn[standard]",
     "tenacity",
     "watchdog",
+    "Flask", # Added for WebGUI
 ]
 
 [project.optional-dependencies]
