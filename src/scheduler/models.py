@@ -110,6 +110,7 @@ class JobConfig(BaseModel):
     max_instances: int = 1
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
+    replace_existing: bool = True
 
     model_config = ConfigDict(from_attributes=True)
 

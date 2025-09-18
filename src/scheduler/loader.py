@@ -201,6 +201,8 @@ def seed_db_from_yaml(yaml_path: str):
             job_definition = JobDefinition(
                 id=job_config.id,
                 func=job_config.func,
+                description=job_config.description,
+                is_enabled=job_config.is_enabled,
                 trigger_type=trigger_type,
                 trigger_config=trigger_config,
                 args=job_config.args,

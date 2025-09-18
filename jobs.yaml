@@ -1,6 +1,8 @@
 # jobs.yaml
 - id: 'daily_sales_report'
   func: 'scheduler.tasks.reporting.send_daily_report'
+  description: 'Generates and sends the daily sales report.'
+  is_enabled: true
   trigger:
     type: 'cron'
     day_of_week: 'mon-fri'
@@ -18,6 +20,8 @@
 
 - id: 'api_health_check'
   func: 'scheduler.tasks.monitoring.check_api_status'
+  description: 'Checks the health of the main API endpoint every 5 minutes.'
+  is_enabled: true
   trigger:
     type: 'interval'
     minutes: 5
