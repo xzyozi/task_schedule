@@ -41,7 +41,7 @@ def main():
         logger.info("Starting Flask WebGUI...")
         # Run Flask in a separate process.
         # The port can be made configurable if needed.
-        start_flask_webgui(port=5000) # Default Flask port
+        start_flask_webgui(port=5012) # Default Flask port
         logger.info("Flask WebGUI started.")
 
     # --- Default execution: start the scheduler and API ---

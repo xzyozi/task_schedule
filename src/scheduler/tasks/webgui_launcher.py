@@ -22,12 +22,13 @@ def start_flask_webgui(port: int = 5000):
             text=True # Capture output as text
         )
         logger.info(f"Flask WebGUI process started with PID: {process.pid}")
-        # You might want to store the process object or PID if you need to manage it later
-        # For now, just log its startup.
-
-        # Read stdout/stderr in a non-blocking way or in separate threads if needed
-        # For simplicity, we'll just log a message indicating it's running.
-        # The Flask app will keep running in its own process.
+        # For debugging, let's capture and log the output.
+        # In a production scenario, you might handle this differently (e.g., log to files).
+        stdout, stderr = process.communicate()
+        if stdout:
+            logger.info(f"Flask stdout:\n{stdout}")
+        if stderr:
+            logger.error(f"Flask stderr:\n{stderr}")
 
     except Exception as e:
         logger.error(f"Failed to start Flask WebGUI: {e}", exc_info=True)
