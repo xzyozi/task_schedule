@@ -38,7 +38,7 @@
                         <div class="card text-white bg-primary mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">総ジョブ数</h5>
-                                <p class="card-text fs-4">15</p>
+                                <p class="card-text fs-4">{{ summary.total_jobs }}</p>
                             </div>
                         </div>
                     </div>
@@ -46,7 +46,7 @@
                         <div class="card text-white bg-info mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">実行中</h5>
-                                <p class="card-text fs-4">2</p>
+                                <p class="card-text fs-4">{{ summary.running_jobs }}</p>
                             </div>
                         </div>
                     </div>
@@ -54,7 +54,7 @@
                         <div class="card text-white bg-success mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">成功</h5>
-                                <p class="card-text fs-4">125</p>
+                                <p class="card-text fs-4">{{ summary.successful_runs }}</p>
                             </div>
                         </div>
                     </div>
@@ -62,7 +62,7 @@
                         <div class="card text-white bg-danger mb-3">
                             <div class="card-body">
                                 <h5 class="card-title">失敗</h5>
-                                <p class="card-text fs-4">3</p>
+                                <p class="card-text fs-4">{{ summary.failed_runs }}</p>
                             </div>
                         </div>
                     </div>

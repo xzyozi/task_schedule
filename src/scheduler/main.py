@@ -1,16 +1,73 @@
+from contextlib import asynccontextmanager
 from typing import Generator, List, Optional
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from apscheduler.jobstores.base import JobLookupError
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
-from scheduler.database import SessionLocal # Changed import
-from .models import JobDefinition, JobConfig, ErrorResponse # Added ErrorResponse
-from .scheduler import scheduler 
+# --- App Imports ---
+from scheduler.database import init_db, SessionLocal
+from .models import JobDefinition, JobConfig, ErrorResponse, ProcessExecutionLog
+from .scheduler import scheduler, start_scheduler, shutdown_scheduler
+from .loader import load_and_validate_jobs, apply_job_config, start_config_watcher, sync_jobs_from_db
 from util import logger
 
-app = FastAPI(title="Resilient Task Scheduler API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup ---
+    logger.info("Application startup...")
+    
+    # 1. Initialize Database
+    init_db()
+    
+    # 2. Start Scheduler
+    start_scheduler()
+
+    # 3. Load jobs from YAML and sync with DB
+    config_path = "jobs.yaml"
+    logger.info(f"Loading initial job configurations from {config_path}...")
+    initial_jobs = load_and_validate_jobs(config_path)
+    if initial_jobs:
+        apply_job_config(scheduler, initial_jobs)
+        logger.info("Initial job configurations applied.")
+    else:
+        logger.warning("No initial job configurations loaded from YAML.")
+
+    # 4. Start file watcher
+    logger.info(f"Starting file watcher for {config_path}...")
+    watcher = start_config_watcher(scheduler, config_path)
+    
+    # 5. Perform initial DB sync
+    logger.info("Performing initial job sync...")
+    try:
+        sync_jobs_from_db()
+    except Exception as e:
+        logger.critical(f"Initial job sync failed: {e}", exc_info=True)
+
+    # 6. Schedule periodic DB sync
+    scheduler.add_job(
+        sync_jobs_from_db,
+        "interval",
+        seconds=60,
+        id="internal_db_sync",
+        replace_existing=True,
+    )
+    logger.info("Scheduled periodic job sync every 60 seconds.")
+
+    yield # Application is running
+
+    # --- Shutdown ---
+    logger.info("Application shutdown...")
+    if watcher:
+        watcher.stop()
+        watcher.join()
+        logger.info("File watcher stopped.")
+    shutdown_scheduler()
+
+app = FastAPI(title="Resilient Task Scheduler API", lifespan=lifespan)
 
 # Pydantic model for APScheduler Job information
 class JobInfo(JobConfig):
@@ -29,6 +86,40 @@ def get_db() -> Generator[Session, None, None]:
 def read_root():
     return {"message": "Welcome to the Resilient Task Scheduler API!"}
 
+
+# --- Dashboard Endpoints ---
+
+class DashboardSummary(BaseModel):
+    total_jobs: int
+    running_jobs: int
+    successful_runs: int
+    failed_runs: int
+
+@app.get("/api/dashboard/summary", response_model=DashboardSummary, tags=["Dashboard"])
+def get_dashboard_summary(db: Session = Depends(get_db)):
+    """
+    Provides a summary of job statuses for the dashboard.
+    """
+    try:
+        total_jobs = db.query(JobDefinition).count()
+        
+        # Note: This is a simplified aggregation. For large datasets, more efficient queries would be needed.
+        running_jobs = db.query(ProcessExecutionLog).filter(ProcessExecutionLog.status == 'RUNNING').count()
+        successful_runs = db.query(ProcessExecutionLog).filter(ProcessExecutionLog.status == 'COMPLETED').count()
+        failed_runs = db.query(ProcessExecutionLog).filter(ProcessExecutionLog.status == 'FAILED').count()
+
+        return DashboardSummary(
+            total_jobs=total_jobs,
+            running_jobs=running_jobs,
+            successful_runs=successful_runs,
+            failed_runs=failed_runs,
+        )
+    except Exception as e:
+        logger.error(f"Error fetching dashboard summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch dashboard summary data."
+        )
 
 # --- Job Definition Management Endpoints (Database) ---
 

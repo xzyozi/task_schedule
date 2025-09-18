@@ -1,15 +1,23 @@
 @echo off
-REM This script starts the Task Scheduler with the WebGUI.
+REM This script starts the Task Scheduler and the WebGUI in separate windows.
 
-REM Activate the virtual environment if it exists
-IF EXIST "venv\Scripts\activate.bat" (
-    CALL "venv\Scripts\activate.bat"
+REM Start the Flask WebGUI server in a new window
+echo Launching WebGUI server in a new window...
+START "Flask WebGUI" cmd /c start_flask_server.bat
+
+REM Activate the virtual environment for the main scheduler
+IF EXIST "%~dp0venv\Scripts\activate.bat" (
+    echo Activating virtual environment for scheduler...
+    CALL "%~dp0p0venv\Scripts\activate.bat"
 ) ELSE (
-    echo Virtual environment not found at venv\Scripts\activate.bat.
-    echo Please ensure you have installed the project dependencies.
+    echo Virtual environment not found.
 )
 
-REM Run the task-scheduler with the --with-gui argument
-task-scheduler --with-gui
+REM Give the GUI server a moment to start up
+timeout /t 3 /nobreak >nul
+
+echo Starting the main task scheduler...
+REM Run the main task scheduler application
+task-scheduler
 
 pause

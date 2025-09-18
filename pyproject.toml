@@ -26,6 +26,7 @@ dependencies = [
     "tenacity",
     "watchdog",
     "Flask", # Added for WebGUI
+    "requests", # Added for WebGUI to API communication
 ]
 
 [project.optional-dependencies]
