@@ -1,27 +1,29 @@
 from typing import Any, Dict, List, Optional
+from datetime import datetime
 
-from pydantic import BaseModel, Field, ConfigDict, validator
-from sqlalchemy import Boolean, Column, Integer, JSON, String
+from pydantic import BaseModel, Field, ConfigDict
+from sqlalchemy import Boolean, Column, Integer, JSON, String, DateTime, Text, ForeignKey
+from sqlalchemy.sql import func
 
 from .database import Base # Import Base from database.py
 
 # --- SQLAlchemy Models ---
 
 class JobDefinition(Base):
-    """SQLAlchemy model for storing job definitions in the database."""
+    """SQLAlchemy model for storing individual job definitions."""
     __tablename__ = 'job_definitions'
 
     id = Column(String, primary_key=True, index=True)
     func = Column(String, nullable=False)
+    description = Column(String, nullable=True) # For GUI
+    is_enabled = Column(Boolean, default=True, nullable=False) # For GUI control
     
-    # The trigger is split into type and its config for easier querying
     trigger_type = Column(String, nullable=False)
     trigger_config = Column(JSON, nullable=False)
 
     args = Column(JSON, default=list, nullable=False)
     kwargs = Column(JSON, default=dict, nullable=False)
     
-    # APScheduler control settings
     max_instances = Column(Integer, default=1, nullable=False)
     coalesce = Column(Boolean, default=False, nullable=False)
     misfire_grace_time = Column(Integer, nullable=True, default=3600)
@@ -29,8 +31,49 @@ class JobDefinition(Base):
     def __repr__(self):
         return f"<JobDefinition(id='{self.id}', func='{self.func}')>"
 
+class WorkflowDefinition(Base):
+    """SQLAlchemy model for defining a sequence of jobs (a workflow)."""
+    __tablename__ = 'workflow_definitions'
+
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    description = Column(String, nullable=True)
+    steps = Column(JSON, nullable=False) # e.g., [{"job_id": "task_a", "on_fail": "stop"}, {"job_id": "task_b"}]
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+class WorkflowRun(Base):
+    """SQLAlchemy model for tracking an instance of a workflow execution."""
+    __tablename__ = 'workflow_runs'
+
+    id = Column(String, primary_key=True, index=True)
+    workflow_id = Column(String, ForeignKey('workflow_definitions.id'), nullable=False)
+    status = Column(String, nullable=False, default='PENDING') # PENDING, RUNNING, SUCCESS, FAILED, STOPPED
+    current_step_index = Column(Integer, default=0)
+    
+    start_time = Column(DateTime(timezone=True), server_default=func.now())
+    end_time = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(Text, nullable=True)
+
+class ProcessExecutionLog(Base):
+    """SQLAlchemy model for logging the execution of external processes."""
+    __tablename__ = 'process_execution_logs'
+
+    id = Column(String, primary_key=True, index=True)
+    job_id = Column(String, ForeignKey('job_definitions.id'), nullable=False)
+    workflow_run_id = Column(String, ForeignKey('workflow_runs.id'), nullable=True)
+    
+    command = Column(String, nullable=False)
+    exit_code = Column(Integer, nullable=True)
+    stdout = Column(Text, nullable=True)
+    stderr = Column(Text, nullable=True)
+    
+    start_time = Column(DateTime(timezone=True), server_default=func.now())
+    end_time = Column(DateTime(timezone=True), nullable=True)
+    status = Column(String, nullable=False) # RUNNING, COMPLETED, FAILED, TIMED_OUT
+
 # --- Pydantic Models ---
-# This model will be useful for API validation and for representing job data.
 
 class BaseTrigger(BaseModel):
     type: str
@@ -56,13 +99,14 @@ class IntervalTrigger(BaseTrigger):
     seconds: int = 0
 
 class JobConfig(BaseModel):
-    """Pydantic model for job configuration, used for validation."""
+    """Pydantic model for job configuration, used for validation and API."""
     id: str
     func: str
-    trigger: CronTrigger | IntervalTrigger # Changed to accept Pydantic models directly
+    description: Optional[str] = None
+    is_enabled: bool = True
+    trigger: CronTrigger | IntervalTrigger
     args: Optional[List[Any]] = Field(default_factory=list)
     kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
-    replace_existing: bool = True
     max_instances: int = 1
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
