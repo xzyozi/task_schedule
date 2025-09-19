@@ -70,11 +70,15 @@ def apply_job_config(scheduler_instance, job_configs):
             
             func_obj = _resolve_func_path(job_config.func)
 
+            # Inject job_id into kwargs for the task function
+            final_kwargs = job_config.kwargs.copy()
+            final_kwargs['job_id'] = job_config.id
+
             scheduler_instance.add_job(
                 func=func_obj,
                 trigger=trigger_type,
                 args=job_config.args,
-                kwargs=job_config.kwargs,
+                kwargs=final_kwargs,
                 id=job_config.id,
                 replace_existing=job_config.replace_existing,
                 max_instances=job_config.max_instances,
@@ -139,11 +143,15 @@ def sync_jobs_from_db():
         # 4. Add or update jobs that are in the database
         for job_def in jobs_in_db:
             try:
+                # Inject job_id into kwargs for the task function
+                final_kwargs = job_def.kwargs.copy()
+                final_kwargs['job_id'] = job_def.id
+
                 scheduler.add_job(
                     func=job_def.func,
                     trigger=job_def.trigger_type,
                     args=job_def.args,
-                    kwargs=job_def.kwargs,
+                    kwargs=final_kwargs,
                     id=job_def.id,
                     replace_existing=True,  # This handles both add and update
                     max_instances=job_def.max_instances,

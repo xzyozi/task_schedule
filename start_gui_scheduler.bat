@@ -8,7 +8,7 @@ START "Flask WebGUI" cmd /c start_flask_server.bat
 REM Activate the virtual environment for the main scheduler
 IF EXIST "%~dp0venv\Scripts\activate.bat" (
     echo Activating virtual environment for scheduler...
-    CALL "%~dp0p0venv\Scripts\activate.bat"
+    CALL "%~dp0venv\Scripts\activate.bat"
 ) ELSE (
     echo Virtual environment not found.
 )

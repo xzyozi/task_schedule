@@ -3,12 +3,13 @@ from typing import Generator, List, Optional
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.jobstores.base import JobLookupError
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 # --- App Imports ---
-from scheduler.database import init_db, SessionLocal
+from scheduler import database
 from .models import JobDefinition, JobConfig, ErrorResponse, ProcessExecutionLog
 from .scheduler import scheduler, start_scheduler, shutdown_scheduler
 from .loader import load_and_validate_jobs, apply_job_config, start_config_watcher, sync_jobs_from_db
@@ -21,7 +22,7 @@ async def lifespan(app: FastAPI):
     logger.info("Application startup...")
     
     # 1. Initialize Database
-    init_db()
+    database.init_db()
     
     # 2. Start Scheduler
     start_scheduler()
@@ -69,6 +70,21 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Resilient Task Scheduler API", lifespan=lifespan)
 
+# CORS Middleware
+origins = [
+    "http://localhost:5012",
+    "http://127.0.0.1:5012",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 # Pydantic model for APScheduler Job information
 class JobInfo(JobConfig):
     next_run_time: Optional[datetime] = None
@@ -76,7 +92,9 @@ class JobInfo(JobConfig):
 
 # Dependency to get DB session
 def get_db() -> Generator[Session, None, None]:
-    db = SessionLocal()
+    if database.SessionLocal is None:
+        raise RuntimeError("Database is not initialized. SessionLocal is None.")
+    db = database.SessionLocal()
     try:
         yield db
     finally:
