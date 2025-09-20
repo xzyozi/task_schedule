@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from sqlalchemy import Boolean, Column, Integer, JSON, String, DateTime, Text, ForeignKey
 from sqlalchemy.sql import func
 
@@ -113,6 +113,25 @@ class JobConfig(BaseModel):
     replace_existing: bool = True
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode='before')
+    @classmethod
+    def assemble_trigger_from_db_model(cls, data: Any) -> Any:
+        """Allows validation from a JobDefinition SQLAlchemy model.
+        Pydantic can't automatically map trigger_type + trigger_config to trigger,
+        so we do it manually here if the input is our DB model.
+        """
+        if isinstance(data, JobDefinition):
+            # Convert the SQLAlchemy model instance to a dict
+            model_dict = {c.name: getattr(data, c.name) for c in data.__table__.columns}
+            
+            # Assemble the 'trigger' field for the Pydantic model
+            model_dict['trigger'] = {
+                'type': model_dict.get('trigger_type'),
+                **(model_dict.get('trigger_config') or {})
+            }
+            return model_dict
+        return data # Keep original data if it's not our DB model
 
 class ProcessExecutionLogInfo(BaseModel):
     """Pydantic model for process execution log entries."""

@@ -34,3 +34,4 @@ coverage.xml
 .pytest_cache/
 .pyre/
 
+test/Book1(自動回復済み).xlsx

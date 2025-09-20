@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from scheduler import database
 from .models import JobDefinition, JobConfig, ErrorResponse, ProcessExecutionLog, ProcessExecutionLogInfo
 from .scheduler import scheduler, start_scheduler, shutdown_scheduler
-from .loader import load_and_validate_jobs, apply_job_config, start_config_watcher, sync_jobs_from_db
+from .loader import load_and_validate_jobs, apply_job_config, start_config_watcher, sync_jobs_from_db, seed_db_from_yaml
 from util import logger
 
 
@@ -20,34 +20,29 @@ from util import logger
 async def lifespan(app: FastAPI):
     # --- Startup ---
     logger.info("Application startup...")
+    config_path = "jobs.yaml"
     
     # 1. Initialize Database
     database.init_db()
+
+    # 2. Seed the database from the YAML file to ensure it's up-to-date
+    logger.info(f"Seeding database from {config_path}...")
+    seed_db_from_yaml(config_path)
     
-    # 2. Start Scheduler
+    # 3. Start Scheduler
     start_scheduler()
 
-    # 3. Load jobs from YAML and sync with DB
-    config_path = "jobs.yaml"
-    logger.info(f"Loading initial job configurations from {config_path}...")
-    initial_jobs = load_and_validate_jobs(config_path)
-    if initial_jobs:
-        apply_job_config(scheduler, initial_jobs)
-        logger.info("Initial job configurations applied.")
-    else:
-        logger.warning("No initial job configurations loaded from YAML.")
-
-    # 4. Start file watcher
-    logger.info(f"Starting file watcher for {config_path}...")
-    watcher = start_config_watcher(scheduler, config_path)
-    
-    # 5. Perform initial DB sync
-    logger.info("Performing initial job sync...")
+    # 4. Perform initial sync from DB to scheduler memory
+    logger.info("Performing initial job sync from database to scheduler...")
     try:
         sync_jobs_from_db()
     except Exception as e:
         logger.critical(f"Initial job sync failed: {e}", exc_info=True)
 
+    # 5. Start file watcher to hot-reload YAML changes
+    logger.info(f"Starting file watcher for {config_path}...")
+    watcher = start_config_watcher(scheduler, config_path)
+    
     # 6. Schedule periodic DB sync
     scheduler.add_job(
         sync_jobs_from_db,
@@ -187,8 +182,9 @@ def create_job(job: JobConfig, db: Session = Depends(get_db)):
         )
     
     # Map JobConfig Pydantic model to JobDefinition SQLAlchemy model
-    trigger_config = job.trigger.copy()
-    trigger_type = trigger_config.pop('type')
+    trigger_dict = job.trigger.dict()
+    trigger_type = trigger_dict.pop('type')
+    trigger_config = trigger_dict
 
     db_job = JobDefinition(
         id=job.id,
@@ -247,9 +243,9 @@ def update_job(job_id: str, job: JobConfig, db: Session = Depends(get_db)):
     # Update fields
     db_job.func = job.func
     
-    trigger_config = job.trigger.copy()
-    db_job.trigger_type = trigger_config.pop('type')
-    db_job.trigger_config = trigger_config
+    trigger_dict = job.trigger.dict()
+    db_job.trigger_type = trigger_dict.pop('type')
+    db_job.trigger_config = trigger_dict
 
     db_job.args = job.args
     db_job.kwargs = job.kwargs
@@ -422,6 +418,3 @@ def run_scheduled_job_immediately(job_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred while triggering job '{job_id}' for immediate execution: {e}"
         )
-
-
-

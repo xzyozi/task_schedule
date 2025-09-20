@@ -87,6 +87,12 @@ def apply_job_config(scheduler_instance, job_configs):
                 **trigger_dict
             )
             logger.info(f"Added/Updated job: {job_config.id}")
+
+            # Pause the job if it is disabled
+            if not job_config.is_enabled:
+                scheduler_instance.pause_job(job_config.id)
+                logger.info(f"Paused job: {job_config.id} as it is disabled in the config.")
+
         except Exception as e:
                 logger.error(f"Error adding/updating job {job_config.id}: {e}")
 
@@ -132,7 +138,7 @@ def sync_jobs_from_db():
         scheduled_job_ids = {job.id for job in scheduled_jobs}
 
         # 3. Remove jobs that are in the scheduler but not in the database
-        jobs_to_remove = desired_job_ids.difference(scheduled_job_ids)
+        jobs_to_remove = scheduled_job_ids.difference(desired_job_ids)
         for job_id in jobs_to_remove:
             try:
                 scheduler.remove_job(job_id)
@@ -143,12 +149,13 @@ def sync_jobs_from_db():
         # 4. Add or update jobs that are in the database
         for job_def in jobs_in_db:
             try:
+                func_obj = _resolve_func_path(job_def.func)
                 # Inject job_id into kwargs for the task function
                 final_kwargs = job_def.kwargs.copy()
                 final_kwargs['job_id'] = job_def.id
 
                 scheduler.add_job(
-                    func=job_def.func,
+                    func=func_obj,
                     trigger=job_def.trigger_type,
                     args=job_def.args,
                     kwargs=final_kwargs,
@@ -160,6 +167,12 @@ def sync_jobs_from_db():
                     **job_def.trigger_config,
                 )
                 logger.info(f"Successfully added/updated job: {job_def.id}")
+
+                # Pause the job if it is disabled in the database
+                if not job_def.is_enabled:
+                    scheduler.pause_job(job_def.id)
+                    logger.info(f"Paused job: {job_def.id} as it is disabled in the database.")
+
             except Exception as e:
                 logger.error(f"Failed to add/update job {job_def.id}: {e}")
         
@@ -203,8 +216,9 @@ def seed_db_from_yaml(yaml_path: str):
     try:
         for job_config in validated_jobs:
             # Map the Pydantic object to the SQLAlchemy model
-            trigger_config = job_config.trigger.copy()
-            trigger_type = trigger_config.pop('type')
+            trigger_dict = job_config.trigger.dict()
+            trigger_type = trigger_dict.pop('type')
+            trigger_config = trigger_dict
 
             job_definition = JobDefinition(
                 id=job_config.id,
