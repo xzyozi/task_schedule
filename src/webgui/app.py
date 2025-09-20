@@ -32,6 +32,10 @@ def index():
 def logs():
     return render_template('logs.html')
 
+@app.route('/jobs')
+def jobs():
+    return render_template('jobs.html')
+
 def run_webgui():
     # Get port from environment variable or use default 5012
     port = int(os.environ.get('FLASK_PORT', 5012))

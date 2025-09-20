@@ -31,3 +31,21 @@
   replace_existing: true
   max_instances: 1
   coalesce: true
+
+- id: 'sample_job_1'
+  func: 'scheduler.tasks.sample_tasks.print_current_time'
+  description: 'A sample job that prints the current time every 10 minutes.'
+  is_enabled: true
+  trigger:
+    type: 'interval'
+    minutes: 10
+  replace_existing: true
+
+- id: 'sample_job_2_paused'
+  func: 'scheduler.tasks.sample_tasks.print_current_time'
+  description: 'A sample job that is initially disabled (paused).'
+  is_enabled: false
+  trigger:
+    type: 'cron'
+    hour: '*/1' # Every hour
+  replace_existing: true

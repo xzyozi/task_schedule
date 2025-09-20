@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 # --- App Imports ---
 from scheduler import database
-from .models import JobDefinition, JobConfig, ErrorResponse, ProcessExecutionLog, ProcessExecutionLogInfo, ProcessExecutionLogInfo
+from .models import JobDefinition, JobConfig, ErrorResponse, ProcessExecutionLog, ProcessExecutionLogInfo
 from .scheduler import scheduler, start_scheduler, shutdown_scheduler
 from .loader import load_and_validate_jobs, apply_job_config, start_config_watcher, sync_jobs_from_db
 from util import logger
@@ -205,6 +205,7 @@ def create_job(job: JobConfig, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_job)
     logger.info(f"Job '{job.id}' created successfully.")
+    sync_jobs_from_db() # Sync APScheduler with the new database state
     return JobConfig.model_validate(db_job)
 
 @app.get(
@@ -259,6 +260,7 @@ def update_job(job_id: str, job: JobConfig, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_job)
     logger.info(f"Job '{job_id}' updated successfully.")
+    sync_jobs_from_db() # Sync APScheduler with the new database state
     return JobConfig.model_validate(db_job)
 
 @app.delete(
@@ -281,6 +283,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db)):
     db.delete(db_job)
     db.commit()
     logger.info(f"Job '{job_id}' deleted successfully.")
+    sync_jobs_from_db() # Sync APScheduler with the new database state
     return
 
 
