@@ -114,6 +114,21 @@ class JobConfig(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+class ProcessExecutionLogInfo(BaseModel):
+    """Pydantic model for process execution log entries."""
+    id: str
+    job_id: str
+    command: str
+    exit_code: Optional[int] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    status: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # --- Error Response Model ---
 class ErrorResponse(BaseModel):
     """Pydantic model for consistent error responses."""

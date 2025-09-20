@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 # --- App Imports ---
 from scheduler import database
-from .models import JobDefinition, JobConfig, ErrorResponse, ProcessExecutionLog
+from .models import JobDefinition, JobConfig, ErrorResponse, ProcessExecutionLog, ProcessExecutionLogInfo, ProcessExecutionLogInfo
 from .scheduler import scheduler, start_scheduler, shutdown_scheduler
 from .loader import load_and_validate_jobs, apply_job_config, start_config_watcher, sync_jobs_from_db
 from util import logger
@@ -139,6 +139,28 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
             detail="Failed to fetch dashboard summary data."
         )
 
+@app.get("/api/logs", response_model=List[ProcessExecutionLogInfo], tags=["Dashboard"])
+def get_execution_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    """
+    Retrieves a list of process execution logs from the database.
+    """
+    try:
+        logs = (
+            db.query(ProcessExecutionLog)
+            .order_by(ProcessExecutionLog.start_time.desc())
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return logs
+    except Exception as e:
+        logger.error(f"Error fetching execution logs: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch execution logs."
+        )
+
+
 # --- Job Definition Management Endpoints (Database) ---
 
 @app.get("/jobs", response_model=List[JobConfig], tags=["Job Definitions"])
@@ -266,20 +288,57 @@ def delete_job(job_id: str, db: Session = Depends(get_db)):
 
 @app.get("/scheduler/jobs", response_model=List[JobInfo], tags=["Scheduler Control"])
 def get_scheduled_jobs():
+    """Returns a list of all jobs currently scheduled in the scheduler."""
     jobs = scheduler.get_jobs()
-    return [
-        JobInfo(
-            id=job.id,
-            func=job.func.__module__ + ":" + job.func.__name__ if hasattr(job.func, '__module__') and hasattr(job.func, '__name__') else str(job.func),
-            trigger=job.trigger.args, # This might need more careful mapping depending on trigger type
-            args=list(job.args),
-            kwargs=job.kwargs,
-            max_instances=job.max_instances,
-            coalesce=job.coalesce,
-            misfire_grace_time=job.misfire_grace_time,
-            next_run_time=job.next_run_time
-        ) for job in jobs
-    ]
+    job_infos = []
+    for job in jobs:
+        try:
+            # --- Trigger Conversion ---
+            trigger_dict = {"type": "unknown"}
+            trigger_class_name = job.trigger.__class__.__name__.lower()
+
+            if "cron" in trigger_class_name:
+                trigger_dict["type"] = "cron"
+                for field in job.trigger.fields:
+                    # The string representation of the field is its value.
+                    trigger_dict[field.name] = str(field)
+            elif "interval" in trigger_class_name:
+                trigger_dict["type"] = "interval"
+                td = job.trigger.interval
+                trigger_dict['weeks'] = td.days // 7
+                trigger_dict['days'] = td.days % 7
+                trigger_dict['hours'] = td.seconds // 3600
+                trigger_dict['minutes'] = (td.seconds // 60) % 60
+                trigger_dict['seconds'] = td.seconds % 60
+            elif 'date' in trigger_class_name:
+                # The Pydantic model doesn't currently support DateTrigger, so we skip it.
+                # In a real scenario, you might add a DateTrigger model.
+                logger.warning(f"Skipping job '{job.id}' with unsupported DateTrigger.")
+                continue
+
+            # --- Function Representation ---
+            func_repr = job.func
+            if not isinstance(func_repr, str):
+                func_repr = f"{job.func.__module__}:{job.func.__name__}"
+
+            # --- Assemble JobInfo ---
+            job_info = JobInfo(
+                id=job.id,
+                func=func_repr,
+                trigger=trigger_dict,  # Pydantic will validate and coerce this dict
+                args=list(job.args),
+                kwargs=job.kwargs,
+                max_instances=job.max_instances,
+                coalesce=job.coalesce,
+                misfire_grace_time=job.misfire_grace_time,
+                next_run_time=job.next_run_time
+            )
+            job_infos.append(job_info)
+
+        except Exception as e:
+            logger.error(f"Error processing job '{job.id}' for API response: {e}", exc_info=True)
+
+    return job_infos
 
 @app.post(
     "/scheduler/jobs/{job_id}/pause",

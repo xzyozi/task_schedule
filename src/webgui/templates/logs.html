@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Execution Logs - Task Scheduler{% endblock %}
+
+{% block page_title %}実行ログ{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2>実行ログ</h2>
+    </div>
+    <div class="card-body">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th scope="col">ログID</th>
+                    <th scope="col">ジョブID</th>
+                    <th scope="col">ステータス</th>
+                    <th scope="col">開始日時</th>
+                    <th scope="col">終了日時</th>
+                    <th scope="col">終了コード</th>
+                </tr>
+            </thead>
+            <tbody id="log-list-body">
+                <!-- Log rows will be inserted here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='logs.js') }}"></script>
+{% endblock %}
