@@ -26,7 +26,7 @@
     type: 'interval'
     minutes: 5
   kwargs:
-    api_endpoint: 'https://api.example.com/health'
+    api_endpoint: 'http://127.0.0.1:8000/'
     timeout_seconds: 10
   replace_existing: true
   max_instances: 1
