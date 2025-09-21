@@ -85,6 +85,9 @@ class JobInfo(JobConfig):
     next_run_time: Optional[datetime] = None
     # Add other relevant fields from APScheduler Job object if needed
 
+class BulkJobUpdate(BaseModel):
+    job_ids: List[str]
+
 # Dependency to get DB session
 def get_db() -> Generator[Session, None, None]:
     if database.SessionLocal is None:
@@ -282,6 +285,46 @@ def delete_job(job_id: str, db: Session = Depends(get_db)):
     sync_jobs_from_db() # Sync APScheduler with the new database state
     return
 
+@app.post(
+    "/jobs/bulk/delete",
+    status_code=status.HTTP_200_OK,
+    tags=["Job Definitions"],
+    responses={
+        status.HTTP_404_NOT_FOUND: {"model": ErrorResponse, "description": "One or more jobs not found"}
+    }
+)
+def delete_bulk_jobs(payload: BulkJobUpdate, db: Session = Depends(get_db)):
+    job_ids = payload.job_ids
+    if not job_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No job IDs provided for deletion."
+        )
+
+    deleted_count = 0
+    not_found_ids = []
+
+    for job_id in job_ids:
+        db_job = db.query(JobDefinition).filter(JobDefinition.id == job_id).first()
+        if db_job:
+            db.delete(db_job)
+            deleted_count += 1
+        else:
+            not_found_ids.append(job_id)
+    
+    if deleted_count > 0:
+        db.commit()
+        logger.info(f"Bulk deleted {deleted_count} jobs.")
+        sync_jobs_from_db()  # Sync once after all deletions
+
+    if not_found_ids:
+        logger.warning(f"Bulk delete: Could not find job IDs: {not_found_ids}")
+        # Even if some are not found, we don't fail the whole request if others succeeded.
+        # The client can be notified of which ones failed.
+        return {"message": f"Deleted {deleted_count} jobs. Not found: {', '.join(not_found_ids)}"}
+
+    return {"message": f"Successfully deleted {deleted_count} jobs."}
+
 
 # --- Scheduler Control Endpoints (APScheduler Instance) ---
 
@@ -338,6 +381,61 @@ def get_scheduled_jobs():
             logger.error(f"Error processing job '{job.id}' for API response: {e}", exc_info=True)
 
     return job_infos
+
+@app.post(
+    "/scheduler/jobs/bulk/pause",
+    tags=["Scheduler Control"],
+    responses={
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {"model": ErrorResponse, "description": "Internal Server Error"}
+    }
+)
+def pause_bulk_scheduled_jobs(payload: BulkJobUpdate):
+    job_ids = payload.job_ids
+    paused_ids = []
+    failed_ids = {}
+
+    for job_id in job_ids:
+        try:
+            scheduler.pause_job(job_id)
+            paused_ids.append(job_id)
+        except JobLookupError:
+            failed_ids[job_id] = "Not Found"
+        except Exception as e:
+            failed_ids[job_id] = str(e)
+
+    logger.info(f"Bulk pause request: Paused {len(paused_ids)}. Failed {len(failed_ids)}.")
+    if failed_ids:
+        return {"message": "Partial success", "paused": paused_ids, "failed": failed_ids}
+    
+    return {"message": "All selected jobs paused successfully."}
+
+
+@app.post(
+    "/scheduler/jobs/bulk/resume",
+    tags=["Scheduler Control"],
+    responses={
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {"model": ErrorResponse, "description": "Internal Server Error"}
+    }
+)
+def resume_bulk_scheduled_jobs(payload: BulkJobUpdate):
+    job_ids = payload.job_ids
+    resumed_ids = []
+    failed_ids = {}
+
+    for job_id in job_ids:
+        try:
+            scheduler.resume_job(job_id)
+            resumed_ids.append(job_id)
+        except JobLookupError:
+            failed_ids[job_id] = "Not Found"
+        except Exception as e:
+            failed_ids[job_id] = str(e)
+
+    logger.info(f"Bulk resume request: Resumed {len(resumed_ids)}. Failed {len(failed_ids)}.")
+    if failed_ids:
+        return {"message": "Partial success", "resumed": resumed_ids, "failed": failed_ids}
+        
+    return {"message": "All selected jobs resumed successfully."}
 
 @app.post(
     "/scheduler/jobs/{job_id}/pause",

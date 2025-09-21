@@ -2,7 +2,12 @@
 
 document.addEventListener('DOMContentLoaded', function() {
     const API_BASE_URL = 'http://127.0.0.1:8000';
+    
+    // Main elements
     const jobsListBody = document.getElementById('jobs-list-body');
+    const searchInput = document.getElementById('job-search-input');
+    
+    // Form elements
     const jobForm = document.getElementById('job-form');
     const jobIdInput = document.getElementById('job-id');
     const jobFuncInput = document.getElementById('job-func');
@@ -25,6 +30,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const intervalDaysInput = document.getElementById('interval-days');
     const intervalHoursInput = document.getElementById('interval-hours');
     const intervalMinutesInput = document.getElementById('interval-minutes');
+
+    // Bulk action elements
+    const selectAllCheckbox = document.getElementById('select-all-jobs');
+    const bulkActionsGroup = document.getElementById('bulk-actions-group');
+    const bulkPauseBtn = document.getElementById('bulk-pause-btn');
+    const bulkResumeBtn = document.getElementById('bulk-resume-btn');
+    const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
+
 
     // --- Utility Functions ---
 
@@ -54,7 +67,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function populateFormForEdit(jobId) {
-        // Fetch the job *definition* from the DB to edit it
         fetch(`${API_BASE_URL}/jobs/${jobId}`)
             .then(response => {
                 if (!response.ok) throw new Error('ジョブ定義の取得に失敗しました。');
@@ -82,7 +94,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     intervalMinutesInput.value = job.trigger.minutes || 0;
                 }
                 jobFormTitle.textContent = `ジョブ編集: ${job.id}`;
-                window.scrollTo(0, document.body.scrollHeight); // Scroll to form
+                window.scrollTo(0, document.body.scrollHeight);
             })
             .catch(error => {
                 console.error('Error fetching job for edit:', error);
@@ -112,15 +124,30 @@ document.addEventListener('DOMContentLoaded', function() {
             const date = new Date(isoString);
             return date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
         } catch (e) {
-            return isoString; // Return original string if parsing fails
+            return isoString;
         }
     }
 
+    function updateBulkActions() {
+        const selectedCheckboxes = jobsListBody.querySelectorAll('.job-checkbox:checked');
+        const allCheckboxes = jobsListBody.querySelectorAll('.job-checkbox');
+        
+        if (selectedCheckboxes.length > 0) {
+            bulkActionsGroup.style.display = 'inline-flex';
+        } else {
+            bulkActionsGroup.style.display = 'none';
+        }
+
+        if (allCheckboxes.length > 0 && selectedCheckboxes.length === allCheckboxes.length) {
+            selectAllCheckbox.checked = true;
+        } else {
+            selectAllCheckbox.checked = false;
+        }
+    }
 
     // --- Main Fetch and Display Function ---
 
     function fetchAndDisplayJobs() {
-        // Fetch the live job status from the scheduler
         fetch(`${API_BASE_URL}/scheduler/jobs`)
             .then(response => {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -129,14 +156,14 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(jobs => {
                 jobsListBody.innerHTML = '';
                 if (jobs.length === 0) {
-                    jobsListBody.innerHTML = `<tr><td colspan="6" class="text-center">スケジュールされたジョブはありません。</td></tr>`;
+                    jobsListBody.innerHTML = `<tr><td colspan="7" class="text-center">スケジュールされたジョブはありません。</td></tr>`;
                     return;
                 }
                 jobs.forEach(job => {
                     const isPaused = job.next_run_time === null;
                     const row = document.createElement('tr');
-
                     row.innerHTML = `
+                        <td><input type="checkbox" class="form-check-input job-checkbox" data-job-id="${job.id}"></td>
                         <td>
                             <div class="form-check form-switch">
                                 <input class="form-check-input status-toggle" type="checkbox" role="switch" 
@@ -158,14 +185,72 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                     jobsListBody.appendChild(row);
                 });
+                updateBulkActions(); // Reset bulk actions on refresh
             })
             .catch(error => {
                 console.error('Error fetching scheduled jobs:', error);
-                jobsListBody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">ジョブの読み込みに失敗しました。</td></tr>`;
+                jobsListBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">ジョブの読み込みに失敗しました。</td></tr>`;
             });
     }
 
+    // --- Bulk Action Logic ---
+    function performBulkAction(action, url, confirmationText) {
+        const selectedJobIds = Array.from(jobsListBody.querySelectorAll('.job-checkbox:checked'))
+                                    .map(cb => cb.dataset.jobId);
+
+        if (selectedJobIds.length === 0) {
+            alert('操作対象のジョブを選択してください。');
+            return;
+        }
+
+        if (confirm(`${selectedJobIds.length}件のジョブを${confirmationText}してもよろしいですか？`)) {
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ job_ids: selectedJobIds })
+            })
+            .then(response => {
+                if (!response.ok) throw new Error(`${confirmationText}に失敗しました。`);
+                return response.json();
+            })
+            .then(data => {
+                alert(data.message || `${confirmationText}が完了しました。`);
+                fetchAndDisplayJobs();
+            })
+            .catch(error => {
+                alert(`エラー: ${error.message}`);
+                fetchAndDisplayJobs();
+            });
+        }
+    }
+
     // --- Event Listeners ---
+
+    searchInput.addEventListener('keyup', function() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const rows = jobsListBody.getElementsByTagName('tr');
+        for (const row of rows) {
+            const jobIdCell = row.cells[2]; // Index updated for checkbox
+            const funcCell = row.cells[5];  // Index updated for checkbox
+            if (jobIdCell && funcCell) {
+                const match = jobIdCell.textContent.toLowerCase().includes(searchTerm) || 
+                              funcCell.textContent.toLowerCase().includes(searchTerm);
+                row.style.display = match ? '' : 'none';
+            }
+        }
+    });
+
+    selectAllCheckbox.addEventListener('change', function() {
+        const isChecked = selectAllCheckbox.checked;
+        jobsListBody.querySelectorAll('.job-checkbox').forEach(checkbox => {
+            checkbox.checked = isChecked;
+        });
+        updateBulkActions();
+    });
+
+    bulkPauseBtn.addEventListener('click', () => performBulkAction('pause', `${API_BASE_URL}/scheduler/jobs/bulk/pause`, '一括停止'));
+    bulkResumeBtn.addEventListener('click', () => performBulkAction('resume', `${API_BASE_URL}/scheduler/jobs/bulk/resume`, '一括再開'));
+    bulkDeleteBtn.addEventListener('click', () => performBulkAction('delete', `${API_BASE_URL}/jobs/bulk/delete`, '一括削除'));
 
     triggerTypeSelect.addEventListener('change', (event) => {
         showTriggerFields(event.target.value);
@@ -173,22 +258,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     clearFormBtn.addEventListener('click', clearForm);
 
-    // Form submission for creating/updating job *definitions*
     jobForm.addEventListener('submit', function(event) {
         event.preventDefault();
-
-        const jobId = jobIdInput.value;
         const isEdit = !!jobIdHidden.value;
         const method = isEdit ? 'PUT' : 'POST';
         const url = isEdit ? `${API_BASE_URL}/jobs/${jobIdHidden.value}` : `${API_BASE_URL}/jobs`;
 
         const jobData = {
-            id: jobId,
+            id: jobIdInput.value,
             func: jobFuncInput.value,
             description: jobDescriptionInput.value,
             is_enabled: jobEnabledCheckbox.checked,
             trigger: { type: triggerTypeSelect.value },
-            // Default values, can be expanded later
             args: [],
             kwargs: {},
             max_instances: 3,
@@ -220,8 +301,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             alert(`ジョブ定義 '${data.id}' が${isEdit ? '更新' : '作成'}されました。`);
             clearForm();
-            // The scheduler will sync automatically, so we just refresh the view
-            setTimeout(fetchAndDisplayJobs, 500); // Give a moment for sync
+            setTimeout(fetchAndDisplayJobs, 500);
         })
         .catch(error => {
             console.error('Error saving job definition:', error);
@@ -229,14 +309,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Event delegation for job action buttons
     jobsListBody.addEventListener('click', function(event) {
         const target = event.target;
         const jobId = target.dataset.jobId;
 
+        if (target.classList.contains('job-checkbox')) {
+            updateBulkActions();
+            return;
+        }
+
         if (!jobId) return;
 
-        // --- Scheduler Control Actions ---
         if (target.classList.contains('btn-run')) {
             if (confirm(`ジョブ '${jobId}' を今すぐ実行しますか？`)) {
                 fetch(`${API_BASE_URL}/scheduler/jobs/${jobId}/run`, { method: 'POST' })
@@ -246,13 +329,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     })
                     .then(() => {
                         alert(`ジョブ '${jobId}' はすぐに実行されます。`);
-                        setTimeout(fetchAndDisplayJobs, 500); // Refresh view
+                        setTimeout(fetchAndDisplayJobs, 500);
                     })
                     .catch(error => alert(`エラー: ${error.message}`));
             }
-        }
-
-        // --- DB Definition Actions ---
+        } 
         else if (target.classList.contains('btn-delete')) {
             if (confirm(`ジョブ定義 '${jobId}' を削除してもよろしいですか？
 この操作は元に戻せません。`)) {
@@ -260,7 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     .then(response => {
                         if (!response.ok) throw new Error('削除に失敗しました。');
                         alert(`ジョブ定義 '${jobId}' が削除されました。`);
-                        setTimeout(fetchAndDisplayJobs, 500); // Refresh view after sync
+                        setTimeout(fetchAndDisplayJobs, 500);
                     })
                     .catch(error => alert(`エラー: ${error.message}`));
             }
@@ -270,7 +351,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Event delegation for status toggle
     jobsListBody.addEventListener('change', function(event) {
         const target = event.target;
         const jobId = target.dataset.jobId;
@@ -285,16 +365,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(() => {
-                // No alert needed for this, just refresh the view
                 fetchAndDisplayJobs();
             })
             .catch(error => {
                 alert(`エラー: ${error.message}`);
-                // Revert toggle on failure
                 target.checked = !target.checked;
             });
     });
-
 
     // --- Initial Load ---
     showTriggerFields('cron');

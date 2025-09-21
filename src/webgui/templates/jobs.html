@@ -13,9 +13,22 @@
                 <h2>登録済みジョブ一覧</h2>
             </div>
             <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" id="job-search-input" class="form-control" placeholder="ジョブIDまたは実行関数で検索...">
+                    </div>
+                    <div class="col-md-6">
+                        <div class="btn-group" id="bulk-actions-group" style="display: none;">
+                            <button id="bulk-pause-btn" class="btn btn-secondary">選択を一時停止</button>
+                            <button id="bulk-resume-btn" class="btn btn-success">選択を再開</button>
+                            <button id="bulk-delete-btn" class="btn btn-danger">選択を削除</button>
+                        </div>
+                    </div>
+                </div>
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
+                            <th scope="col"><input type="checkbox" id="select-all-jobs"></th>
                             <th scope="col">ステータス</th>
                             <th scope="col">ジョブID</th>
                             <th scope="col">スケジュール</th>
