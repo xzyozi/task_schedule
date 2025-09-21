@@ -16,17 +16,21 @@ def index():
         "successful_runs": 0,
         "failed_runs": 0
     }
+    timeline_data = []
     try:
-        response = requests.get(f"{API_BASE_URL}/api/dashboard/summary")
-        response.raise_for_status()  # Raise an exception for bad status codes
-        summary_data = response.json()
+        summary_response = requests.get(f"{API_BASE_URL}/api/dashboard/summary")
+        summary_response.raise_for_status()
+        summary_data = summary_response.json()
+
+        timeline_response = requests.get(f"{API_BASE_URL}/api/dashboard/timeline")
+        timeline_response.raise_for_status()
+        timeline_data = timeline_response.json()
+
     except requests.exceptions.RequestException as e:
-        # Log the error or handle it as needed
         print(f"Could not connect to API: {e}")
-        # The view will render with default zero values
         pass
 
-    return render_template('index.html', summary=summary_data)
+    return render_template('index.html', summary=summary_data, timeline=timeline_data)
 
 @app.route('/logs')
 def logs():

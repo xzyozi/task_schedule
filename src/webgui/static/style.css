@@ -24,7 +24,7 @@ body {
 }
 
 #wrapper.toggled #sidebar-wrapper {
-    margin-left: 0;
+    margin-left: -250px;
 }
 
 @media (min-width: 768px) {
@@ -42,23 +42,158 @@ body {
     }
 }
 
-/* Custom styles for timeline */
-.timeline-item {
-    margin-bottom: 1rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #eee;
+/* Horizontal Timeline Styles */
+.timeline-container {
+    overflow-x: auto; /* Enable horizontal scrolling */
+    white-space: nowrap; /* Prevent items from wrapping */
+    padding-bottom: 20px; /* Space for scrollbar */
+    position: relative; /* For positioning NOW marker */
 }
 
-.timeline-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
+.timeline {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex; /* Make it a flex container */
+    position: relative;
+    height: 200px; /* Increased height for alternating content */
+    align-items: center; /* Vertically center the line */
 }
 
-.timeline-item .time {
+.timeline:before {
+    content: " ";
+    position: absolute;
+    top: 50%; /* Center the line vertically */
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: #eeeeee;
+    transform: translateY(-50%);
+    z-index: 1;
+}
+
+.timeline > li {
+    flex: 0 0 auto; /* Don't grow, don't shrink, auto width */
+    position: absolute; /* Position items absolutely within the timeline */
+    text-align: center;
+    z-index: 2;
+    /* Remove margin and padding from li, content will handle spacing */
+    margin: 0;
+    padding: 0;
+}
+
+.timeline > li .timeline-marker {
+    position: absolute;
+    top: 50%; /* Center marker on the line */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 100%;
+    background-color: #fff;
+    border: 3px solid #eeeeee;
+    z-index: 3;
+}
+
+/* Status specific markers */
+.timeline-upcoming .timeline-marker {
+    background-color: #007bff; /* Blue */
+    border-color: #007bff;
+}
+.timeline-completed .timeline-marker {
+    background-color: #28a745; /* Green */
+    border-color: #28a745;
+}
+.timeline-failed .timeline-marker {
+    background-color: #dc3545; /* Red */
+    border-color: #dc3545;
+}
+.timeline-running .timeline-marker {
+    background-color: #ffc107; /* Yellow */
+    border-color: #ffc107;
+}
+.timeline-unknown .timeline-marker {
+    background-color: #6c757d; /* Gray */
+    border-color: #6c757d;
+}
+
+.timeline > li .timeline-content {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    min-width: 150px; /* Minimum width for content card */
+    white-space: normal; /* Allow text to wrap */
+}
+
+.timeline-item-top .timeline-content {
+    bottom: calc(50% + 20px); /* Position above the line, with marker height + some space */
+}
+
+.timeline-item-bottom .timeline-content {
+    top: calc(50% + 20px); /* Position below the line, with marker height + some space */
+}
+
+.timeline-title {
+    font-size: 1em;
     font-weight: bold;
-    margin-right: 1rem;
+    margin-bottom: 5px;
 }
 
-.timeline-item .job-name {
-    margin-left: 1rem;
+.timeline-time {
+    font-size: 0.8em;
+    color: #6c757d;
+    margin-bottom: 5px;
+}
+
+.timeline-description {
+    font-size: 0.75em;
+    color: #6c757d;
+    white-space: normal; /* Allow text to wrap */
+}
+
+/* NOW marker */
+.timeline-now-marker {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: #ff0000; /* Red line for NOW */
+    z-index: 4;
+    transform: translateX(-50%);
+    height: 100%; /* Span full height of container */
+}
+
+.timeline-now-label {
+    position: absolute;
+    top: -25px;
+    transform: translateX(-50%);
+    background-color: #ff0000;
+    color: #fff;
+    padding: 2px 5px;
+    border-radius: 3px;
+    font-size: 0.8em;
+    white-space: nowrap;
+    z-index: 5;
+}
+
+/* Styles for clustered items in vis.js timeline */
+.timeline-cluster {
+    background-color: #6c757d; /* Gray background for clusters */
+    border-radius: 15px;
+    color: #fff;
+    padding: 5px 10px;
+    font-size: 0.9em;
+    border: 1px solid #5a6268;
+    text-align: center;
+}
+
+.timeline-cluster-content {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }

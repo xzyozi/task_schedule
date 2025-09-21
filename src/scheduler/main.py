@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
-from typing import Generator, List, Optional
-from datetime import datetime
+from typing import Generator, List, Optional, Union
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -88,6 +88,14 @@ class JobInfo(JobConfig):
 class BulkJobUpdate(BaseModel):
     job_ids: List[str]
 
+class TimelineEvent(BaseModel):
+    job_id: str
+    timestamp: datetime
+    type: str # 'scheduled' or 'executed'
+    status: str # 'upcoming', 'running', 'completed', 'failed'
+    func: str
+    description: Optional[str] = None # Add description field
+
 # Dependency to get DB session
 def get_db() -> Generator[Session, None, None]:
     if database.SessionLocal is None:
@@ -157,6 +165,75 @@ def get_execution_logs(skip: int = 0, limit: int = 100, db: Session = Depends(ge
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch execution logs."
         )
+
+@app.get("/api/dashboard/timeline", response_model=List[TimelineEvent], tags=["Dashboard"])
+def get_dashboard_timeline(db: Session = Depends(get_db)):
+    timeline_events: List[TimelineEvent] = []
+
+    # 1. Get upcoming scheduled jobs
+    scheduled_jobs = scheduler.get_jobs()
+    for job in scheduled_jobs:
+        if job.next_run_time:
+            # Find the corresponding JobDefinition to get the description
+            job_def = db.query(JobDefinition).filter(JobDefinition.id == job.id).first()
+            description = job_def.description if job_def else None
+
+            func_repr = job.func
+            if not isinstance(func_repr, str):
+                func_repr = f"{job.func.__module__}:{job.func.__name__}"
+            
+            # Ensure job.next_run_time is timezone-aware (UTC)
+            aware_next_run_time = job.next_run_time
+            if aware_next_run_time.tzinfo is None:
+                # Naive datetime, assume UTC
+                aware_next_run_time = aware_next_run_time.replace(tzinfo=timezone.utc)
+            else:
+                # Already timezone-aware, convert to UTC
+                aware_next_run_time = aware_next_run_time.astimezone(timezone.utc)
+
+            timeline_events.append(
+                TimelineEvent(
+                    job_id=job.id,
+                    timestamp=aware_next_run_time,
+                    type='scheduled',
+                    status='upcoming',
+                    func=func_repr,
+                    description=description
+                )
+            )
+
+    # 2. Get recent execution logs
+    recent_logs = (
+        db.query(ProcessExecutionLog)
+        .order_by(ProcessExecutionLog.start_time.desc())
+        .limit(10) # Limit to last 10 executed events
+        .all()
+    )
+    for log in recent_logs:
+        # Ensure log.start_time is timezone-aware (UTC)
+        aware_start_time = log.start_time
+        if aware_start_time.tzinfo is None:
+            # Naive datetime, assume UTC
+            aware_start_time = aware_start_time.replace(tzinfo=timezone.utc)
+        else:
+            # Already timezone-aware, convert to UTC
+            aware_start_time = aware_start_time.astimezone(timezone.utc)
+
+        timeline_events.append(
+            TimelineEvent(
+                job_id=log.job_id,
+                timestamp=aware_start_time, # Use start_time for sorting
+                type='executed',
+                status=log.status.lower(), # Ensure status is lowercase
+                func=log.command, # Command is the closest to func for logs
+                description=None # Logs don't have a description field directly
+            )
+        )
+
+    # 3. Combine and sort by timestamp
+    timeline_events.sort(key=lambda event: event.timestamp)
+
+    return timeline_events
 
 
 # --- Job Definition Management Endpoints (Database) ---

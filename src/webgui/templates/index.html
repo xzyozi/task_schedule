@@ -11,7 +11,7 @@
         <div class="card text-white bg-primary mb-3">
             <div class="card-body">
                 <h5 class="card-title">総ジョブ数</h5>
-                <p class="card-text fs-4">{{ summary.total_jobs }}</p>
+                <p class="card-text fs-4" id="total-jobs">{{ summary.total_jobs }}</p>
             </div>
         </div>
     </div>
@@ -19,7 +19,7 @@
         <div class="card text-white bg-info mb-3">
             <div class="card-body">
                 <h5 class="card-title">実行中</h5>
-                <p class="card-text fs-4">{{ summary.running_jobs }}</p>
+                <p class="card-text fs-4" id="running-jobs">{{ summary.running_jobs }}</p>
             </div>
         </div>
     </div>
@@ -27,7 +27,7 @@
         <div class="card text-white bg-success mb-3">
             <div class="card-body">
                 <h5 class="card-title">成功</h5>
-                <p class="card-text fs-4">{{ summary.successful_runs }}</p>
+                <p class="card-text fs-4" id="successful-runs">{{ summary.successful_runs }}</p>
             </div>
         </div>
     </div>
@@ -35,37 +35,80 @@
         <div class="card text-white bg-danger mb-3">
             <div class="card-body">
                 <h5 class="card-title">失敗</h5>
-                <p class="card-text fs-4">{{ summary.failed_runs }}</p>
+                <p class="card-text fs-4" id="failed-runs">{{ summary.failed_runs }}</p>
             </div>
         </div>
     </div>
 </div>
 <!-- /Summary Cards -->
 
-<!-- Job List Table -->
-<div class="card mt-4">
+<!-- Timeline Filters -->
+<div class="card mt-4 mb-4">
     <div class="card-header">
-        <h2>ジョブ一覧</h2>
+        <h3>タイムラインフィルター</h3>
     </div>
     <div class="card-body">
-        <table class="table table-striped table-hover">
-            <thead>
-                <tr>
-                    <th scope="col">ジョブID</th>
-                    <th scope="col">次に実行</th>
-                    <th scope="col">ステータス</th>
-                    <th scope="col">操作</th>
-                </tr>
-            </thead>
-            <tbody id="job-list-body">
-                <!-- Job rows will be inserted here by JavaScript -->
-            </tbody>
-        </table>
+        <div class="row g-3 align-items-center">
+            <div class="col-auto">
+                <label for="timeline-filter-status" class="col-form-label">ステータス:</label>
+            </div>
+            <div class="col-auto">
+                <select class="form-select" id="timeline-filter-status">
+                    <option value="all">全て</option>
+                    <option value="upcoming">Upcoming</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="running">Running</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <label for="timeline-filter-job-id" class="col-form-label">ジョブID/名前:</label>
+            </div>
+            <div class="col-auto">
+                <input type="text" id="timeline-filter-job-id" class="form-control" placeholder="ジョブIDまたは名前">
+            </div>
+            <div class="col-auto">
+                <button type="button" class="btn btn-primary" id="apply-timeline-filters">フィルター適用</button>
+            </div>
+        </div>
+        <div class="row g-3 align-items-center mt-3">
+            <div class="col-auto">
+                <label for="timeline-zoom-level" class="col-form-label">ズームレベル:</label>
+            </div>
+            <div class="col-auto">
+                <select class="form-select" id="timeline-zoom-level">
+                    <option value="day">日</option>
+                    <option value="hour">時間</option>
+                    <option value="minute">分</option>
+                </select>
+            </div>
+        </div>
     </div>
 </div>
-<!-- /Job List Table -->
+<!-- /Timeline Filters -->
+
+<!-- Job Timeline -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h2>ジョブタイムライン</h2>
+    </div>
+    <div class="card-body">
+        <div class="timeline-container">
+            <ul class="timeline" id="job-timeline">
+                <!-- Timeline events will be inserted here by JavaScript -->
+            </ul>
+            <div class="timeline-now-marker"></div>
+            <div class="timeline-now-label">NOW</div>
+        </div>
+    </div>
+</div>
+<!-- /Job Timeline -->
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script>
+    const summaryData = {{ summary | tojson }};
+    const timelineData = {{ timeline | tojson }};
+</script>
+<script src="{{ url_for('static', filename='dashboard.js') }}"></script>
 {% endblock %}
