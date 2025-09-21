@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify
 import os
 import requests
 
@@ -35,6 +35,16 @@ def logs():
 @app.route('/jobs')
 def jobs():
     return render_template('jobs.html')
+
+@app.route('/api/timeline-data')
+def timeline_data():
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/timeline/data")
+        response.raise_for_status()
+        return jsonify(response.json())
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching timeline data from backend API: {e}")
+        return jsonify({"error": "Could not fetch timeline data"}), 500
 
 def run_webgui():
     # Get port from environment variable or use default 5012

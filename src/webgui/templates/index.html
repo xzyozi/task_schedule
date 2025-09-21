@@ -64,8 +64,21 @@
     </div>
 </div>
 <!-- /Job List Table -->
+<!-- Timeline Section -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h2>ジョブ実行タイムライン</h2>
+    </div>
+    <div class="card-body">
+        <div id="timeline"></div>
+    </div>
+</div>
+<!-- /Timeline Section -->
 {% endblock %}
 
 {% block scripts %}
+<script type="text/javascript" src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+<link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
 <script src="{{ url_for('static', filename='script.js') }}"></script>
+<script src="{{ url_for('static', filename='timeline.js') }}"></script>
 {% endblock %}

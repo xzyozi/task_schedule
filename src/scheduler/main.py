@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from typing import Generator, List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -81,6 +81,23 @@ app.add_middleware(
 
 
 # Pydantic model for APScheduler Job information
+class ProcessExecutionLogInfo(BaseModel):
+    id: int
+    job_id: str
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    status: str
+    message: Optional[str] = None
+    duration: Optional[float] = None
+
+class TimelineItem(BaseModel):
+    id: str
+    content: str
+    start: datetime
+    end: Optional[datetime] = None
+    status: str # e.g., 'scheduled', 'running', 'completed', 'failed'
+    group: Optional[str] = None # For grouping in vis.js
+
 class JobInfo(JobConfig):
     next_run_time: Optional[datetime] = None
     # Add other relevant fields from APScheduler Job object if needed
@@ -157,6 +174,78 @@ def get_execution_logs(skip: int = 0, limit: int = 100, db: Session = Depends(ge
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch execution logs."
         )
+
+@app.get("/api/timeline/data", response_model=List[TimelineItem], tags=["Dashboard"])
+def get_timeline_data(db: Session = Depends(get_db)):
+    """
+    Provides data for the job execution timeline, including scheduled jobs and historical runs.
+    """
+    timeline_items: List[TimelineItem] = []
+
+    # 1. Add scheduled jobs from APScheduler
+    scheduled_jobs = scheduler.get_jobs()
+    for job in scheduled_jobs:
+        if job.next_run_time:
+            # Ensure next_run_time is timezone-aware (APScheduler usually provides this)
+            # If it's naive, assume UTC and make it aware.
+            start_time_aware = job.next_run_time
+            if start_time_aware.tzinfo is None:
+                start_time_aware = start_time_aware.replace(tzinfo=timezone.utc)
+
+            timeline_items.append(
+                TimelineItem(
+                    id=f"scheduled-{job.id}-{start_time_aware.isoformat()}",
+                    content=f"{job.id} (Scheduled)",
+                    start=start_time_aware,
+                    status="scheduled",
+                    group=job.id # Group by job ID
+                )
+            )
+        # Also add currently running jobs if APScheduler provides a way to identify them
+        # APScheduler doesn't directly expose 'running' status for jobs in get_jobs()
+        # This would typically come from ProcessExecutionLog where status is 'RUNNING'
+
+    # 2. Add historical job runs from the database
+    # Fetch recent logs, e.g., last 7 days or a reasonable limit
+    # For simplicity, let's fetch a recent batch. Adjust limit as needed.
+    recent_logs = (
+        db.query(ProcessExecutionLog)
+        .filter(ProcessExecutionLog.start_time >= datetime.now(timezone.utc) - timedelta(days=7)) # Last 7 days
+        .order_by(ProcessExecutionLog.start_time.asc())
+        .all()
+    )
+
+    for log in recent_logs:
+        item_status = log.status.lower() # COMPLETED -> completed, FAILED -> failed, RUNNING -> running
+        
+        # Ensure log datetimes are timezone-aware (assume UTC if naive from DB)
+        log_start_time_aware = log.start_time
+        if log_start_time_aware.tzinfo is None:
+            log_start_time_aware = log_start_time_aware.replace(tzinfo=timezone.utc)
+
+        log_end_time_aware = None
+        if log.end_time:
+            log_end_time_aware = log.end_time
+            if log_end_time_aware.tzinfo is None:
+                log_end_time_aware = log_end_time_aware.replace(tzinfo=timezone.utc)
+        
+        item_end = log_end_time_aware if log_end_time_aware else (datetime.now(timezone.utc) if item_status == 'running' else None)
+
+        timeline_items.append(
+            TimelineItem(
+                id=f"log-{log.id}",
+                content=f"{log.job_id} ({item_status.capitalize()})",
+                start=log_start_time_aware,
+                end=item_end,
+                status=item_status,
+                group=log.job_id # Group by job ID
+            )
+        )
+    
+    # Sort items by start time for better visualization
+    timeline_items.sort(key=lambda item: item.start)
+
+    return timeline_items
 
 
 # --- Job Definition Management Endpoints (Database) ---
