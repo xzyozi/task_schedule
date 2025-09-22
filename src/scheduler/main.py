@@ -406,6 +406,36 @@ def delete_bulk_jobs(payload: BulkJobUpdate, db: Session = Depends(get_db)):
 
     return {"message": f"Successfully deleted {deleted_count} jobs."}
 
+@app.get("/api/jobs/{job_id}/history", response_model=List[ProcessExecutionLogInfo], tags=["Job Details"])
+def get_job_execution_history(job_id: str, db: Session = Depends(get_db)):
+    """
+    Retrieves the execution history for a specific job.
+    """
+    try:
+        history = (
+            db.query(ProcessExecutionLog)
+            .filter(ProcessExecutionLog.job_id == job_id)
+            .order_by(ProcessExecutionLog.start_time.desc())
+            .all()
+        )
+        if not history:
+            # Optionally, raise 404 if job_id itself doesn't exist, but for history, returning empty list is fine if no runs yet.
+            # Check if job_id exists at all if strictness is needed.
+            # job_exists = db.query(JobDefinition).filter(JobDefinition.id == job_id).first()
+            # if not job_exists:
+            #     raise HTTPException(
+            #         status_code=status.HTTP_404_NOT_FOUND,
+            #         detail=f"Job '{job_id}' not found."
+            #     )
+            pass # Simply return empty list if no history
+        return history
+    except Exception as e:
+        logger.error(f"Error fetching history for job '{job_id}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch execution history for job '{job_id}'."
+        )
+
 
 # --- Scheduler Control Endpoints (APScheduler Instance) ---
 

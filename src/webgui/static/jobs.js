@@ -173,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                 </label>
                             </div>
                         </td>
-                        <td>${job.id}</td>
+                        <td><a href="/jobs/${job.id}">${job.id}</a></td>
                         <td>${formatTrigger(job.trigger)}</td>
                         <td>${formatDateTime(job.next_run_time)}</td>
                         <td class="text-break">${job.func}</td>

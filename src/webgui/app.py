@@ -36,6 +36,10 @@ def logs():
 def jobs():
     return render_template('jobs.html')
 
+@app.route('/jobs/<job_id>')
+def job_detail(job_id):
+    return render_template('job_detail.html', job_id=job_id)
+
 @app.route('/api/timeline-data')
 def timeline_data():
     try:
