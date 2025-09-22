@@ -1,13 +1,16 @@
 @echo off
 echo Starting FastAPI backend (with auto-reload) and Flask Web GUI...
 
+:: Get the directory of the current script (e.g., C:\path\to\project\scripts\)
+set SCRIPT_DIR=%~dp0
+
 :: Start FastAPI backend in a new console window with auto-reload
-:: --host 0.0.0.0 allows access from other machines on the network
-start "FastAPI Backend" cmd /k "uvicorn src.scheduler.main:app --reload --host 0.0.0.0 --port 8000"
+:: The 'cd /d' changes directory and '/d' allows changing drive if needed.
+:: The '&&' ensures the uvicorn command only runs if cd is successful.
+start "FastAPI Backend" cmd /k "cd /d "%SCRIPT_DIR%.." && uvicorn src.scheduler.main:app --reload --host 0.0.0.0 --port 8000"
 
 :: Start Flask Web GUI in a new console window (Flask's dev server has its own reloader)
-:: Set FLASK_PORT if you want to change the default 5012
-start "Flask Web GUI" cmd /k "python src/webgui/app.py"
+start "Flask Web GUI" cmd /k "cd /d "%SCRIPT_DIR%.." && python src/webgui/app.py"
 
 echo Development servers started.
 echo FastAPI: http://127.0.0.1:8000
