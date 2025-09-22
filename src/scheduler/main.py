@@ -80,15 +80,7 @@ app.add_middleware(
 )
 
 
-# Pydantic model for APScheduler Job information
-class ProcessExecutionLogInfo(BaseModel):
-    id: int
-    job_id: str
-    start_time: datetime
-    end_time: Optional[datetime] = None
-    status: str
-    message: Optional[str] = None
-    duration: Optional[float] = None
+
 
 class TimelineItem(BaseModel):
     id: str
@@ -605,3 +597,45 @@ def run_scheduled_job_immediately(job_id: str):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred while triggering job '{job_id}' for immediate execution: {e}"
         )
+
+@app.post("/api/scheduler/pause", tags=["Scheduler Control"])
+def pause_global_scheduler():
+    """Pauses the entire scheduler."""
+    scheduler.pause()
+    logger.info("Global scheduler paused.")
+    return {"message": "Scheduler paused successfully."}
+
+@app.post("/api/scheduler/resume", tags=["Scheduler Control"])
+def resume_global_scheduler():
+    """Resumes the entire scheduler."""
+    scheduler.resume()
+    logger.info("Global scheduler resumed.")
+    return {"message": "Scheduler resumed successfully."}
+
+@app.post("/api/scheduler/shutdown", tags=["Scheduler Control"])
+def shutdown_global_scheduler():
+    """Shuts down the entire scheduler. This will stop all jobs and the API."""
+    shutdown_scheduler()
+    logger.info("Global scheduler shut down.")
+    return {"message": "Scheduler shut down successfully. The application will now exit."}
+
+@app.get("/api/jobs_yaml", tags=["Configuration"])
+def get_jobs_yaml_content():
+    """Retrieves the content of the jobs.yaml file."""
+    config_path = "jobs.yaml" # Assuming jobs.yaml is in the root
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {"content": content}
+    except FileNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"File not found: {config_path}"
+        )
+    except Exception as e:
+        logger.error(f"Error reading jobs.yaml: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to read jobs.yaml"
+        )
+

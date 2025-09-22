@@ -46,6 +46,10 @@ def timeline_data():
         print(f"Error fetching timeline data from backend API: {e}")
         return jsonify({"error": "Could not fetch timeline data"}), 500
 
+@app.route('/settings')
+def settings():
+    return render_template('settings.html')
+
 def run_webgui():
     # Get port from environment variable or use default 5012
     port = int(os.environ.get('FLASK_PORT', 5012))
