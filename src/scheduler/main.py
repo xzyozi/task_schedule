@@ -669,3 +669,41 @@ def get_jobs_yaml_content():
             detail="Failed to read jobs.yaml"
         )
 
+NOTIFICATION_SETTINGS_FILE = "notification_settings.json"
+
+@app.get("/api/settings/notifications", tags=["Settings"])
+def get_notification_settings():
+    """Retrieves notification settings."""
+    if not os.path.exists(NOTIFICATION_SETTINGS_FILE):
+        return {"email_recipients": "", "webhook_url": ""} # Default empty settings
+
+    try:
+        with open(NOTIFICATION_SETTINGS_FILE, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+        return settings
+    except Exception as e:
+        logger.error(f"Error reading notification settings: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to read notification settings."
+        )
+
+@app.post("/api/settings/notifications", tags=["Settings"])
+def update_notification_settings(email_recipients: str = "", webhook_url: str = ""):
+    """Updates notification settings."""
+    settings = {
+        "email_recipients": email_recipients,
+        "webhook_url": webhook_url
+    }
+    try:
+        with open(NOTIFICATION_SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4)
+        logger.info("Notification settings updated successfully.")
+        return {"message": "Notification settings updated successfully."}
+    except Exception as e:
+        logger.error(f"Error writing notification settings: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update notification settings."
+        )
+
