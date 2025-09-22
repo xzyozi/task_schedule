@@ -258,6 +258,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     clearFormBtn.addEventListener('click', clearForm);
 
+    const newJobBtn = document.getElementById('new-job-btn');
+    if (newJobBtn) {
+        newJobBtn.addEventListener('click', clearForm);
+    }
+
     jobForm.addEventListener('submit', function(event) {
         event.preventDefault();
         const isEdit = !!jobIdHidden.value;
