@@ -1,4 +1,3 @@
-
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
@@ -38,7 +37,11 @@ dev = [
 ]
 
 [project.scripts]
+# The entry point no longer needs 'src'
 task-scheduler = "scheduler.cli:main"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+# This tells setuptools that the packages are in the 'src' directory
+package-dir = {"" = "src"}
+# Find packages automatically within the 'src' directory
+packages = {"find" = {where = ["src"]}}

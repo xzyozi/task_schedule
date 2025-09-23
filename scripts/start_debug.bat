@@ -1,36 +1,17 @@
 @echo off
 echo Starting development servers for debugging...
 
-:: Get the absolute path to the project root directory (one level up from this script)
 set "PROJECT_ROOT=%~dp0.."
 pushd "%PROJECT_ROOT%"
 
-echo Project root directory: %CD%
-
-:: Activate virtual environment
 IF EXIST "venv\Scripts\activate.bat" (
-    echo Activating virtual environment...
     CALL "venv\Scripts\activate.bat"
-) ELSE (
-    echo Virtual environment not found. Please run setup first.
-    pause
-    exit /b 1
 )
 
-:: Set PYTHONPATH to include the src directory
-set "PYTHONPATH=%CD%\src;%PYTHONPATH%"
-echo PYTHONPATH set to: %PYTHONPATH%
+set "FLASK_APP=src.webgui.app"
+start "Web GUI" cmd /k "python -m flask run --host=0.0.0.0 --port=5012"
 
-:: Start Flask Web GUI in a new console window with auto-reload
-echo Starting Web GUI (http://localhost:5012) in a new window...
-set "FLASK_APP=webgui.app"
-set "FLASK_ENV=development"
-start "Web GUI (Flask)" cmd /k "python -m flask run --host=0.0.0.0 --port=5012"
-
-echo.
-echo Starting FastAPI scheduler (http://localhost:8000) in this window...
-echo Press Ctrl+C to stop the scheduler.
-:: Start FastAPI scheduler in the CURRENT console window with auto-reload
-uvicorn scheduler.main:app --reload --host 0.0.0.0 --port 8000
+echo Starting FastAPI scheduler in this window...
+uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 popd

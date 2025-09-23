@@ -67,7 +67,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function populateFormForEdit(jobId) {
-        fetch(`${API_BASE_URL}/jobs/${jobId}`)
+        fetch(`${API_BASE_URL}/api/jobs/${jobId}`)
             .then(response => {
                 if (!response.ok) throw new Error('ジョブ定義の取得に失敗しました。');
                 return response.json();
@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Main Fetch and Display Function ---
 
     function fetchAndDisplayJobs() {
-        fetch(`${API_BASE_URL}/scheduler/jobs`)
+        fetch(`${API_BASE_URL}/api/scheduler/jobs`)
             .then(response => {
                 if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                 return response.json();
@@ -248,9 +248,9 @@ document.addEventListener('DOMContentLoaded', function() {
         updateBulkActions();
     });
 
-    bulkPauseBtn.addEventListener('click', () => performBulkAction('pause', `${API_BASE_URL}/scheduler/jobs/bulk/pause`, '一括停止'));
-    bulkResumeBtn.addEventListener('click', () => performBulkAction('resume', `${API_BASE_URL}/scheduler/jobs/bulk/resume`, '一括再開'));
-    bulkDeleteBtn.addEventListener('click', () => performBulkAction('delete', `${API_BASE_URL}/jobs/bulk/delete`, '一括削除'));
+    bulkPauseBtn.addEventListener('click', () => performBulkAction('pause', `${API_BASE_URL}/api/scheduler/jobs/bulk/pause`, '一括停止'));
+    bulkResumeBtn.addEventListener('click', () => performBulkAction('resume', `${API_BASE_URL}/api/scheduler/jobs/bulk/resume`, '一括再開'));
+    bulkDeleteBtn.addEventListener('click', () => performBulkAction('delete', `${API_BASE_URL}/api/jobs/bulk/delete`, '一括削除'));
 
     triggerTypeSelect.addEventListener('change', (event) => {
         showTriggerFields(event.target.value);
@@ -267,7 +267,7 @@ document.addEventListener('DOMContentLoaded', function() {
         event.preventDefault();
         const isEdit = !!jobIdHidden.value;
         const method = isEdit ? 'PUT' : 'POST';
-        const url = isEdit ? `${API_BASE_URL}/jobs/${jobIdHidden.value}` : `${API_BASE_URL}/jobs`;
+        const url = isEdit ? `${API_BASE_URL}/api/jobs/${jobIdHidden.value}` : `${API_BASE_URL}/api/jobs`;
 
         const jobData = {
             id: jobIdInput.value,
@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (target.classList.contains('btn-run')) {
             if (confirm(`ジョブ '${jobId}' を今すぐ実行しますか？`)) {
-                fetch(`${API_BASE_URL}/scheduler/jobs/${jobId}/run`, { method: 'POST' })
+                fetch(`${API_BASE_URL}/api/scheduler/jobs/${jobId}/run`, { method: 'POST' })
                     .then(response => {
                         if (!response.ok) throw new Error('実行リクエストに失敗しました。');
                         return response.json();
@@ -342,7 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (target.classList.contains('btn-delete')) {
             if (confirm(`ジョブ定義 '${jobId}' を削除してもよろしいですか？
 この操作は元に戻せません。`)) {
-                fetch(`${API_BASE_URL}/jobs/${jobId}`, { method: 'DELETE' })
+                fetch(`${API_BASE_URL}/api/jobs/${jobId}`, { method: 'DELETE' })
                     .then(response => {
                         if (!response.ok) throw new Error('削除に失敗しました。');
                         alert(`ジョブ定義 '${jobId}' が削除されました。`);
@@ -364,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const action = target.checked ? 'resume' : 'pause';
         
-        fetch(`${API_BASE_URL}/scheduler/jobs/${jobId}/${action}`, { method: 'POST' })
+        fetch(`${API_BASE_URL}/api/scheduler/jobs/${jobId}/${action}`, { method: 'POST' })
             .then(response => {
                 if (!response.ok) throw new Error('ステータスの変更に失敗しました。');
                 return response.json();

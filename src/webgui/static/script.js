@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateJobList() {
         if (!jobListBody) return; // Do nothing if the table body isn't on the page
 
-        fetch(`${API_BASE_URL}/scheduler/jobs`)
+        fetch(`${API_BASE_URL}/api/scheduler/jobs`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -100,7 +100,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (action) {
-            fetch(`${API_BASE_URL}/scheduler/jobs/${jobId}/${action}`, {
+            fetch(`${API_BASE_URL}/api/scheduler/jobs/${jobId}/${action}`, {
                 method: 'POST'
             })
             .then(response => {
