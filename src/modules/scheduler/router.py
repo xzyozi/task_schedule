@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api")
 @router.get("/dashboard/summary", response_model=schemas.DashboardSummary, tags=["Dashboard"])
 def get_dashboard_summary(db: Session = Depends(get_db)):
     try:
-        total_jobs = db.query(models.JobDefinition).count()
+        total_jobs = len(service.scheduler.get_jobs())
         running_jobs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'RUNNING').count()
         successful_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'COMPLETED').count()
         failed_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'FAILED').count()
