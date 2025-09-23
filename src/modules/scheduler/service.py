@@ -1,71 +1,54 @@
-import atexit
-from datetime import datetime, timedelta
+from sqlalchemy.orm import Session
+from core.crud import CRUDBase
+from . import models, schemas
 
-from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.events import EVENT_JOB_ERROR
+class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schemas.JobConfig]):
+    def create_from_config(self, db: Session, *, job_in: schemas.JobConfig) -> models.JobDefinition:
+        """
+        Creates a JobDefinition in the database from a JobConfig Pydantic schema.
+        """
+        trigger_dict = job_in.trigger.dict()
+        trigger_type = trigger_dict.pop('type')
+        
+        db_obj = self.model(
+            id=job_in.id,
+            func=job_in.func,
+            description=job_in.description,
+            is_enabled=job_in.is_enabled,
+            trigger_type=trigger_type,
+            trigger_config=trigger_dict,
+            args=job_in.args,
+            kwargs=job_in.kwargs,
+            max_instances=job_in.max_instances,
+            coalesce=job_in.coalesce,
+            misfire_grace_time=job_in.misfire_grace_time,
+        )
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
 
-from core.config import settings
-from util import logger_util
+    def update_from_config(self, db: Session, *, db_obj: models.JobDefinition, job_in: schemas.JobConfig) -> models.JobDefinition:
+        """
+        Updates a JobDefinition in the database from a JobConfig Pydantic schema.
+        """
+        db_obj.func = job_in.func
+        db_obj.description = job_in.description
+        db_obj.is_enabled = job_in.is_enabled
+        
+        trigger_dict = job_in.trigger.dict()
+        db_obj.trigger_type = trigger_dict.pop('type')
+        db_obj.trigger_config = trigger_dict
 
-logger = logger_util.get_logger(__name__)
+        db_obj.args = job_in.args
+        db_obj.kwargs = job_in.kwargs
+        db_obj.max_instances = job_in.max_instances
+        db_obj.coalesce = job_in.coalesce
+        db_obj.misfire_grace_time = job_in.misfire_grace_time
+        
+        db.add(db_obj)
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
 
-MAX_RETRIES = 3
-RETRY_DELAY_SECONDS = 30
-
-jobstores = {
-    "default": SQLAlchemyJobStore(url=settings.DATABASE_URL)
-}
-
-executors = {
-    "default": ThreadPoolExecutor(20),
-    "processpool": ProcessPoolExecutor(5),
-}
-
-job_defaults = {
-    "coalesce": False,
-    "max_instances": 3
-}
-
-scheduler = BackgroundScheduler(
-    jobstores=jobstores,
-    executors=executors,
-    job_defaults=job_defaults
-)
-
-def job_error_listener(event):
-    job = scheduler.get_job(event.job_id)
-    if event.exception and job:
-        current_retries = job.kwargs.get('retry_count', 0)
-        logger.error(f"Job {job.id} failed: {event.exception}. Retries: {current_retries}")
-        if current_retries < MAX_RETRIES:
-            new_kwargs = job.kwargs.copy()
-            new_kwargs['retry_count'] = current_retries + 1
-            job_func_kwargs = new_kwargs.copy()
-            job_func_kwargs.pop('retry_count', None)
-            retry_time = datetime.now() + timedelta(seconds=RETRY_DELAY_SECONDS)
-            scheduler.add_job(
-                job.func,
-                'date',
-                run_date=retry_time,
-                args=job.args,
-                kwargs=job_func_kwargs,
-                id=f"{job.id}_retry_{current_retries + 1}",
-                replace_existing=True
-            )
-            logger.info(f"Rescheduled {job.id} for retry at {retry_time}.")
-        else:
-            logger.error(f"Job {job.id} reached max retries.")
-
-scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
-
-def start_scheduler():
-    logger.info("Starting scheduler...")
-    scheduler.start()
-    atexit.register(shutdown_scheduler)
-
-def shutdown_scheduler():
-    logger.info("Shutting down scheduler...")
-    if scheduler.running:
-        scheduler.shutdown()
+job_definition_service = JobDefinitionCRUD(models.JobDefinition)

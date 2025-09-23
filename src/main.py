@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from core import database
 from util import logger_util
 from modules.scheduler.router import router as scheduler_router
-from modules.scheduler import service, loader
+from modules.scheduler import scheduler_instance, loader
 
 logger_util.setup_logging(log_file_path="log/app.log")
 logger = logger_util.get_logger(__name__)
@@ -15,15 +15,15 @@ async def lifespan(app: FastAPI):
     database.init_db()
     database.Base.metadata.create_all(bind=database.engine)
     loader.seed_db_from_yaml("jobs.yaml")
-    service.start_scheduler()
+    scheduler_instance.start_scheduler()
     loader.sync_jobs_from_db()
-    watcher = loader.start_config_watcher(service.scheduler, "jobs.yaml")
-    service.scheduler.add_job(loader.sync_jobs_from_db, "interval", seconds=60, id="db_sync")
+    watcher = loader.start_config_watcher(scheduler_instance.scheduler, "jobs.yaml")
+    scheduler_instance.scheduler.add_job(loader.sync_jobs_from_db, "interval", seconds=60, id="db_sync")
     yield
     logger.info("Application shutdown...")
     watcher.stop()
     watcher.join()
-    service.shutdown_scheduler()
+    scheduler_instance.shutdown_scheduler()
 
 app = FastAPI(title="Task Scheduler API", lifespan=lifespan)
 

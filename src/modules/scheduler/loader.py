@@ -6,7 +6,7 @@ from importlib import import_module
 from typing import List
 
 from core import database
-from modules.scheduler import models, schemas, service
+from modules.scheduler import models, schemas, scheduler_instance
 from util import logger_util
 
 logger = logger_util.get_logger(__name__)
@@ -71,7 +71,7 @@ def sync_jobs_from_db():
     db = next(database.get_db())
     try:
         jobs_in_db = db.query(models.JobDefinition).all()
-        apply_job_config(service.scheduler, [schemas.JobConfig.model_validate(j) for j in jobs_in_db])
+        apply_job_config(scheduler_instance.scheduler, [schemas.JobConfig.model_validate(j) for j in jobs_in_db])
     finally:
         db.close()
 
