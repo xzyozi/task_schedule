@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core import database
 from util import logger_util
+from util.config_util import config
 from modules.scheduler.router import router as scheduler_router
 from modules.scheduler import scheduler_instance, loader
 
@@ -29,8 +30,10 @@ app = FastAPI(title="Task Scheduler API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5012", "http://127.0.0.1:5012"],
-    allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
+    allow_origins=[config.webgui_base_url],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(scheduler_router)
@@ -38,3 +41,14 @@ app.include_router(scheduler_router)
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Task Scheduler API"}
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "main:app",
+        host=config.api_host,
+        port=config.api_port,
+        reload=True,
+        reload_includes=["*.yaml"],
+    )

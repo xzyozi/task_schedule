@@ -1,9 +1,9 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from util.config_util import config
 
-class CoreSettings(BaseSettings):
+class CoreSettings:
     """Core application settings"""
-    DATABASE_URL: str = "sqlite:///jobs.sqlite"
-
-    model_config = SettingsConfigDict(env_file=".env")
+    @property
+    def DATABASE_URL(self) -> str:
+        return config.database_url
 
 settings = CoreSettings()

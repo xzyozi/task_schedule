@@ -1,0 +1,36 @@
+# --------------------------------------------------------------------------- #
+# API Server Configuration
+# --------------------------------------------------------------------------- #
+# These settings control the behavior of the FastAPI backend server that
+# provides a RESTful API for managing jobs and schedules.
+# --------------------------------------------------------------------------- #
+api:
+  # The protocol scheme to use for the API server (e.g., http, https).
+  scheme: http
+  # The hostname or IP address to bind the API server to.
+  # Use '0.0.0.0' to make it accessible from other machines on the network.
+  host: 127.0.0.1
+  # The port number for the API server.
+  port: 8000
+
+# --------------------------------------------------------------------------- #
+# Web GUI Configuration
+# --------------------------------------------------------------------------- #
+# Settings for the Flask-based web user interface.
+# --------------------------------------------------------------------------- #
+webgui:
+  # The protocol scheme for the web GUI (e.g., http, https).
+  scheme: http
+  # The hostname or IP address for the web GUI.
+  host: 127.0.0.1
+  # The port number for the web GUI.
+  port: 5012
+
+# --------------------------------------------------------------------------- #
+# Core Application Settings
+# --------------------------------------------------------------------------- #
+core:
+  # The database connection string.
+  # For SQLite, use: 'sqlite:///your_database_file.sqlite'
+  # For PostgreSQL, use: 'postgresql://user:password@host:port/database'
+  database_url: "sqlite:///jobs.sqlite"
