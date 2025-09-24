@@ -1,5 +1,10 @@
 import yaml
 from pathlib import Path
+import json
+import os
+from util import logger_util
+
+logger = logger_util.get_logger(__name__)
 
 # Assuming this file is in src/util, the project root is three levels up.
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -71,3 +76,51 @@ class AppConfig:
 
 # Create a single, importable instance for the application to use.
 config = AppConfig()
+
+def read_jobs_yaml_content() -> str:
+    """
+    Reads the content of the jobs.yaml file.
+    Raises FileNotFoundError if the file does not exist.
+    """
+    jobs_yaml_path = PROJECT_ROOT / "jobs.yaml"
+    if not jobs_yaml_path.exists():
+        raise FileNotFoundError(f"File not found: {jobs_yaml_path}")
+    with open(jobs_yaml_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    return content
+
+NOTIFICATION_SETTINGS_FILE = "notification_settings.json"
+
+def get_notification_settings() -> dict:
+    """
+    Reads the notification settings from a JSON file.
+    Returns default settings if the file does not exist.
+    Raises an exception if the file exists but cannot be read.
+    """
+    settings_path = PROJECT_ROOT / NOTIFICATION_SETTINGS_FILE
+    if not settings_path.exists():
+        return {"email_recipients": "", "webhook_url": ""}
+    try:
+        with open(settings_path, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+        return settings
+    except Exception as e:
+        # Re-raise as a more generic exception or handle as appropriate
+        raise IOError(f"Failed to read notification settings from {settings_path}: {e}")
+
+def update_notification_settings(settings: dict) -> None:
+    """
+    Updates the notification settings in the JSON file.
+    Raises an exception if the file cannot be written.
+    """
+    settings_path = PROJECT_ROOT / NOTIFICATION_SETTINGS_FILE
+    try:
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4)
+        logger.info(f"Notification settings successfully updated in {settings_path}")
+    except IOError as e:
+        logger.error(f"Failed to write notification settings to {settings_path}: {e}", exc_info=True)
+        raise
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while writing notification settings to {settings_path}: {e}", exc_info=True)
+        raise
