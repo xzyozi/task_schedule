@@ -1,10 +1,10 @@
 import json, os
-from typing import List, Optional
+from typing import List
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from apscheduler.jobstores.base import JobLookupError
+from fastapi import APIRouter, Depends, HTTPException, status, Path, Query
 from sqlalchemy.orm import Session
+from apscheduler.jobstores.base import JobLookupError
 
 from core.database import get_db
 from modules.scheduler import models, schemas, loader
@@ -16,25 +16,23 @@ logger = logger_util.get_logger(__name__)
 
 router = APIRouter(prefix="/api")
 
+#
 # --- Dashboard Endpoints ---
-
-@router.get("/dashboard/summary", response_model=schemas.DashboardSummary, tags=["Dashboard"])
+#
+@router.get("/dashboard/summary", response_model=schemas.DashboardSummary, tags=["Dashboard"], summary="Get Dashboard Summary", description="Provides a high-level summary of job statuses.")
 def get_dashboard_summary(db: Session = Depends(get_db)):
     try:
         total_jobs = len(scheduler_instance.scheduler.get_jobs())
         running_jobs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'RUNNING').count()
         successful_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'COMPLETED').count()
         failed_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'FAILED').count()
-        return schemas.DashboardSummary(
-            total_jobs=total_jobs, running_jobs=running_jobs, 
-            successful_runs=successful_runs, failed_runs=failed_runs
-        )
+        return schemas.DashboardSummary(total_jobs=total_jobs, running_jobs=running_jobs, successful_runs=successful_runs, failed_runs=failed_runs)
     except Exception as e:
         logger.error(f"Error fetching dashboard summary: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch dashboard summary")
 
-@router.get("/logs", response_model=List[schemas.ProcessExecutionLogInfo], tags=["Dashboard"])
-def get_execution_logs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+@router.get("/logs", response_model=List[schemas.ProcessExecutionLogInfo], tags=["Dashboard"], summary="Get Execution Logs", description="Retrieves a paginated list of job execution logs.")
+def get_execution_logs(skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=200), db: Session = Depends(get_db)):
     try:
         logs = db.query(models.ProcessExecutionLog).order_by(models.ProcessExecutionLog.start_time.desc()).offset(skip).limit(limit).all()
         return logs
@@ -42,7 +40,7 @@ def get_execution_logs(skip: int = 0, limit: int = 100, db: Session = Depends(ge
         logger.error(f"Error fetching execution logs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch execution logs")
 
-@router.get("/timeline/data", response_model=List[schemas.TimelineItem], tags=["Dashboard"])
+@router.get("/timeline/data", response_model=List[schemas.TimelineItem], tags=["Dashboard"], summary="Get Timeline Data", description="Provides data for the job execution timeline, including scheduled and historical runs.")
 def get_timeline_data(db: Session = Depends(get_db)):
     try:
         timeline_items: List[schemas.TimelineItem] = []
@@ -74,16 +72,15 @@ def get_timeline_data(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- Job Definition Endpoints ---
-
-@router.get("/jobs", response_model=List[schemas.JobConfig], tags=["Job Definitions"])
-def read_jobs(db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
+#
+@router.get("/jobs", response_model=List[schemas.JobConfig], tags=["Job Definitions"], summary="List All Job Definitions")
+def read_jobs(db: Session = Depends(get_db), skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)):
     jobs = job_definition_service.get_multi(db, skip=skip, limit=limit)
     return [schemas.JobConfig.model_validate(job) for job in jobs]
 
-@router.post("/jobs", response_model=schemas.JobConfig, status_code=status.HTTP_201_CREATED, tags=["Job Definitions"])
+@router.post("/jobs", response_model=schemas.JobConfig, status_code=status.HTTP_201_CREATED, tags=["Job Definitions"], summary="Create a New Job Definition")
 def create_job(job_in: schemas.JobConfig, db: Session = Depends(get_db)):
-    db_job = job_definition_service.get(db, id=job_in.id)
-    if db_job:
+    if job_definition_service.get(db, id=job_in.id):
         raise HTTPException(status_code=409, detail="Job with this ID already exists")
     db_job = job_definition_service.create_from_config(db, job_in=job_in)
     loader.sync_jobs_from_db()
