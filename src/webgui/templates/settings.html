@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Settings{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>Settings</h2>
+
+    <ul class="nav nav-tabs" id="settingsTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="scheduler-tab" data-bs-toggle="tab" data-bs-target="#scheduler" type="button" role="tab" aria-controls="scheduler" aria-selected="true">Scheduler Control</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="jobs-yaml-tab" data-bs-toggle="tab" data-bs-target="#jobs-yaml" type="button" role="tab" aria-controls="jobs-yaml" aria-selected="false">jobs.yaml Management</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications" type="button" role="tab" aria-controls="notifications" aria-selected="false">通知設定</button>
+        </li>
+    </ul>
+    <div class="tab-content" id="settingsTabContent">
+        <div class="tab-pane fade show active" id="scheduler" role="tabpanel" aria-labelledby="scheduler-tab">
+            <h4 class="mt-3">Scheduler Actions</h4>
+            <button id="pauseScheduler" class="btn btn-warning me-2">Pause Scheduler</button>
+            <div id="schedulerStatus" class="mt-2"></div>
+        </div>
+        <div class="tab-pane fade" id="jobs-yaml" role="tabpanel" aria-labelledby="jobs-yaml-tab">
+            <h4 class="mt-3">jobs.yaml Content</h4>
+            <button id="downloadJobsYaml" class="btn btn-info mt-2">Download jobs.yaml</button>
+            <div id="jobsYamlStatus" class="mt-2"></div>
+        </div>
+        <div class="tab-pane fade" id="notifications" role="tabpanel" aria-labelledby="notifications-tab">
+            <h4 class="mt-3">通知設定</h4>
+            <form id="notification-settings-form">
+                <div class="mb-3">
+                    <label for="notification-email" class="form-label">通知用メールアドレス (カンマ区切り)</label>
+                    <input type="email" class="form-control" id="notification-email" placeholder="email1@example.com, email2@example.com">
+                </div>
+                <div class="mb-3">
+                    <label for="notification-webhook" class="form-label">Webhook URL (Slackなど)</label>
+                    <input type="url" class="form-control" id="notification-webhook" placeholder="https://hooks.slack.com/services/...">
+                </div>
+                <button type="submit" class="btn btn-primary">設定を保存</button>
+                <div id="notificationStatus" class="mt-2"></div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='settings.js') }}"></script>
+{% endblock %}

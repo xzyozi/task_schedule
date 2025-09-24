@@ -6,31 +6,28 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR
 
-from .config import settings
-from util import logger
+from core.config import settings
+from util import logger_util
 
-# Retry parameters
+logger = logger_util.get_logger(__name__)
+
 MAX_RETRIES = 3
 RETRY_DELAY_SECONDS = 30
 
-# Configure job stores
 jobstores = {
     "default": SQLAlchemyJobStore(url=settings.DATABASE_URL)
 }
 
-# Configure executors
 executors = {
     "default": ThreadPoolExecutor(20),
     "processpool": ProcessPoolExecutor(5),
 }
 
-# Configure job defaults
 job_defaults = {
     "coalesce": False,
     "max_instances": 3
 }
 
-# Initialize the scheduler
 scheduler = BackgroundScheduler(
     jobstores=jobstores,
     executors=executors,
@@ -38,21 +35,15 @@ scheduler = BackgroundScheduler(
 )
 
 def job_error_listener(event):
-    """Listener for job execution errors, implementing retry logic."""
     job = scheduler.get_job(event.job_id)
     if event.exception and job:
         current_retries = job.kwargs.get('retry_count', 0)
-
-        logger.error(f"Job {job.id} failed with exception: {event.exception}. Retry count: {current_retries}")
-
+        logger.error(f"Job {job.id} failed: {event.exception}. Retries: {current_retries}")
         if current_retries < MAX_RETRIES:
             new_kwargs = job.kwargs.copy()
             new_kwargs['retry_count'] = current_retries + 1
-
-            # Create kwargs for the rescheduled job, excluding internal retry_count
             job_func_kwargs = new_kwargs.copy()
-            job_func_kwargs.pop('retry_count', None) # Ensure retry_count is not passed to the job function
-
+            job_func_kwargs.pop('retry_count', None)
             retry_time = datetime.now() + timedelta(seconds=RETRY_DELAY_SECONDS)
             scheduler.add_job(
                 job.func,
@@ -60,26 +51,21 @@ def job_error_listener(event):
                 run_date=retry_time,
                 args=job.args,
                 kwargs=job_func_kwargs,
-                id=f"{job.id}_retry_{current_retries + 1}", # Unique ID for retry job
-                replace_existing=True # Important for persistent job stores
+                id=f"{job.id}_retry_{current_retries + 1}",
+                replace_existing=True
             )
-            logger.info(f"Rescheduled job {job.id} for retry at {retry_time}. New retry count: {new_kwargs['retry_count']}")
+            logger.info(f"Rescheduled {job.id} for retry at {retry_time}.")
         else:
-            logger.error(f"Job {job.id} has reached the maximum number of retries ({MAX_RETRIES}). No more retries will be attempted.")
+            logger.error(f"Job {job.id} reached max retries.")
 
-# Add the error listener to the scheduler
 scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
 
-
 def start_scheduler():
-    """Starts the scheduler and registers a shutdown hook."""
     logger.info("Starting scheduler...")
     scheduler.start()
-    # Register a shutdown hook to gracefully stop the scheduler
     atexit.register(shutdown_scheduler)
 
 def shutdown_scheduler():
-    """Shuts down the scheduler."""
     logger.info("Shutting down scheduler...")
     if scheduler.running:
         scheduler.shutdown()

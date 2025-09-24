@@ -1,0 +1,117 @@
+body {
+    overflow-x: hidden;
+}
+
+#sidebar-wrapper {
+    min-height: 100vh;
+    width: 250px;
+    margin-left: -250px;
+    transition: margin .25s ease-out;
+}
+
+#sidebar-wrapper .sidebar-heading {
+    padding: 0.875rem 1.25rem;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+#sidebar-wrapper .list-group {
+    width: 100%;
+}
+
+#page-content-wrapper {
+    min-width: 100vw;
+}
+
+#wrapper.toggled #sidebar-wrapper {
+    margin-left: 0;
+}
+
+@media (min-width: 768px) {
+    #sidebar-wrapper {
+        margin-left: 0;
+    }
+
+    #page-content-wrapper {
+        min-width: 0;
+        width: 100%;
+    }
+
+    #wrapper.toggled #sidebar-wrapper {
+        margin-left: -250px;
+    }
+}
+
+/* Custom styles for timeline */
+.timeline-item {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #eee;
+}
+
+.timeline-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.timeline-item .time {
+    font-weight: bold;
+    margin-right: 1rem;
+}
+
+.timeline-item .job-name {
+    margin-left: 1rem;
+}
+
+/* Vis.js Timeline specific styles */
+.vis-item.job-scheduled {
+    background-color: #d1ecf1; /* Light blue */
+    border-color: #bee5eb;
+    color: #0c5460;
+}
+
+.vis-item.job-running {
+    background-color: #fff3cd; /* Light yellow */
+    border-color: #ffeeba;
+    color: #856404;
+}
+
+.vis-item.job-completed {
+    background-color: #d4edda; /* Light green */
+    border-color: #c3e6cb;
+    color: #155724;
+}
+
+.vis-item.job-failed {
+    background-color: #f8d7da; /* Light red */
+    border-color: #f5c6cb;
+    color: #721c24;
+}
+
+/* Style for point items (scheduled jobs) */
+.vis-item.vis-point.job-scheduled {
+    background-color: #17a2b8; /* Info blue */
+    border-color: #17a2b8;
+    color: #fff;
+    border-radius: 50%; /* Make it a circle */
+    width: 10px;
+    height: 10px;
+    left: -5px; /* Adjust to center the circle on the time */
+    top: 5px; /* Adjust vertical position */
+}
+
+.vis-item.vis-point.job-scheduled .vis-item-content {
+    display: none; /* Hide content for small points */
+}
+
+/* Style for groups (job IDs) */
+.vis-group {
+    background-color: #f8f9fa; /* Light gray for group background */
+    border-bottom: 1px solid #e9ecef;
+    padding: 5px;
+    font-weight: bold;
+}
+
+.vis-group .vis-group-content {
+    padding-left: 10px;
+}

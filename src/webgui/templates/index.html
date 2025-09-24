@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Task Scheduler Dashboard{% endblock %}
+
+{% block page_title %}ダッシュボード{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card text-white bg-primary mb-3">
+            <div class="card-body">
+                <h5 class="card-title">総ジョブ数</h5>
+                <p class="card-text fs-4">{{ summary.total_jobs }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-info mb-3">
+            <div class="card-body">
+                <h5 class="card-title">実行中</h5>
+                <p class="card-text fs-4">{{ summary.running_jobs }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-success mb-3">
+            <div class="card-body">
+                <h5 class="card-title">成功</h5>
+                <p class="card-text fs-4">{{ summary.successful_runs }}</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card text-white bg-danger mb-3">
+            <div class="card-body">
+                <h5 class="card-title">失敗</h5>
+                <p class="card-text fs-4">{{ summary.failed_runs }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- /Summary Cards -->
+
+<!-- Job List Table -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h2>ジョブ一覧</h2>
+    </div>
+    <div class="card-body">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th scope="col">ジョブID</th>
+                    <th scope="col">次に実行</th>
+                    <th scope="col">ステータス</th>
+                    <th scope="col">操作</th>
+                </tr>
+            </thead>
+            <tbody id="job-list-body">
+                <!-- Job rows will be inserted here by JavaScript -->
+            </tbody>
+        </table>
+    </div>
+</div>
+<!-- /Job List Table -->
+<!-- Timeline Section -->
+<div class="card mt-4">
+    <div class="card-header">
+        <h2>ジョブ実行タイムライン</h2>
+    </div>
+    <div class="card-body">
+        <div id="timeline"></div>
+    </div>
+</div>
+<!-- /Timeline Section -->
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript" src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
+<link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script src="{{ url_for('static', filename='timeline.js') }}"></script>
+{% endblock %}

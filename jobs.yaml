@@ -1,6 +1,8 @@
 # jobs.yaml
 - id: 'daily_sales_report'
-  func: 'scheduler.tasks.reporting.send_daily_report'
+  func: 'modules.scheduler.tasks.reporting.send_daily_report'
+  description: 'Generates and sends the daily sales report.'
+  is_enabled: true
   trigger:
     type: 'cron'
     day_of_week: 'mon-fri'
@@ -17,13 +19,33 @@
   misfire_grace_time: 3600 # 1 hour
 
 - id: 'api_health_check'
-  func: 'scheduler.tasks.monitoring.check_api_status'
+  func: 'modules.scheduler.tasks.monitoring.check_api_status'
+  description: 'Checks the health of the main API endpoint every 5 minutes.'
+  is_enabled: true
   trigger:
     type: 'interval'
     minutes: 5
   kwargs:
-    api_endpoint: 'https://api.example.com/health'
+    api_endpoint: 'http://127.0.0.1:8000/'
     timeout_seconds: 10
   replace_existing: true
   max_instances: 1
   coalesce: true
+
+- id: 'sample_job_1'
+  func: 'modules.scheduler.tasks.sample_tasks.print_current_time'
+  description: 'A sample job that prints the current time every 10 minutes.'
+  is_enabled: true
+  trigger:
+    type: 'interval'
+    minutes: 10
+  replace_existing: true
+
+- id: 'sample_job_2_paused'
+  func: 'modules.scheduler.tasks.sample_tasks.print_current_time'
+  description: 'A sample job that is initially disabled (paused).'
+  is_enabled: false
+  trigger:
+    type: 'cron'
+    hour: '*/1' # Every hour
+  replace_existing: true
