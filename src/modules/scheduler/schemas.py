@@ -32,6 +32,7 @@ class JobConfig(BaseModel):
     func: str
     description: Optional[str] = None
     is_enabled: bool = True
+    job_type: str = Field("python_function", pattern="^(python_function|shell_command)$")
     trigger: CronTrigger | IntervalTrigger
     args: Optional[List[Any]] = Field(default_factory=list)
     kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)

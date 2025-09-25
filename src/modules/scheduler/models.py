@@ -11,6 +11,7 @@ class JobDefinition(Base):
     func = Column(String, nullable=False)
     description = Column(String, nullable=True)
     is_enabled = Column(Boolean, default=True, nullable=False)
+    job_type = Column(String, nullable=False)
     trigger_type = Column(String, nullable=False)
     trigger_config = Column(JSON, nullable=False)
     args = Column(JSON, default=list, nullable=False)

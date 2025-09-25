@@ -8,6 +8,7 @@ from typing import List
 from core import database
 from modules.scheduler import models, schemas, scheduler_instance
 from util import logger_util
+from .job_executors import execute_shell_command
 
 logger = logger_util.get_logger(__name__)
 
@@ -37,10 +38,29 @@ def apply_job_config(scheduler, job_configs):
             trigger_type = trigger_dict.pop('type')
             final_kwargs = cfg.kwargs.copy()
             final_kwargs['job_id'] = cfg.id
+
+            job_function = None
+            job_args = cfg.args
+            job_kwargs = cfg.kwargs
+
+            if cfg.job_type == "shell_command":
+                job_function = execute_shell_command
+                # Pass the command itself as the first argument to execute_shell_command
+                # and then the original args and kwargs
+                job_args = [cfg.func] + cfg.args
+                job_kwargs = cfg.kwargs
+            elif cfg.job_type == "python_function":
+                job_function = _resolve_func_path(cfg.func)
+                job_args = cfg.args
+                job_kwargs = cfg.kwargs
+            else:
+                logger.error(f"Unknown job type '{cfg.job_type}' for job {cfg.id}")
+                continue
+
             scheduler.add_job(
-                func=_resolve_func_path(cfg.func),
+                func=job_function,
                 trigger=trigger_type,
-                args=cfg.args, kwargs=final_kwargs, id=cfg.id,
+                args=job_args, kwargs=job_kwargs, id=cfg.id,
                 replace_existing=True, max_instances=cfg.max_instances,
                 coalesce=cfg.coalesce, misfire_grace_time=cfg.misfire_grace_time,
                 **trigger_dict
@@ -84,7 +104,7 @@ def seed_db_from_yaml(yaml_path: str):
             trigger_dict = cfg.trigger.dict()
             job_def = models.JobDefinition(
                 id=cfg.id, func=cfg.func, description=cfg.description,
-                is_enabled=cfg.is_enabled, trigger_type=trigger_dict.pop('type'),
+                is_enabled=cfg.is_enabled, job_type=cfg.job_type, trigger_type=trigger_dict.pop('type'),
                 trigger_config=trigger_dict, args=cfg.args, kwargs=cfg.kwargs,
                 max_instances=cfg.max_instances, coalesce=cfg.coalesce,
                 misfire_grace_time=cfg.misfire_grace_time
