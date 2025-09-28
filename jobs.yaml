@@ -3,7 +3,7 @@
   func: 'modules.scheduler.tasks.reporting.send_daily_report'
   description: 'Generates and sends the daily sales report.'
   is_enabled: true
-  job_type: ''
+  job_type: 'python_function'
   trigger:
     type: 'cron'
     day_of_week: 'mon-fri'
@@ -38,7 +38,7 @@
   func: 'modules.scheduler.tasks.sample_tasks.print_current_time'
   description: 'A sample job that prints the current time every 10 minutes.'
   is_enabled: true
-  job_type: ''
+  job_type: 'python_function'
   trigger:
     type: 'interval'
     minutes: 10
@@ -46,9 +46,9 @@
 
 - id: 'sample_job_2_paused'
   func: 'modules.scheduler.tasks.sample_tasks.print_current_time'
-  description: 'A sample job that is initially disabled (paused).''
+  description: 'A sample job that is initially disabled (paused).'
   is_enabled: false
-  job_type: ''
+  job_type: 'python_function'
   trigger:
     type: 'cron'
     hour: '*/1' # Every hour
