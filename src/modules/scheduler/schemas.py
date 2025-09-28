@@ -1,7 +1,7 @@
 import os
 from typing import Any, Dict, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, model_validator, validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator, field_validator
 
 from modules.scheduler import models
 
@@ -45,7 +45,7 @@ class JobConfig(BaseModel):
     replace_existing: bool = True
     model_config = ConfigDict(from_attributes=True)
 
-    @validator('cwd')
+    @field_validator('cwd')
     def validate_cwd(cls, v):
         if v is None:
             return v

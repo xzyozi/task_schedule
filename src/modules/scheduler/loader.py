@@ -34,7 +34,7 @@ def apply_job_config(scheduler, job_configs):
             logger.info(f"Removed job: {job.id}")
     for cfg in job_configs:
         try:
-            trigger_dict = cfg.trigger.dict()
+            trigger_dict = cfg.trigger.model_dump()
             trigger_type = trigger_dict.pop('type')
 
             job_function = None
@@ -105,7 +105,7 @@ def seed_db_from_yaml(yaml_path: str):
     db = next(database.get_db())
     try:
         for cfg in configs:
-            trigger_dict = cfg.trigger.dict()
+            trigger_dict = cfg.trigger.model_dump()
             job_def = models.JobDefinition(
                 id=cfg.id, func=cfg.func, description=cfg.description,
                 is_enabled=cfg.is_enabled, job_type=cfg.job_type, trigger_type=trigger_dict.pop('type'),

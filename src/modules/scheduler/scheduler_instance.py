@@ -66,6 +66,12 @@ def start_scheduler():
     atexit.register(shutdown_scheduler)
 
 def shutdown_scheduler():
-    logger.info("Shutting down scheduler...")
-    if scheduler.running:
-        scheduler.shutdown()
+    try:
+        logger.info("Shutting down scheduler...")
+        if scheduler.running:
+            scheduler.shutdown()
+        logger.info("Scheduler shut down.")
+    except Exception:
+        # Broadly catch exceptions during shutdown, as the logging context may be torn down.
+        # This is acceptable in an atexit handler.
+        pass
