@@ -1,9 +1,12 @@
+import os
+from pathlib import Path
 from sqlalchemy.orm import Session
 from core.crud import CRUDBase
 from . import models, schemas, scheduler_instance
 from typing import List, Dict
 from datetime import datetime, timedelta, timezone
 from util import logger_util
+from util.config_util import config
 from apscheduler.jobstores.base import JobLookupError
 
 logger = logger_util.get_logger(__name__)
@@ -13,7 +16,7 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schema
         """
         Creates a JobDefinition in the database from a JobConfig Pydantic schema.
         """
-        trigger_dict = job_in.trigger.dict()
+        trigger_dict = job_in.trigger.model_dump()
         trigger_type = trigger_dict.pop('type')
         
         db_obj = self.model(
@@ -44,7 +47,7 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schema
         db_obj.description = job_in.description
         db_obj.is_enabled = job_in.is_enabled
         
-        trigger_dict = job_in.trigger.dict()
+        trigger_dict = job_in.trigger.model_dump()
         db_obj.trigger_type = trigger_dict.pop('type')
         db_obj.trigger_config = trigger_dict
 
@@ -195,5 +198,29 @@ def resume_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
         except JobLookupError:
             failed_ids[job_id] = "Not Found"
     return {"resumed": resumed_ids, "failed": failed_ids}
+
+def list_subdirectories(relative_path: str = "") -> List[str]:
+    """
+    Lists subdirectories within the scheduler's work_dir for autocompletion.
+    """
+    work_dir = config.scheduler_work_dir
+    
+    # Prevent directory traversal attacks
+    if ".." in relative_path:
+        return []
+
+    scan_path = work_dir.joinpath(relative_path).resolve()
+
+    # Security check: ensure the path to scan is within the work_dir sandbox
+    if work_dir not in scan_path.parents and scan_path != work_dir:
+        return []
+
+    if not scan_path.is_dir():
+        return []
+
+    try:
+        return [entry.name for entry in os.scandir(scan_path) if entry.is_dir()]
+    except OSError:
+        return []
 
 
