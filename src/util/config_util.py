@@ -74,6 +74,17 @@ class AppConfig:
     def database_url(self) -> str:
         return self.get('core.database_url', 'sqlite:///jobs.sqlite')
 
+    @property
+    def scheduler_work_dir(self) -> Path:
+        path_str = self.get('scheduler.work_dir', '~/.task_schedule/work_list')
+        # Expand user home directory and resolve to an absolute path
+        resolved_path = Path(path_str).expanduser().resolve()
+        
+        # Create the directory if it doesn't exist
+        resolved_path.mkdir(parents=True, exist_ok=True)
+        
+        return resolved_path
+
 # Create a single, importable instance for the application to use.
 config = AppConfig()
 

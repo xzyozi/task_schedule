@@ -34,3 +34,12 @@ core:
   # For SQLite, use: 'sqlite:///your_database_file.sqlite'
   # For PostgreSQL, use: 'postgresql://user:password@host:port/database'
   database_url: "sqlite:///jobs.sqlite"
+
+# --------------------------------------------------------------------------- #
+# Scheduler Settings
+# --------------------------------------------------------------------------- #
+scheduler:
+  # The base directory for shell command jobs.
+  # Using '~' resolves to the user's home directory.
+  # This acts as a sandbox for all shell commands.
+  work_dir: "~/.task_schedule/work_list"
