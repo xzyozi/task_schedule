@@ -63,6 +63,10 @@ def execute_shell_command(command: str, *args, cwd: Optional[str] = None, env: O
     except FileNotFoundError:
         logger.error(f"Command not found: {command}", exc_info=True)
         return {"stdout": "", "stderr": f"Command not found: {command}", "exit_code": 127}
+    except PermissionError:
+        error_msg = f"Permission denied to execute command '{command}' or access CWD '{cwd}'."
+        logger.error(error_msg, exc_info=True)
+        return {"stdout": "", "stderr": error_msg, "exit_code": 126} # 126 is common for command cannot execute
     except Exception as e:
         logger.error(f"Error executing shell command '{log_command}': {e}", exc_info=True)
         return {"stdout": "", "stderr": str(e), "exit_code": 1}
