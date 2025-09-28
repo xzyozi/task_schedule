@@ -63,7 +63,9 @@
                         <label for="job-type" class="form-label">ジョブタイプ</label>
                         <select class="form-select" id="job-type">
                             <option value="python" selected>Python Function</option>
-                            <option value="shell">Shell Command</option>
+                            <option value="cmd" data-os="windows" class="os-specific" style="display: none;">CMD</option>
+                            <option value="powershell" data-os="windows" class="os-specific" style="display: none;">PowerShell</option>
+                            <option value="shell" data-os="linux" class="os-specific" style="display: none;">Shell (Linux/macOS)</option>
                         </select>
                     </div>
                     <div class="mb-3">

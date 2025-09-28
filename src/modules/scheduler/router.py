@@ -1,4 +1,5 @@
 import json, os
+import platform
 from typing import List
 import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Path, Query
@@ -14,6 +15,14 @@ from util import logger_util, config_util
 logger = logger_util.get_logger(__name__)
 
 router = APIRouter(prefix="/api")
+
+#
+# --- System Endpoints ---
+#
+@router.get("/system/os", tags=["System"], summary="Get OS Information")
+def get_os_info():
+    """Returns the operating system type (e.g., 'Windows', 'Linux')."""
+    return {"os_type": platform.system()}
 
 #
 # --- Dashboard Endpoints ---

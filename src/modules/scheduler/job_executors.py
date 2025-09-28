@@ -10,43 +10,34 @@ from . import models
 
 logger = logger_util.get_logger(__name__)
 
-def execute_shell_command(command: list, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None, **kwargs) -> Dict[str, Any]:
+def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     """
-    Executes a shell command and captures its output.
-
-    Args:
-        command: The shell command to execute as a list of strings.
-        cwd: The relative path from the work_dir to use as the working directory.
-        env: A dictionary of environment variables to set for the command.
-        **kwargs: Other keyword arguments (ignored).
-
-    Returns:
-        A dictionary containing stdout, stderr, and exit_code.
+    Internal helper to execute a command as a subprocess.
     """
-    full_command = command
-    log_command = ' '.join(full_command)
+    log_command = ' '.join(command_to_run)
     
     absolute_cwd = None
     if cwd:
-        # Resolve the relative CWD path against the sandboxed work directory
         absolute_cwd = config.scheduler_work_dir.joinpath(cwd).resolve()
-        # Create the directory if it doesn't exist
         absolute_cwd.mkdir(parents=True, exist_ok=True)
 
-    logger.info(f"Executing shell command: {log_command}" + (f" in {absolute_cwd}" if absolute_cwd else ""))
+    logger.info(f"Executing: {log_command}" + (f" in {absolute_cwd}" if absolute_cwd else ""))
 
     try:
         process_env = os.environ.copy()
         if env:
             process_env.update(env)
 
+        # When shell=True, pass a string. Otherwise, pass a list.
+        proc_input = log_command if use_shell else command_to_run
+
         process = subprocess.run(
-            log_command, # Pass the command as a string
+            proc_input,
             capture_output=True,
             text=True,
             check=False,
-            shell=True, # Execute through the shell
-            cwd=absolute_cwd, # Use the resolved absolute path
+            shell=use_shell,
+            cwd=absolute_cwd,
             env=process_env
         )
 
@@ -55,39 +46,56 @@ def execute_shell_command(command: list, cwd: Optional[str] = None, env: Optiona
         exit_code = process.returncode
 
         if exit_code != 0:
-            logger.error(f"Shell command '{log_command}' failed with exit code {exit_code}.\nCWD: {absolute_cwd}\nSTDOUT: {stdout}\nSTDERR: {stderr}")
+            logger.error(f"Command '{log_command}' failed with exit code {exit_code}.\nCWD: {absolute_cwd}\nSTDOUT: {stdout}\nSTDERR: {stderr}")
         else:
-            logger.info(f"Shell command '{log_command}' completed successfully.\nSTDOUT: {stdout}")
+            logger.info(f"Command '{log_command}' completed successfully.\nSTDOUT: {stdout}")
 
-        return {
-            "stdout": stdout,
-            "stderr": stderr,
-            "exit_code": exit_code
-        }
+        return {"stdout": stdout, "stderr": stderr, "exit_code": exit_code}
     except FileNotFoundError:
-        logger.error(f"Command not found: {command[0]}", exc_info=True)
-        return {"stdout": "", "stderr": f"Command not found: {command[0]}", "exit_code": 127}
-    except PermissionError:
-        error_msg = f"Permission denied to execute command '{command[0]}' or access CWD '{absolute_cwd}'."
-        logger.error(error_msg, exc_info=True)
-        return {"stdout": "", "stderr": error_msg, "exit_code": 126}
+        cmd_name = command_to_run[0]
+        logger.error(f"Command not found: {cmd_name}", exc_info=True)
+        return {"stdout": "", "stderr": f"Command not found: {cmd_name}", "exit_code": 127}
     except Exception as e:
-        logger.error(f"Error executing shell command '{log_command}': {e}", exc_info=True)
+        logger.error(f"Error executing command '{log_command}': {e}", exc_info=True)
         return {"stdout": "", "stderr": str(e), "exit_code": 1}
 
-def logged_shell_command(**kwargs):
+
+def execute_command_job(**kwargs):
     """
-    Wrapper for execute_shell_command that logs the execution details
-    to the ProcessExecutionLog table.
+    A wrapper for executing command-based jobs (shell, cmd, powershell)
+    that logs the execution details to the ProcessExecutionLog table.
+    This is the main entry point for command jobs.
     """
     job_id = kwargs.get('job_id')
+    job_type = kwargs.get('job_type')
     command_list = kwargs.get('command', [])
-    command_str = ' '.join(command_list)
+    
+    # Prepare the command and execution options based on job_type
+    executable_command = []
+    use_shell = False
+    
+    if job_type == 'powershell':
+        # For PowerShell, we execute the powershell executable with the command.
+        # `shell=False` is safer here.
+        executable_command = ['powershell', '-Command'] + command_list
+        use_shell = False
+    elif job_type == 'cmd':
+        # For cmd, we need `shell=True` to use built-ins.
+        # The command will be passed as a string.
+        executable_command = command_list
+        use_shell = True
+    elif job_type == 'shell': # For Linux/macOS
+        # For Linux/macOS, `shell=True` will use the default shell (e.g., /bin/sh)
+        executable_command = command_list
+        use_shell = True
+    else:
+        logger.error(f"Attempted to execute unknown command job type: {job_type}")
+        return
 
+    command_str = ' '.join(command_list)
     db = next(database.get_db())
     log_entry = None
     try:
-        # Create a unique ID for the log entry
         log_id = str(uuid.uuid4())
         log_entry = models.ProcessExecutionLog(
             id=log_id,
@@ -102,18 +110,21 @@ def logged_shell_command(**kwargs):
     except Exception as e:
         logger.error(f"Failed to create initial log entry for job {job_id}: {e}")
         db.rollback()
-        # Still proceed to execute the command
     finally:
         db.close()
 
     # Execute the actual command
-    result = execute_shell_command(**kwargs)
+    result = _execute_subprocess(
+        command_to_run=executable_command,
+        use_shell=use_shell,
+        cwd=kwargs.get('cwd'),
+        env=kwargs.get('env')
+    )
 
     # Update the log entry with the result
     if log_entry:
         db = next(database.get_db())
         try:
-            # Re-attach the object to the new session if it was detached
             log_entry = db.query(models.ProcessExecutionLog).filter_by(id=log_entry.id).one()
             log_entry.end_time = datetime.now()
             log_entry.exit_code = result.get('exit_code')

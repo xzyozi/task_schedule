@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Form elements
     const jobForm = document.getElementById('job-form');
     const jobIdInput = document.getElementById('job-id');
-    const jobTypeSelect = document.getElementById('job-type'); // New
+    const jobTypeSelect = document.getElementById('job-type');
     const jobFuncInput = document.getElementById('job-func');
     const jobDescriptionInput = document.getElementById('job-description');
     const jobEnabledCheckbox = document.getElementById('job-enabled');
@@ -21,10 +21,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const jobFormTitle = document.getElementById('job-form-title');
     const jobIdHidden = document.getElementById('job-id-hidden');
 
-    // Shell command fields
-    const shellCommandFields = document.getElementById('shell-command-fields'); // New
-    const jobCwdInput = document.getElementById('job-cwd'); // New
-    const jobEnvInput = document.getElementById('job-env'); // New
+    // Command fields
+    const shellCommandFields = document.getElementById('shell-command-fields');
+    const jobCwdInput = document.getElementById('job-cwd');
+    const jobEnvInput = document.getElementById('job-env');
 
     // Cron fields
     const cronMinuteInput = document.getElementById('cron-minute');
@@ -44,6 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const bulkResumeBtn = document.getElementById('bulk-resume-btn');
     const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
 
+    const COMMAND_JOB_TYPES = ['cmd', 'powershell', 'shell'];
 
     // --- Utility Functions ---
 
@@ -52,13 +53,11 @@ document.addEventListener('DOMContentLoaded', function() {
         intervalFieldsDiv.classList.toggle('d-none', type !== 'interval');
     }
 
-    // New function
-    function showShellCommandFields(jobType) {
-        const isShell = jobType === 'shell';
-        shellCommandFields.classList.toggle('d-none', !isShell);
+    function showCommandFields(jobType) {
+        const isCommandJob = COMMAND_JOB_TYPES.includes(jobType);
+        shellCommandFields.classList.toggle('d-none', !isCommandJob);
     }
     
-    // New function
     function parseEnv(envString) {
         const env = {};
         if (envString) {
@@ -72,17 +71,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return env;
     }
 
-    // New function
     function formatEnv(envObject) {
         if (!envObject) return '';
         return Object.entries(envObject).map(([key, value]) => `${key}=${value}`).join('\n');
     }
 
-
     function clearForm() {
         jobForm.reset();
         jobIdInput.value = '';
-        jobTypeSelect.value = 'python'; // Reset job type
+        jobTypeSelect.value = 'python';
         jobFuncInput.value = '';
         jobDescriptionInput.value = '';
         jobEnabledCheckbox.checked = true;
@@ -94,13 +91,13 @@ document.addEventListener('DOMContentLoaded', function() {
         intervalDaysInput.value = 0;
         intervalHoursInput.value = 0;
         intervalMinutesInput.value = 5;
-        jobCwdInput.value = ''; // Reset CWD
-        jobEnvInput.value = ''; // Reset Env
+        jobCwdInput.value = '';
+        jobEnvInput.value = '';
         jobFormTitle.textContent = '新規ジョブ作成';
         jobIdInput.readOnly = false;
         jobIdHidden.value = '';
         showTriggerFields('cron');
-        showShellCommandFields('python'); // Hide shell fields by default
+        showCommandFields('python');
     }
 
     function populateFormForEdit(jobId) {
@@ -116,22 +113,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 jobDescriptionInput.value = job.description || '';
                 jobEnabledCheckbox.checked = job.is_enabled;
                 triggerTypeSelect.value = job.trigger.type;
+                jobTypeSelect.value = job.job_type;
 
-                // Handle job type (python vs shell)
-                if (job.func === 'src.modules.scheduler.job_executors:execute_shell_command') {
-                    jobTypeSelect.value = 'shell';
+                if (COMMAND_JOB_TYPES.includes(job.job_type)) {
                     const command = job.kwargs.command || [];
-                    jobFuncInput.value = command.join(' '); // Join command array back to string
+                    jobFuncInput.value = command.join(' ');
                     jobCwdInput.value = job.kwargs.cwd || '';
                     jobEnvInput.value = formatEnv(job.kwargs.env);
-                } else {
-                    jobTypeSelect.value = 'python';
+                } else { // python
                     jobFuncInput.value = job.func;
-                    jobCwdInput.value = ''; // Clear shell fields
+                    jobCwdInput.value = '';
                     jobEnvInput.value = '';
                 }
-                showShellCommandFields(jobTypeSelect.value);
-
+                showCommandFields(job.job_type);
 
                 showTriggerFields(job.trigger.type);
 
@@ -197,8 +191,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // --- Main Fetch and Display Function ---
-
     function fetchAndDisplayJobs() {
         fetch(`${API_BASE_URL}/api/scheduler/jobs`)
             .then(response => {
@@ -216,10 +208,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     const row = document.createElement('tr');
                     
                     let displayFunc = job.func;
-                    if (job.func === 'src.modules.scheduler.job_executors:execute_shell_command' && job.kwargs && job.kwargs.command) {
-                        displayFunc = `<span class="badge bg-info">Shell</span> ${job.kwargs.command.join(' ')}`;
+                    if (COMMAND_JOB_TYPES.includes(job.job_type) && job.kwargs && job.kwargs.command) {
+                        displayFunc = `<span class="badge bg-info text-uppercase">${job.job_type}</span> ${job.kwargs.command.join(' ')}`;
                     }
-
 
                     row.innerHTML = `
                         <td><input type="checkbox" class="form-check-input job-checkbox" data-job-id="${job.id}"></td>
@@ -244,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                     jobsListBody.appendChild(row);
                 });
-                updateBulkActions(); // Reset bulk actions on refresh
+                updateBulkActions();
             })
             .catch(error => {
                 console.error('Error fetching scheduled jobs:', error);
@@ -252,7 +243,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // --- Bulk Action Logic ---
     function performBulkAction(action, url, confirmationText) {
         const selectedJobIds = Array.from(jobsListBody.querySelectorAll('.job-checkbox:checked'))
                                     .map(cb => cb.dataset.jobId);
@@ -283,14 +273,30 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    function initializeJobTypes() {
+        fetch(`${API_BASE_URL}/api/system/os`)
+            .then(response => response.json())
+            .then(data => {
+                const osType = data.os_type;
+                const options = jobTypeSelect.querySelectorAll('option.os-specific');
+                options.forEach(option => {
+                    const supportedOs = option.dataset.os;
+                    if (osType.toLowerCase().includes(supportedOs)) {
+                        option.style.display = 'block';
+                    }
+                });
+            })
+            .catch(error => console.error('Error fetching OS info:', error));
+    }
+
     // --- Event Listeners ---
 
     searchInput.addEventListener('keyup', function() {
         const searchTerm = searchInput.value.toLowerCase();
         const rows = jobsListBody.getElementsByTagName('tr');
         for (const row of rows) {
-            const jobIdCell = row.cells[2]; // Index updated for checkbox
-            const funcCell = row.cells[5];  // Index updated for checkbox
+            const jobIdCell = row.cells[2];
+            const funcCell = row.cells[5];
             if (jobIdCell && funcCell) {
                 const match = jobIdCell.textContent.toLowerCase().includes(searchTerm) || 
                               funcCell.textContent.toLowerCase().includes(searchTerm);
@@ -315,11 +321,9 @@ document.addEventListener('DOMContentLoaded', function() {
         showTriggerFields(event.target.value);
     });
 
-    // New listener
     jobTypeSelect.addEventListener('change', (event) => {
-        showShellCommandFields(event.target.value);
+        showCommandFields(event.target.value);
     });
-
 
     clearFormBtn.addEventListener('click', clearForm);
 
@@ -338,7 +342,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const jobData = {
             id: jobIdInput.value,
             job_type: jobType,
-            func: null, // Will be set below
+            func: null,
             description: jobDescriptionInput.value,
             is_enabled: jobEnabledCheckbox.checked,
             trigger: { type: triggerTypeSelect.value },
@@ -350,17 +354,16 @@ document.addEventListener('DOMContentLoaded', function() {
             replace_existing: true,
         };
 
-        if (jobType === 'shell') {
-            jobData.func = 'modules.scheduler.job_executors:logged_shell_command';
-            // Split command string into array
-            const commandParts = jobFuncInput.value.match(/\"[^\"]+\"|'[^']+'|\S+/g) || [];
-            jobData.kwargs.command = commandParts.map(part => part.replace(/^['\"]|['\"]$/g, ''));
+        if (COMMAND_JOB_TYPES.includes(jobType)) {
+            jobData.func = 'modules.scheduler.job_executors:execute_command_job';
+            const commandParts = jobFuncInput.value.match(/"[^"]+"|"[^"]+"|\S+/g) || [];
+            jobData.kwargs.command = commandParts.map(part => part.replace(/^['"]|['"]$/g, ''));
+            jobData.kwargs.job_type = jobType; // Pass job_type for the wrapper
             jobData.kwargs.cwd = jobCwdInput.value || null;
             jobData.kwargs.env = parseEnv(jobEnvInput.value) || null;
         } else { // python
             jobData.func = jobFuncInput.value;
         }
-
 
         if (jobData.trigger.type === 'cron') {
             jobData.trigger.minute = cronMinuteInput.value;
@@ -419,8 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         } 
         else if (target.classList.contains('btn-delete')) {
-            if (confirm(`ジョブ定義 '${jobId}' を削除してもよろしいですか？
-この操作は元に戻せません。`)) {
+            if (confirm(`ジョブ定義 '${jobId}' を削除してもよろしいですか？\nこの操作は元に戻せません。`)) {
                 fetch(`${API_BASE_URL}/api/jobs/${jobId}`, { method: 'DELETE' })
                     .then(response => {
                         if (!response.ok) throw new Error('削除に失敗しました。');
@@ -458,7 +460,8 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // --- Initial Load ---
+    initializeJobTypes();
     showTriggerFields('cron');
-    showShellCommandFields('python'); // Default to python
+    showCommandFields('python');
     fetchAndDisplayJobs();
 });

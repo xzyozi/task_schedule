@@ -8,7 +8,7 @@ from typing import List
 from core import database
 from modules.scheduler import models, schemas, scheduler_instance
 from util import logger_util
-from .job_executors import execute_shell_command
+
 
 logger = logger_util.get_logger(__name__)
 
