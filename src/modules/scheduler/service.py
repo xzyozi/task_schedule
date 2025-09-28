@@ -24,6 +24,7 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schema
             func=job_in.func,
             description=job_in.description,
             is_enabled=job_in.is_enabled,
+            job_type=job_in.job_type,
             trigger_type=trigger_type,
             trigger_config=trigger_dict,
             args=job_in.args,
@@ -46,6 +47,7 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schema
         db_obj.func = job_in.func
         db_obj.description = job_in.description
         db_obj.is_enabled = job_in.is_enabled
+        db_obj.job_type = job_in.job_type
         
         trigger_dict = job_in.trigger.model_dump()
         db_obj.trigger_type = trigger_dict.pop('type')

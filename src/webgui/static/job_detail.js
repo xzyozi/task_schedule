@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Fetch and Display Functions ---
 
     function fetchJobDetails() {
-        fetch(`${API_BASE_URL}/jobs/${jobId}`)
+        fetch(`${API_BASE_URL}/api/jobs/${jobId}`)
             .then(response => {
                 if (!response.ok) throw new Error('ジョブ定義の取得に失敗しました。');
                 return response.json();

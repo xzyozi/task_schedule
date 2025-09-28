@@ -10,12 +10,19 @@ sys.path.insert(0, str(project_root))
 from src.modules.scheduler import loader
 from src.core import database
 
-# データベースを初期化
+print("Initializing database...")
 database.init_db()
+print(f"Database engine: {database.engine}")
+
+print("Tables in metadata before create_all:")
+for table in database.Base.metadata.tables:
+    print(f"- {table}")
 
 # データベーススキーマを再作成（開発環境向け）
 # 既存のjobs.sqliteを削除した場合に必要
+print("Creating database schema...")
 database.Base.metadata.create_all(bind=database.engine)
+print("Schema creation command executed.")
 
 # jobs.yaml ファイルのパス
 jobs_yaml_path = project_root / "jobs.yaml"

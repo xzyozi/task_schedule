@@ -22,7 +22,10 @@ def load_and_validate_jobs(config_path: str) -> List[schemas.JobConfig]:
         return []
 
 def _resolve_func_path(func_path: str):
-    module_path, func_name = func_path.rsplit('.', 1)
+    if ':' in func_path:
+        module_path, func_name = func_path.rsplit(':', 1)
+    else:
+        module_path, func_name = func_path.rsplit('.', 1)
     module = import_module(module_path)
     return getattr(module, func_name)
 
@@ -37,26 +40,10 @@ def apply_job_config(scheduler, job_configs):
             trigger_dict = cfg.trigger.model_dump()
             trigger_type = trigger_dict.pop('type')
 
-            job_function = None
+            job_function = _resolve_func_path(cfg.func)
             job_args = cfg.args
-            job_kwargs = cfg.kwargs.copy() # Use a copy to avoid modifying the original
+            job_kwargs = cfg.kwargs.copy()
 
-            if cfg.job_type == "shell_command":
-                job_function = execute_shell_command
-                # Pass the command itself as the first argument to execute_shell_command
-                job_args = [cfg.func] + cfg.args
-                # Add cwd and env to kwargs if they exist
-                if cfg.cwd:
-                    job_kwargs['cwd'] = cfg.cwd
-                if cfg.env:
-                    job_kwargs['env'] = cfg.env
-            elif cfg.job_type == "python_function":
-                job_function = _resolve_func_path(cfg.func)
-            else:
-                logger.error(f"Unknown job type '{cfg.job_type}' for job {cfg.id}")
-                continue
-
-            # Ensure job_id is not passed to the job function itself if it's not expected
             final_kwargs = job_kwargs.copy()
             final_kwargs['job_id'] = cfg.id
 
