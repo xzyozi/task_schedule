@@ -1,3 +1,4 @@
+import os
 import subprocess
 import shlex
 from typing import List, Dict, Any, Optional
@@ -5,7 +6,7 @@ from util import logger_util
 
 logger = logger_util.get_logger(__name__)
 
-def execute_shell_command(command: str, *args, cwd: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+def execute_shell_command(command: str, *args, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None, **kwargs) -> Dict[str, Any]:
     """
     Executes a shell command and captures its output.
 
@@ -13,16 +14,16 @@ def execute_shell_command(command: str, *args, cwd: Optional[str] = None, **kwar
         command: The shell command to execute.
         *args: Positional arguments to pass to the command.
         cwd: The working directory for the command.
-        **kwargs: Keyword arguments, passed as --key value pairs.
+        env: A dictionary of environment variables to set for the command.
+        **kwargs: Other keyword arguments, passed as --key value pairs.
 
     Returns:
         A dictionary containing stdout, stderr, and exit_code.
     """
     full_command = [command] + [str(arg) for arg in args]
-    # For kwargs, we pass them as --key value
+    # For kwargs, we pass them as --key value, skipping internal ones.
     for k, v in kwargs.items():
-        # Skip job_id and other internal kwargs that might be passed by the scheduler
-        if k in ['job_id']:
+        if k in ['job_id', 'cwd', 'env']: # also skip cwd and env from being passed as args
             continue
         full_command.append(f"--{k}")
         full_command.append(str(v))
@@ -31,12 +32,18 @@ def execute_shell_command(command: str, *args, cwd: Optional[str] = None, **kwar
     logger.info(f"Executing shell command: {log_command}" + (f" in {cwd}" if cwd else ""))
 
     try:
+        # Prepare the environment for the subprocess
+        process_env = os.environ.copy()
+        if env:
+            process_env.update(env)
+
         process = subprocess.run(
             full_command,
             capture_output=True,
             text=True,  # Capture stdout/stderr as text
             check=False,  # Do not raise an exception for non-zero exit codes
-            cwd=cwd # Set the working directory
+            cwd=cwd,      # Set the working directory
+            env=process_env # Set the environment variables
         )
 
         stdout = process.stdout.strip()

@@ -26,6 +26,7 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schema
             args=job_in.args,
             kwargs=job_in.kwargs,
             cwd=job_in.cwd,
+            env=job_in.env,
             max_instances=job_in.max_instances,
             coalesce=job_in.coalesce,
             misfire_grace_time=job_in.misfire_grace_time,
@@ -50,6 +51,7 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schema
         db_obj.args = job_in.args
         db_obj.kwargs = job_in.kwargs
         db_obj.cwd = job_in.cwd
+        db_obj.env = job_in.env
         db_obj.max_instances = job_in.max_instances
         db_obj.coalesce = job_in.coalesce
         db_obj.misfire_grace_time = job_in.misfire_grace_time

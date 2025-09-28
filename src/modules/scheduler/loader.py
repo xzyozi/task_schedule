@@ -36,33 +36,34 @@ def apply_job_config(scheduler, job_configs):
         try:
             trigger_dict = cfg.trigger.dict()
             trigger_type = trigger_dict.pop('type')
-            final_kwargs = cfg.kwargs.copy()
-            final_kwargs['job_id'] = cfg.id
 
             job_function = None
             job_args = cfg.args
-            job_kwargs = cfg.kwargs
+            job_kwargs = cfg.kwargs.copy() # Use a copy to avoid modifying the original
 
             if cfg.job_type == "shell_command":
                 job_function = execute_shell_command
                 # Pass the command itself as the first argument to execute_shell_command
-                # and then the original args and kwargs
                 job_args = [cfg.func] + cfg.args
-                job_kwargs = cfg.kwargs
+                # Add cwd and env to kwargs if they exist
                 if cfg.cwd:
                     job_kwargs['cwd'] = cfg.cwd
+                if cfg.env:
+                    job_kwargs['env'] = cfg.env
             elif cfg.job_type == "python_function":
                 job_function = _resolve_func_path(cfg.func)
-                job_args = cfg.args
-                job_kwargs = cfg.kwargs
             else:
                 logger.error(f"Unknown job type '{cfg.job_type}' for job {cfg.id}")
                 continue
 
+            # Ensure job_id is not passed to the job function itself if it's not expected
+            final_kwargs = job_kwargs.copy()
+            final_kwargs['job_id'] = cfg.id
+
             scheduler.add_job(
                 func=job_function,
                 trigger=trigger_type,
-                args=job_args, kwargs=job_kwargs, id=cfg.id,
+                args=job_args, kwargs=final_kwargs, id=cfg.id,
                 replace_existing=True, max_instances=cfg.max_instances,
                 coalesce=cfg.coalesce, misfire_grace_time=cfg.misfire_grace_time,
                 **trigger_dict
@@ -93,7 +94,8 @@ def sync_jobs_from_db():
     db = next(database.get_db())
     try:
         jobs_in_db = db.query(models.JobDefinition).all()
-        apply_job_config(scheduler_instance.scheduler, [schemas.JobConfig.model_validate(j) for j in jobs_in_db])
+        job_configs = [schemas.JobConfig.model_validate(j) for j in jobs_in_db]
+        apply_job_config(scheduler_instance.scheduler, job_configs)
     finally:
         db.close()
 
@@ -107,7 +109,7 @@ def seed_db_from_yaml(yaml_path: str):
             job_def = models.JobDefinition(
                 id=cfg.id, func=cfg.func, description=cfg.description,
                 is_enabled=cfg.is_enabled, job_type=cfg.job_type, trigger_type=trigger_dict.pop('type'),
-                trigger_config=trigger_dict, args=cfg.args, kwargs=cfg.kwargs, cwd=cfg.cwd,
+                trigger_config=trigger_dict, args=cfg.args, kwargs=cfg.kwargs, cwd=cfg.cwd, env=cfg.env,
                 max_instances=cfg.max_instances, coalesce=cfg.coalesce,
                 misfire_grace_time=cfg.misfire_grace_time
             )

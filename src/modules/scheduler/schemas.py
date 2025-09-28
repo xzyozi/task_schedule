@@ -38,6 +38,7 @@ class JobConfig(BaseModel):
     args: Optional[List[Any]] = Field(default_factory=list)
     kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
     cwd: Optional[str] = None
+    env: Optional[Dict[str, str]] = None
     max_instances: int = 1
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
