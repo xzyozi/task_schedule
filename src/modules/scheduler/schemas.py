@@ -1,11 +1,9 @@
 import os
 from typing import Any, Dict, List, Optional
 from datetime import datetime
-from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict, model_validator, validator
 
 from modules.scheduler import models
-from util.config_util import config
 
 class BaseTrigger(BaseModel):
     type: str
@@ -51,25 +49,13 @@ class JobConfig(BaseModel):
     def validate_cwd(cls, v):
         if v is None:
             return v
-
-        work_dir = config.scheduler_work_dir
         
-        # Prevent absolute paths and directory traversal
+        # CWD must be a relative path and cannot contain '..' for security.
+        # The actual path resolution and creation happens in the job executor.
         if os.path.isabs(v) or '..' in v:
-            raise ValueError('CWD must be a relative path within the work directory and cannot contain "..".')
-
-        resolved_path = (work_dir / v).resolve()
-
-        # Security check: ensure the path is within the work_dir sandbox
-        if work_dir not in resolved_path.parents and resolved_path != work_dir:
-             raise ValueError(f"CWD is outside the allowed work directory. Path: {resolved_path}")
-
-        # Ensure the directory exists. The base work_dir is created by config, 
-        # but subdirectories must be created manually by the user.
-        if not resolved_path.is_dir():
-            raise ValueError(f'CWD directory not found: {resolved_path}')
+            raise ValueError('CWD must be a relative path and cannot contain "..".')
             
-        return str(resolved_path)
+        return v
 
     @model_validator(mode='before')
     @classmethod
