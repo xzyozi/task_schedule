@@ -60,12 +60,34 @@
                         <input type="text" class="form-control" id="job-id" required>
                     </div>
                     <div class="mb-3">
-                        <label for="job-func" class="form-label">実行関数</label>
-                        <input type="text" class="form-control" id="job-func" placeholder="e.g., scheduler.tasks.sample_tasks:print_current_time" required>
+                        <label for="job-type" class="form-label">ジョブタイプ</label>
+                        <select class="form-select" id="job-type">
+                            <option value="python" selected>Python Function</option>
+                            <option value="shell">Shell Command</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="job-func" class="form-label">実行関数 / コマンド</label>
+                        <input type="text" class="form-control" id="job-func" placeholder="e.g., my.module:my_function or /path/to/script.sh" required>
                     </div>
                     <div class="mb-3">
                         <label for="job-description" class="form-label">説明</label>
                         <input type="text" class="form-control" id="job-description">
+                    </div>
+
+                    <!-- Fields for Shell Command jobs -->
+                    <div id="shell-command-fields" class="d-none">
+                        <div class="mb-3">
+                            <label for="job-cwd" class="form-label">作業ディレクトリ (CWD)</label>
+                            <input type="text" class="form-control" id="job-cwd" placeholder="e.g., my_project/subdir">
+                            <div class="form-text">サンドボックス化された作業ディレクトリからの相対パス。</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="job-env" class="form-label">環境変数</label>
+                            <textarea class="form-control" id="job-env" rows="3" placeholder="KEY1=VALUE1
+KEY2=VALUE2"></textarea>
+                            <div class="form-text">1行に1つの KEY=VALUE ペア。</div>
+                        </div>
                     </div>
                     
                     <hr>
