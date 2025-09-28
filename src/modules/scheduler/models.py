@@ -16,6 +16,7 @@ class JobDefinition(Base):
     trigger_config = Column(JSON, nullable=False)
     args = Column(JSON, default=list, nullable=False)
     kwargs = Column(JSON, default=dict, nullable=False)
+    cwd = Column(String, nullable=True)
     max_instances = Column(Integer, default=1, nullable=False)
     coalesce = Column(Boolean, default=False, nullable=False)
     misfire_grace_time = Column(Integer, nullable=True, default=3600)

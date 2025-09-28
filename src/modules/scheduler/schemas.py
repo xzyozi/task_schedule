@@ -1,6 +1,7 @@
+import os
 from typing import Any, Dict, List, Optional
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, model_validator
+from pydantic import BaseModel, Field, ConfigDict, model_validator, validator
 
 from modules.scheduler import models
 
@@ -36,11 +37,27 @@ class JobConfig(BaseModel):
     trigger: CronTrigger | IntervalTrigger
     args: Optional[List[Any]] = Field(default_factory=list)
     kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    cwd: Optional[str] = None
     max_instances: int = 1
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
     replace_existing: bool = True
     model_config = ConfigDict(from_attributes=True)
+
+    @validator('cwd')
+    def validate_cwd(cls, v):
+        if v is None:
+            return v
+        
+        # 絶対パスかどうかを検証
+        if not os.path.isabs(v):
+            raise ValueError('CWD must be an absolute path.')
+        
+        # ディレクトリが存在するかを検証
+        if not os.path.isdir(v):
+            raise ValueError(f'CWD directory not found: {v}')
+            
+        return v
 
     @model_validator(mode='before')
     @classmethod

@@ -49,6 +49,8 @@ def apply_job_config(scheduler, job_configs):
                 # and then the original args and kwargs
                 job_args = [cfg.func] + cfg.args
                 job_kwargs = cfg.kwargs
+                if cfg.cwd:
+                    job_kwargs['cwd'] = cfg.cwd
             elif cfg.job_type == "python_function":
                 job_function = _resolve_func_path(cfg.func)
                 job_args = cfg.args
@@ -105,7 +107,7 @@ def seed_db_from_yaml(yaml_path: str):
             job_def = models.JobDefinition(
                 id=cfg.id, func=cfg.func, description=cfg.description,
                 is_enabled=cfg.is_enabled, job_type=cfg.job_type, trigger_type=trigger_dict.pop('type'),
-                trigger_config=trigger_dict, args=cfg.args, kwargs=cfg.kwargs,
+                trigger_config=trigger_dict, args=cfg.args, kwargs=cfg.kwargs, cwd=cfg.cwd,
                 max_instances=cfg.max_instances, coalesce=cfg.coalesce,
                 misfire_grace_time=cfg.misfire_grace_time
             )
