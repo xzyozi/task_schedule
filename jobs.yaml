@@ -55,12 +55,12 @@
   replace_existing: true
 
 # jobs.yamlの末尾に追記
-- id: 'test_cwd_sandbox'
-  func: 'cmd'
-  args: ['/c', 'cd']
-  description: 'CWDサンドボックス機能をテストします。'
-  job_type: 'shell_command'
-  cwd: 'test_dir' # work_dirからの相対パス
-  trigger:
-    type: 'interval'
-    seconds: 20 # 20秒ごとに実行
+#- id: 'test_cwd_sandbox'
+#  func: 'cmd'
+#  args: ['/c', 'cd']
+#  description: 'CWDサンドボックス機能をテストします。'
+#  job_type: 'shell_command'
+#  cwd: 'test_dir' # work_dirからの相対パス
+#  trigger:
+#    type: 'interval'
+#    seconds: 20 # 20秒ごとに実行
