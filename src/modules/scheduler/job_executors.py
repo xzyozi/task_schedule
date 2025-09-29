@@ -1,5 +1,7 @@
 import os
 import subprocess
+import traceback
+from importlib import import_module
 from typing import Dict, Any, Optional
 from util import logger_util
 from util.config_util import config
@@ -131,6 +133,86 @@ def execute_command_job(**kwargs):
             log_entry.stdout = result.get('stdout')
             log_entry.stderr = result.get('stderr')
             log_entry.status = 'COMPLETED' if log_entry.exit_code == 0 else 'FAILED'
+            db.commit()
+        except Exception as e:
+            logger.error(f"Failed to update log entry {log_entry.id} for job {job_id}: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+    return result
+
+def _resolve_func_path(func_path: str):
+    """Helper to resolve a function path like 'module.submodule:function_name'."""
+    if ':' in func_path:
+        module_path, func_name = func_path.rsplit(':', 1)
+    else:
+        module_path, func_name = func_path.rsplit('.', 1)
+    module = import_module(module_path)
+    return getattr(module, func_name)
+
+def execute_python_job(**kwargs):
+    """
+    A wrapper for executing Python functions that logs the execution details
+    to the ProcessExecutionLog table.
+    """
+    job_id = kwargs.get('job_id')
+    target_func_path = kwargs.get('target_func_path')
+    target_args = kwargs.get('target_args', [])
+    target_kwargs = kwargs.get('target_kwargs', {})
+
+    # Inject job_id into the target function's kwargs if it's not already there
+    if 'job_id' not in target_kwargs:
+        target_kwargs['job_id'] = job_id
+
+    db = next(database.get_db())
+    log_entry = None
+    try:
+        log_id = str(uuid.uuid4())
+        log_entry = models.ProcessExecutionLog(
+            id=log_id,
+            job_id=job_id,
+            command=target_func_path,
+            start_time=datetime.now(),
+            status='RUNNING'
+        )
+        db.add(log_entry)
+        db.commit()
+        db.refresh(log_entry)
+    except Exception as e:
+        logger.error(f"Failed to create initial log entry for job {job_id}: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+    result = None
+    stdout = ""
+    stderr = ""
+    exit_code = 0
+    status = 'COMPLETED'
+
+    try:
+        if not target_func_path or (':' not in target_func_path and '.' not in target_func_path):
+            raise ValueError(f"Invalid function path format: '{target_func_path}'. It must be in 'module.submodule:function' format.")
+        target_func = _resolve_func_path(target_func_path)
+        result = target_func(*target_args, **target_kwargs)
+        stdout = str(result) if result is not None else ""
+        logger.info(f"Python job '{job_id}' ({target_func_path}) executed successfully.")
+    except Exception as e:
+        logger.error(f"Error executing python job '{job_id}' ({target_func_path}): {e}", exc_info=True)
+        exit_code = 1
+        status = 'FAILED'
+        stderr = traceback.format_exc()
+
+    if log_entry:
+        db = next(database.get_db())
+        try:
+            log_entry = db.query(models.ProcessExecutionLog).filter_by(id=log_entry.id).one()
+            log_entry.end_time = datetime.now()
+            log_entry.exit_code = exit_code
+            log_entry.stdout = stdout
+            log_entry.stderr = stderr
+            log_entry.status = status
             db.commit()
         except Exception as e:
             logger.error(f"Failed to update log entry {log_entry.id} for job {job_id}: {e}")

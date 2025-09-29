@@ -35,30 +35,56 @@ def apply_job_config(scheduler, job_configs):
         if job.id not in new_ids:
             scheduler.remove_job(job.id)
             logger.info(f"Removed job: {job.id}")
+
+    COMMAND_JOB_TYPES = ['cmd', 'powershell', 'shell']
+
     for cfg in job_configs:
         try:
             trigger_dict = cfg.trigger.model_dump()
             trigger_type = trigger_dict.pop('type')
 
-            job_function = _resolve_func_path(cfg.func)
-            job_args = cfg.args
+            job_args = []  # All args are passed via kwargs to wrappers
             job_kwargs = cfg.kwargs.copy()
+            job_kwargs['job_id'] = cfg.id
 
-            final_kwargs = job_kwargs.copy()
-            final_kwargs['job_id'] = cfg.id
+            if cfg.job_type == 'python':
+                wrapper_path = 'modules.scheduler.job_executors:execute_python_job'
+                job_function = _resolve_func_path(wrapper_path)
+                job_kwargs['target_func_path'] = cfg.func
+                job_kwargs['target_args'] = cfg.args
+                job_kwargs['target_kwargs'] = cfg.kwargs
+            
+            elif cfg.job_type in COMMAND_JOB_TYPES:
+                wrapper_path = 'modules.scheduler.job_executors:execute_command_job'
+                job_function = _resolve_func_path(wrapper_path)
+                # The UI sends the command in kwargs, but YAML files have it in func.
+                # We need to handle both.
+                if 'command' not in job_kwargs:
+                    job_kwargs['command'] = cfg.func.split()
+                job_kwargs['job_type'] = cfg.job_type
+                job_kwargs['cwd'] = cfg.cwd
+                job_kwargs['env'] = cfg.env
+
+            else:
+                logger.error(f"Unknown job type '{cfg.job_type}' for job {cfg.id}")
+                continue
 
             scheduler.add_job(
                 func=job_function,
                 trigger=trigger_type,
-                args=job_args, kwargs=final_kwargs, id=cfg.id,
-                replace_existing=True, max_instances=cfg.max_instances,
-                coalesce=cfg.coalesce, misfire_grace_time=cfg.misfire_grace_time,
+                args=job_args,
+                kwargs=job_kwargs,
+                id=cfg.id,
+                replace_existing=True,
+                max_instances=cfg.max_instances,
+                coalesce=cfg.coalesce,
+                misfire_grace_time=cfg.misfire_grace_time,
                 **trigger_dict
             )
             if not cfg.is_enabled:
                 scheduler.pause_job(cfg.id)
         except Exception as e:
-            logger.error(f"Error applying job {cfg.id}: {e}")
+            logger.error(f"Error applying job {cfg.id}: {e}", exc_info=True)
 
 class ConfigChangeHandler(PatternMatchingEventHandler):
     def __init__(self, scheduler, path):
