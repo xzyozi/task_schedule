@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Details - Task Scheduler{% endblock %}
+
+{% block page_title %}ワークフロー詳細{% endblock %}
+
+{% block content %}
+<input type="hidden" id="workflow-id-hidden" value="{{ workflow_id }}">
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 id="workflow-name">Workflow Name</h2>
+            </div>
+            <div class="card-body">
+                <p><strong>説明:</strong> <span id="workflow-description"></span></p>
+                <p><strong>スケジュール:</strong> <span id="workflow-schedule"></span></p>
+                <p><strong>ステータス:</strong> <span id="workflow-status"></span></p>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3>ステップ</h3>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>順序</th>
+                            <th>ステップ名</th>
+                            <th>タイプ</th>
+                            <th>ターゲット</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workflow-steps-body">
+                        <!-- Steps will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3>実行履歴</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>実行ID</th>
+                            <th>ステータス</th>
+                            <th>開始時刻</th>
+                            <th>終了時刻</th>
+                            <th>詳細</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workflow-runs-body">
+                        <!-- Workflow runs will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='workflow_detail.js') }}"></script>
+{% endblock %}

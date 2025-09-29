@@ -41,6 +41,10 @@ def jobs():
 def workflows():
     return render_template('workflows.html')
 
+@app.route('/workflows/<int:workflow_id>')
+def workflow_detail(workflow_id):
+    return render_template('workflow_detail.html', workflow_id=workflow_id)
+
 @app.route('/jobs/<job_id>')
 def job_detail(job_id):
     return render_template('job_detail.html', job_id=job_id)

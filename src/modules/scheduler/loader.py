@@ -4,6 +4,7 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 from importlib import import_module
 from typing import List
+from apscheduler.jobstores.base import JobLookupError
 
 from core import database
 from modules.scheduler import models, schemas, scheduler_instance
@@ -57,8 +58,6 @@ def apply_job_config(scheduler, job_configs):
             elif cfg.job_type in COMMAND_JOB_TYPES:
                 wrapper_path = 'modules.scheduler.job_executors:execute_command_job'
                 job_function = _resolve_func_path(wrapper_path)
-                # The UI sends the command in kwargs, but YAML files have it in func.
-                # We need to handle both.
                 if 'command' not in job_kwargs:
                     job_kwargs['command'] = cfg.func.split()
                 job_kwargs['job_type'] = cfg.job_type
@@ -133,3 +132,65 @@ def seed_db_from_yaml(yaml_path: str):
         logger.error(f"DB seeding error: {e}")
     finally:
         db.close()
+
+def schedule_workflow(workflow: models.Workflow):
+    """
+    Schedules a workflow as a single job in APScheduler.
+    The job will call the run_workflow executor.
+    """
+    job_id = f"workflow_{workflow.id}"
+
+    if not workflow.is_enabled or not workflow.schedule:
+        # If disabled or has no schedule, ensure it's not in the scheduler
+        try:
+            scheduler_instance.scheduler.remove_job(job_id)
+        except JobLookupError:
+            pass # It's fine if it doesn't exist
+        return
+
+    try:
+        cron_parts = workflow.schedule.split()
+        if len(cron_parts) != 5:
+            raise ValueError("Invalid cron string format. Expected 5 parts.")
+        
+        minute, hour, day, month, day_of_week = cron_parts
+        
+        scheduler_instance.scheduler.add_job(
+            'modules.scheduler.job_executors:run_workflow',
+            trigger='cron',
+            args=[workflow.id],
+            id=job_id,
+            replace_existing=True,
+            minute=minute,
+            hour=hour,
+            day=day,
+            month=month,
+            day_of_week=day_of_week,
+            misfire_grace_time=3600,
+            max_instances=1,
+        )
+        logger.info(f"Scheduled workflow '{workflow.name}' with job ID '{job_id}'.")
+    except Exception as e:
+        logger.error(f"Failed to schedule workflow '{workflow.name}': {e}", exc_info=True)
+
+def sync_workflows_from_db():
+    """
+    Loads all enabled workflows from the database and schedules them.
+    """
+    logger.info("Syncing workflows from database...")
+    db = next(database.get_db())
+    try:
+        workflows = db.query(models.Workflow).filter(models.Workflow.is_enabled == True).all()
+        for wf in workflows:
+            schedule_workflow(wf)
+    finally:
+        db.close()
+
+def remove_workflow_job(workflow_id: int):
+    """Removes a workflow job from the scheduler."""
+    job_id = f"workflow_{workflow_id}"
+    try:
+        scheduler_instance.scheduler.remove_job(job_id)
+        logger.info(f"Removed scheduled job for workflow {workflow_id}.")
+    except JobLookupError:
+        pass # It's fine if it doesn't exist

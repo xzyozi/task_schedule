@@ -18,6 +18,7 @@ async def lifespan(app: FastAPI):
     loader.seed_db_from_yaml("jobs.yaml")
     scheduler_instance.start_scheduler()
     loader.sync_jobs_from_db()
+    loader.sync_workflows_from_db()
     watcher = loader.start_config_watcher(scheduler_instance.scheduler, "jobs.yaml")
     scheduler_instance.scheduler.add_job(loader.sync_jobs_from_db, "interval", seconds=60, id="db_sync")
     yield

@@ -221,3 +221,77 @@ def execute_python_job(**kwargs):
             db.close()
 
     return result
+
+def run_workflow(workflow_id: int, job_id: str = None):
+    """
+    The main entry point for executing a workflow.
+    This function is called by an APScheduler job.
+    """
+    db = next(database.get_db())
+    workflow = db.query(models.Workflow).filter(models.Workflow.id == workflow_id).first()
+    
+    if not workflow:
+        logger.error(f"Workflow with id {workflow_id} not found for job {job_id}.")
+        db.close()
+        return
+
+    workflow_run = models.WorkflowRun(workflow_id=workflow.id, status='RUNNING')
+    db.add(workflow_run)
+    db.commit()
+    db.refresh(workflow_run)
+    
+    logger.info(f"Starting workflow '{workflow.name}' (run_id: {workflow_run.id})")
+
+    try:
+        steps = sorted(workflow.steps, key=lambda s: s.step_order)
+
+        for i, step in enumerate(steps):
+            workflow_run.current_step = i + 1
+            db.commit()
+
+            logger.info(f"Executing step {i+1}/{len(steps)}: '{step.name}'")
+
+            kwargs_for_executor = {
+                'job_id': f"workflow_{workflow.id}_step_{step.id}",
+                'workflow_run_id': workflow_run.id,
+            }
+
+            if step.job_type == 'python':
+                kwargs_for_executor['target_func_path'] = step.target
+                kwargs_for_executor['target_args'] = step.args or []
+                kwargs_for_executor['target_kwargs'] = step.kwargs or {}
+                execute_python_job(**kwargs_for_executor)
+            
+            elif step.job_type in ['cmd', 'powershell', 'shell']:
+                kwargs_for_executor['job_type'] = step.job_type
+                kwargs_for_executor['command'] = step.target.split()
+                if step.kwargs:
+                    kwargs_for_executor['cwd'] = step.kwargs.get('cwd')
+                    kwargs_for_executor['env'] = step.kwargs.get('env')
+                execute_command_job(**kwargs_for_executor)
+            
+            else:
+                raise ValueError(f"Unknown step job_type: {step.job_type}")
+
+            db.refresh(workflow_run)
+            last_log = db.query(models.ProcessExecutionLog).filter(
+                models.ProcessExecutionLog.workflow_run_id == workflow_run.id
+            ).order_by(models.ProcessExecutionLog.start_time.desc()).first()
+
+            if last_log and last_log.status == 'FAILED':
+                if step.on_failure == 'stop':
+                    logger.error(f"Workflow '{workflow.name}' stopped due to failed step '{step.name}'.")
+                    workflow_run.status = 'FAILED'
+                    db.commit()
+                    return
+
+        workflow_run.status = 'COMPLETED'
+        logger.info(f"Workflow '{workflow.name}' (run_id: {workflow_run.id}) completed successfully.")
+
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in workflow '{workflow.name}': {e}", exc_info=True)
+        workflow_run.status = 'FAILED'
+    finally:
+        workflow_run.end_time = datetime.now()
+        db.commit()
+        db.close()

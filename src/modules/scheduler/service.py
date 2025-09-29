@@ -44,22 +44,16 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schema
         """
         Updates a JobDefinition in the database from a JobConfig Pydantic schema.
         """
-        db_obj.func = job_in.func
-        db_obj.description = job_in.description
-        db_obj.is_enabled = job_in.is_enabled
-        db_obj.job_type = job_in.job_type
-        
-        trigger_dict = job_in.trigger.model_dump()
-        db_obj.trigger_type = trigger_dict.pop('type')
-        db_obj.trigger_config = trigger_dict
+        update_data = job_in.model_dump(exclude_unset=True, exclude={'id'})
 
-        db_obj.args = job_in.args
-        db_obj.kwargs = job_in.kwargs
-        db_obj.cwd = job_in.cwd
-        db_obj.env = job_in.env
-        db_obj.max_instances = job_in.max_instances
-        db_obj.coalesce = job_in.coalesce
-        db_obj.misfire_grace_time = job_in.misfire_grace_time
+        if 'trigger' in update_data:
+            trigger_dict = update_data.pop('trigger')
+            db_obj.trigger_type = trigger_dict.get('type')
+            trigger_dict.pop('type', None)
+            db_obj.trigger_config = trigger_dict
+        
+        for field, value in update_data.items():
+            setattr(db_obj, field, value)
         
         db.add(db_obj)
         db.commit()
@@ -177,6 +171,8 @@ def get_scheduled_jobs_info() -> List[schemas.JobInfo]:
     jobs = scheduler_instance.scheduler.get_jobs()
     job_infos = []
     for job in jobs:
+        if job.id.startswith('workflow_'):
+            continue
         try:
             trigger_dict = {"type": "unknown"}
             trigger_class_name = job.trigger.__class__.__name__.lower()

@@ -25,10 +25,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td><span class="badge bg-${wf.is_enabled ? 'success' : 'secondary'}">${wf.is_enabled ? '有効' : '無効'}</span></td>
-                        <td>${wf.name}</td>
+                        <td><a href="/workflows/${wf.id}">${wf.name}</a></td>
                         <td>${wf.description || ''}</td>
                         <td>${wf.schedule || 'N/A'}</td>
                         <td>
+                            <a href="/workflows/${wf.id}" class="btn btn-sm btn-primary">詳細</a>
                             <button class="btn btn-sm btn-info btn-edit-workflow" data-workflow-id="${wf.id}">編集</button>
                             <button class="btn btn-sm btn-danger btn-delete-workflow" data-workflow-id="${wf.id}">削除</button>
                         </td>

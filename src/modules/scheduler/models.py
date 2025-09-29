@@ -59,7 +59,7 @@ class ProcessExecutionLog(Base):
     __tablename__ = 'process_execution_logs'
 
     id = Column(String, primary_key=True, index=True)
-    job_id = Column(String, ForeignKey('job_definitions.id'), nullable=True)
+    job_id = Column(String, nullable=True)
     workflow_run_id = Column(Integer, ForeignKey('workflow_runs.id'), nullable=True)
     command = Column(String, nullable=False)
     exit_code = Column(Integer, nullable=True)
