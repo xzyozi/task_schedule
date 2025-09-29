@@ -50,8 +50,6 @@ class JobConfig(BaseModel):
         if v is None:
             return v
         
-        # CWD must be a relative path and cannot contain '..' for security.
-        # The actual path resolution and creation happens in the job executor.
         if os.path.isabs(v) or '..' in v:
             raise ValueError('CWD must be a relative path and cannot contain "..".')
             
@@ -68,6 +66,40 @@ class JobConfig(BaseModel):
             }
             return model_dict
         return data
+
+# Schemas for WorkflowStep
+class WorkflowStepBase(BaseModel):
+    name: str
+    step_order: int
+    job_type: str
+    target: str
+    args: Optional[List[Any]] = Field(default_factory=list)
+    kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    on_failure: str = "stop"
+    timeout: Optional[int] = None
+
+class WorkflowStepCreate(WorkflowStepBase):
+    pass
+
+class WorkflowStep(WorkflowStepBase):
+    id: int
+    workflow_id: int
+    model_config = ConfigDict(from_attributes=True)
+
+# Schemas for Workflow
+class WorkflowBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    schedule: Optional[str] = None
+    is_enabled: bool = True
+
+class WorkflowCreate(WorkflowBase):
+    steps: List[WorkflowStepCreate]
+
+class Workflow(WorkflowBase):
+    id: int
+    steps: List[WorkflowStep] = []
+    model_config = ConfigDict(from_attributes=True)
 
 class TimelineItem(BaseModel):
     id: str
@@ -91,7 +123,8 @@ class DashboardSummary(BaseModel):
 
 class ProcessExecutionLogInfo(BaseModel):
     id: str
-    job_id: str
+    job_id: Optional[str] = None
+    workflow_run_id: Optional[int] = None
     command: str
     exit_code: Optional[int] = None
     stdout: Optional[str] = None

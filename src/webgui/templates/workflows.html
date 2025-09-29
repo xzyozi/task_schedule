@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Management - Task Scheduler{% endblock %}
+
+{% block page_title %}ワークフロー管理{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Workflow List -->
+    <div class="col-lg-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2>登録済みワークフロー一覧</h2>
+                <button id="new-workflow-btn" class="btn btn-primary float-end">新規ワークフロー作成</button>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th scope="col">ステータス</th>
+                            <th scope="col">ワークフロー名</th>
+                            <th scope="col">説明</th>
+                            <th scope="col">スケジュール</th>
+                            <th scope="col">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workflows-list-body">
+                        <!-- Workflow rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create/Edit Workflow Form -->
+    <div class="col-lg-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 id="workflow-form-title">新規ワークフロー作成</h2>
+            </div>
+            <div class="card-body">
+                <form id="workflow-form">
+                    <input type="hidden" id="workflow-id-hidden">
+                    
+                    <h4>基本情報</h4>
+                    <div class="mb-3">
+                        <label for="workflow-name" class="form-label">ワークフロー名</label>
+                        <input type="text" class="form-control" id="workflow-name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="workflow-description" class="form-label">説明</label>
+                        <input type="text" class="form-control" id="workflow-description">
+                    </div>
+                    <div class="mb-3">
+                        <label for="workflow-schedule" class="form-label">スケジュール (Cron形式)</label>
+                        <input type="text" class="form-control" id="workflow-schedule" placeholder="* * * * *">
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" role="switch" id="workflow-enabled" checked>
+                        <label class="form-check-label" for="workflow-enabled">ワークフローを有効にする</label>
+                    </div>
+
+                    <hr>
+
+                    <h4>ステップ定義</h4>
+                    <div id="steps-container">
+                        <!-- Steps will be dynamically added here -->
+                    </div>
+
+                    <button type="button" id="add-step-btn" class="btn btn-secondary mt-2">ステップを追加</button>
+                    
+                    <hr>
+
+                    <button type="submit" class="btn btn-primary">保存</button>
+                    <button type="button" class="btn btn-secondary" id="clear-workflow-form-btn">クリア</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Template for a single step -->
+<template id="step-template">
+    <div class="step-card card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">ステップ</h5>
+            <div class="mb-3">
+                <label class="form-label">ステップ名</label>
+                <input type="text" class="form-control step-name" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">ジョブタイプ</label>
+                <select class="form-select step-job-type">
+                    <option value="python" selected>Python Function</option>
+                    <option value="cmd" data-os="windows" class="os-specific" style="display: none;">CMD</option>
+                    <option value="powershell" data-os="windows" class="os-specific" style="display: none;">PowerShell</option>
+                    <option value="shell" data-os="linux" class="os-specific" style="display: none;">Shell (Linux/macOS)</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">ターゲット</label>
+                <input type="text" class="form-control step-target" placeholder="e.g., my.module:my_function or echo 'Hello'" required>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">失敗時の挙動</label>
+                <select class="form-select step-on-failure">
+                    <option value="stop" selected>停止</option>
+                    <option value="continue">継続</option>
+                </select>
+            </div>
+            <button type="button" class="btn btn-danger btn-sm remove-step-btn">このステップを削除</button>
+        </div>
+    </div>
+</template>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='workflows.js') }}"></script>
+{% endblock %}

@@ -37,6 +37,10 @@ def logs():
 def jobs():
     return render_template('jobs.html')
 
+@app.route('/workflows')
+def workflows():
+    return render_template('workflows.html')
+
 @app.route('/jobs/<job_id>')
 def job_detail(job_id):
     return render_template('job_detail.html', job_id=job_id)

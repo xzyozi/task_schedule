@@ -68,6 +68,51 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schema
 
 job_definition_service = JobDefinitionCRUD(models.JobDefinition)
 
+class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Workflow]):
+    def create_with_steps(self, db: Session, *, obj_in: schemas.WorkflowCreate) -> models.Workflow:
+        """
+        Create a new workflow and its associated steps.
+        """
+        workflow_data = obj_in.model_dump(exclude={'steps'})
+        db_workflow = self.model(**workflow_data)
+        db.add(db_workflow)
+        db.commit()
+        db.refresh(db_workflow)
+
+        for step_in in obj_in.steps:
+            step_data = step_in.model_dump()
+            db_step = models.WorkflowStep(**step_data, workflow_id=db_workflow.id)
+            db.add(db_step)
+        
+        db.commit()
+        db.refresh(db_workflow)
+        return db_workflow
+
+    def update_with_steps(self, db: Session, *, db_obj: models.Workflow, obj_in: schemas.WorkflowCreate) -> models.Workflow:
+        """
+        Update a workflow and its steps.
+        """
+        # Update workflow fields
+        update_data = obj_in.model_dump(exclude={'steps', 'name'}) # name is not updatable
+        for field, value in update_data.items():
+            setattr(db_obj, field, value)
+
+        # Delete old steps
+        for step in db_obj.steps:
+            db.delete(step)
+        
+        # Create new steps
+        for step_in in obj_in.steps:
+            step_data = step_in.model_dump()
+            db_step = models.WorkflowStep(**step_data, workflow_id=db_obj.id)
+            db.add(db_step)
+            
+        db.commit()
+        db.refresh(db_obj)
+        return db_obj
+
+workflow_service = WorkflowCRUD(models.Workflow)
+
 def get_dashboard_summary(db: Session) -> schemas.DashboardSummary:
     """
     Retrieves a summary of job statuses for the dashboard.
@@ -186,6 +231,7 @@ def pause_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
             failed_ids[job_id] = "Not Found"
     return {"paused": paused_ids, "failed": failed_ids}
 
+
 def resume_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
     """
     Resumes a list of scheduled jobs.
@@ -224,5 +270,3 @@ def list_subdirectories(relative_path: str = "") -> List[str]:
         return [entry.name for entry in os.scandir(scan_path) if entry.is_dir()]
     except OSError:
         return []
-
-

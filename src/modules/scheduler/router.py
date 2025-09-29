@@ -105,6 +105,42 @@ def delete_job(job_id: str, db: Session = Depends(get_db)):
     loader.sync_jobs_from_db()
     return
 
+# --- Workflow Definition Endpoints ---
+
+@router.post("/workflows", response_model=schemas.Workflow, status_code=status.HTTP_201_CREATED, tags=["Workflow Definitions"])
+def create_workflow(workflow_in: schemas.WorkflowCreate, db: Session = Depends(get_db)):
+    db_workflow = service.workflow_service.create_with_steps(db, obj_in=workflow_in)
+    # TODO: Schedule the workflow with APScheduler
+    return db_workflow
+
+@router.get("/workflows", response_model=List[schemas.Workflow], tags=["Workflow Definitions"])
+def read_workflows(db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
+    workflows = service.workflow_service.get_multi(db, skip=skip, limit=limit)
+    return workflows
+
+@router.get("/workflows/{workflow_id}", response_model=schemas.Workflow, tags=["Workflow Definitions"])
+def read_workflow(workflow_id: int, db: Session = Depends(get_db)):
+    db_workflow = service.workflow_service.get(db, id=workflow_id)
+    if db_workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    return db_workflow
+
+@router.put("/workflows/{workflow_id}", response_model=schemas.Workflow, tags=["Workflow Definitions"])
+def update_workflow(workflow_id: int, workflow_in: schemas.WorkflowCreate, db: Session = Depends(get_db)):
+    db_workflow = service.workflow_service.get(db, id=workflow_id)
+    if db_workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    db_workflow = service.workflow_service.update_with_steps(db, db_obj=db_workflow, obj_in=workflow_in)
+    # TODO: Update the schedule in APScheduler
+    return db_workflow
+
+@router.delete("/workflows/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Workflow Definitions"])
+def delete_workflow(workflow_id: int, db: Session = Depends(get_db)):
+    db_workflow = service.workflow_service.remove(db, id=workflow_id)
+    if db_workflow is None:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+    # TODO: Remove the job from APScheduler
+    return
 
 # --- Scheduler Control Endpoints ---
 @router.get("/scheduler/jobs", response_model=List[schemas.JobInfo], tags=["Scheduler Control"])
