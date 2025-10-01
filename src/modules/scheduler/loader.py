@@ -138,21 +138,24 @@ def schedule_workflow(workflow: models.Workflow):
     Schedules a workflow as a single job in APScheduler.
     The job will call the run_workflow executor.
     """
+    logger.info(f"Attempting to schedule workflow '{workflow.name}' (ID: {workflow.id}).")
     job_id = f"workflow_{workflow.id}"
 
     if not workflow.is_enabled or not workflow.schedule:
-        # If disabled or has no schedule, ensure it's not in the scheduler
+        logger.warning(f"Workflow '{workflow.name}' is disabled or has no schedule. Removing from scheduler if present.")
         try:
             scheduler_instance.scheduler.remove_job(job_id)
         except JobLookupError:
-            pass # It's fine if it doesn't exist
+            pass 
         return
 
     try:
+        logger.info(f"Parsing schedule for workflow '{workflow.name}': '{workflow.schedule}'")
         cron_parts = workflow.schedule.split()
         if len(cron_parts) != 5:
-            raise ValueError("Invalid cron string format. Expected 5 parts.")
-        
+            logger.error(f"Invalid cron string format for workflow '{workflow.name}'. Expected 5 parts, got {len(cron_parts)}.")
+            return
+
         minute, hour, day, month, day_of_week = cron_parts
         
         scheduler_instance.scheduler.add_job(
