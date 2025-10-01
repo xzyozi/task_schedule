@@ -115,3 +115,7 @@ body {
 .vis-group .vis-group-content {
     padding-left: 10px;
 }
+
+.vis-time-axis .vis-grid.vis-minor {
+    border-width: 0;
+}

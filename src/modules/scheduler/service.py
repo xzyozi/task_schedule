@@ -3,7 +3,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session, joinedload
 from core.crud import CRUDBase
 from . import models, schemas, scheduler_instance
-from typing import List, Dict
+from typing import List, Dict, Optional
 from datetime import datetime, timedelta, timezone
 from util import logger_util
 from util.config_util import config
@@ -126,13 +126,22 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     """
     Provides data for the job execution timeline, including scheduled and historical runs.
     """
-    timeline_items: List[schemas.TimelineItem] = []
-    workflows_by_id = {wf.id: wf for wf in db.query(models.Workflow).all()}
     
+    def _make_aware(dt: Optional[datetime]) -> Optional[datetime]:
+        if dt and dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt
+
+    timeline_items: List[schemas.TimelineItem] = []
+    now = datetime.now(timezone.utc)
+    seven_days_ago = now - timedelta(days=7)
+
+    # Part 1: Scheduled Jobs (workflows and regular jobs)
+    workflows_by_id = {wf.id: wf for wf in db.query(models.Workflow).all()}
     scheduled_jobs = scheduler_instance.scheduler.get_jobs()
     for job in scheduled_jobs:
         if job.next_run_time:
-            start_time_aware = job.next_run_time.replace(tzinfo=timezone.utc) if job.next_run_time.tzinfo is None else job.next_run_time
+            start_time_aware = _make_aware(job.next_run_time)
             
             content = job.id
             group = job.id
@@ -145,49 +154,55 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
                         content = workflow.name
                         group = f"workflow_{workflow.id}"
                 except (IndexError, ValueError):
-                    pass # Keep default content if parsing fails
+                    pass 
             
             timeline_items.append(schemas.TimelineItem(
                 id=f"scheduled-{job.id}-{start_time_aware.isoformat()}",
-                content=f"{content} (Scheduled)", start=start_time_aware, status="scheduled", group=group
+                content=f"{content} (Scheduled)",
+                start=start_time_aware,
+                status="scheduled",
+                group=group
             ))
 
-    # Eagerly load related data to avoid N+1 query problem.
-    recent_logs = (db.query(models.ProcessExecutionLog)
-        .options(joinedload(models.ProcessExecutionLog.workflow_run).joinedload(models.WorkflowRun.workflow).joinedload(models.Workflow.steps))
-        .filter(models.ProcessExecutionLog.start_time >= datetime.now(timezone.utc) - timedelta(days=7))
-        .order_by(models.ProcessExecutionLog.start_time.asc()).all())
+    # Part 2: Executed Workflow Runs
+    recent_workflow_runs = (db.query(models.WorkflowRun)
+        .options(joinedload(models.WorkflowRun.workflow))
+        .filter(models.WorkflowRun.start_time >= seven_days_ago)
+        .all())
 
-    for log in recent_logs:
-        item_status = log.status.lower()
-        start = log.start_time.replace(tzinfo=timezone.utc) if log.start_time.tzinfo is None else log.start_time
-        end = None
-        if log.end_time:
-            end = log.end_time.replace(tzinfo=timezone.utc) if log.end_time.tzinfo is None else log.end_time
-        elif item_status == 'running':
-            end = datetime.now(timezone.utc)
+    for run in recent_workflow_runs:
+        end_time = _make_aware(run.end_time)
+        if run.status == 'RUNNING' and not end_time:
+            end_time = now
         
-        content = log.job_id
-        group = log.job_id
-        if log.workflow_run_id and log.workflow_run and log.workflow_run.workflow:
-            group = f"workflow_{log.workflow_run.workflow.id}"
-            try:
-                # The job_id for a workflow step is synthetic, e.g., "workflow_1_step_2"
-                # We parse it to find the step details.
-                step_id_str = log.job_id.split('_step_')[-1]
-                step_id = int(step_id_str)
-                step = next((s for s in log.workflow_run.workflow.steps if s.id == step_id), None)
-                if step:
-                    content = f"{log.workflow_run.workflow.name}.{step.name}"
-                else:
-                    # Fallback if step not found (should not happen)
-                    content = f"{log.workflow_run.workflow.name}.?"
-            except (IndexError, ValueError):
-                 content = f"WF Run #{log.workflow_run_id}" # Fallback
+        timeline_items.append(schemas.TimelineItem(
+            id=f"wf_run-{run.id}",
+            content=run.workflow.name,
+            start=_make_aware(run.start_time),
+            end=end_time,
+            status=run.status.lower(),
+            group=f"workflow_{run.workflow_id}"
+        ))
+
+    # Part 3: Executed Regular Jobs (not part of a workflow)
+    recent_job_logs = (db.query(models.ProcessExecutionLog)
+        .filter(
+            models.ProcessExecutionLog.workflow_run_id == None,
+            models.ProcessExecutionLog.start_time >= seven_days_ago
+        ).all())
+
+    for log in recent_job_logs:
+        end_time = _make_aware(log.end_time)
+        if log.status == 'RUNNING' and not end_time:
+            end_time = now
 
         timeline_items.append(schemas.TimelineItem(
-            id=f"log-{log.id}", content=content,
-            start=start, end=end, status=item_status, group=group
+            id=f"log-{log.id}",
+            content=log.job_id,
+            start=_make_aware(log.start_time),
+            end=end_time,
+            status=log.status.lower(),
+            group=log.job_id
         ))
 
     timeline_items.sort(key=lambda item: item.start)
