@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from core.crud import CRUDBase
 from . import models, schemas, scheduler_instance
 from typing import List, Dict
@@ -127,15 +127,37 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     Provides data for the job execution timeline, including scheduled and historical runs.
     """
     timeline_items: List[schemas.TimelineItem] = []
+    workflows_by_id = {wf.id: wf for wf in db.query(models.Workflow).all()}
+    
     scheduled_jobs = scheduler_instance.scheduler.get_jobs()
     for job in scheduled_jobs:
         if job.next_run_time:
             start_time_aware = job.next_run_time.replace(tzinfo=timezone.utc) if job.next_run_time.tzinfo is None else job.next_run_time
+            
+            content = job.id
+            group = job.id
+
+            if job.id.startswith('workflow_'):
+                try:
+                    workflow_id = int(job.id.split('_')[1])
+                    workflow = workflows_by_id.get(workflow_id)
+                    if workflow:
+                        content = workflow.name
+                        group = f"workflow_{workflow.id}"
+                except (IndexError, ValueError):
+                    pass # Keep default content if parsing fails
+            
             timeline_items.append(schemas.TimelineItem(
                 id=f"scheduled-{job.id}-{start_time_aware.isoformat()}",
-                content=f"{job.id} (Scheduled)", start=start_time_aware, status="scheduled", group=job.id
+                content=f"{content} (Scheduled)", start=start_time_aware, status="scheduled", group=group
             ))
-    recent_logs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.start_time >= datetime.now(timezone.utc) - timedelta(days=7)).order_by(models.ProcessExecutionLog.start_time.asc()).all()
+
+    # Eagerly load related data to avoid N+1 query problem.
+    recent_logs = (db.query(models.ProcessExecutionLog)
+        .options(joinedload(models.ProcessExecutionLog.workflow_run).joinedload(models.WorkflowRun.workflow).joinedload(models.Workflow.steps))
+        .filter(models.ProcessExecutionLog.start_time >= datetime.now(timezone.utc) - timedelta(days=7))
+        .order_by(models.ProcessExecutionLog.start_time.asc()).all())
+
     for log in recent_logs:
         item_status = log.status.lower()
         start = log.start_time.replace(tzinfo=timezone.utc) if log.start_time.tzinfo is None else log.start_time
@@ -144,10 +166,30 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
             end = log.end_time.replace(tzinfo=timezone.utc) if log.end_time.tzinfo is None else log.end_time
         elif item_status == 'running':
             end = datetime.now(timezone.utc)
+        
+        content = log.job_id
+        group = log.job_id
+        if log.workflow_run_id and log.workflow_run and log.workflow_run.workflow:
+            group = f"workflow_{log.workflow_run.workflow.id}"
+            try:
+                # The job_id for a workflow step is synthetic, e.g., "workflow_1_step_2"
+                # We parse it to find the step details.
+                step_id_str = log.job_id.split('_step_')[-1]
+                step_id = int(step_id_str)
+                step = next((s for s in log.workflow_run.workflow.steps if s.id == step_id), None)
+                if step:
+                    content = f"{log.workflow_run.workflow.name}.{step.name}"
+                else:
+                    # Fallback if step not found (should not happen)
+                    content = f"{log.workflow_run.workflow.name}.?"
+            except (IndexError, ValueError):
+                 content = f"WF Run #{log.workflow_run_id}" # Fallback
+
         timeline_items.append(schemas.TimelineItem(
-            id=f"log-{log.id}", content=f"{log.job_id} ({item_status.capitalize()})",
-            start=start, end=end, status=item_status, group=log.job_id
+            id=f"log-{log.id}", content=content,
+            start=start, end=end, status=item_status, group=group
         ))
+
     timeline_items.sort(key=lambda item: item.start)
     return timeline_items
 

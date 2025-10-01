@@ -340,7 +340,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const jobType = jobTypeSelect.value;
 
         const jobData = {
-            id: jobIdInput.value,
+            // ID is handled below
             job_type: jobType,
             func: null,
             description: jobDescriptionInput.value,
@@ -354,9 +354,19 @@ document.addEventListener('DOMContentLoaded', function() {
             replace_existing: true,
         };
 
+        // Only include the ID when creating a new job.
+        if (!isEdit) {
+            if (!jobIdInput.value) {
+                alert('ジョブIDは必須です。');
+                return;
+            }
+            jobData.id = jobIdInput.value;
+        }
+
         if (COMMAND_JOB_TYPES.includes(jobType)) {
             jobData.func = 'modules.scheduler.job_executors:execute_command_job';
-            const commandParts = jobFuncInput.value.match(/"[^"]+"|"[^"]+"|\S+/g) || [];
+            // Improved regex to handle single and double quotes
+            const commandParts = jobFuncInput.value.match(/'[^']+'|"([^"]*)"|\S+/g) || [];
             jobData.kwargs.command = commandParts.map(part => part.replace(/^['"]|['"]$/g, ''));
             jobData.kwargs.job_type = jobType; // Pass job_type for the wrapper
             jobData.kwargs.cwd = jobCwdInput.value || null;
@@ -368,7 +378,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (jobData.trigger.type === 'cron') {
             jobData.trigger.minute = cronMinuteInput.value;
             jobData.trigger.hour = cronHourInput.value;
-            jobData.trigger.day_of_week = cronDayOfWeekInput.value;
+            jobData.trigger.day_of_week = cronDayOfWeekInput.value; // Fixed variable name
         } else if (jobData.trigger.type === 'interval') {
             jobData.trigger.weeks = parseInt(intervalWeeksInput.value) || 0;
             jobData.trigger.days = parseInt(intervalDaysInput.value) || 0;

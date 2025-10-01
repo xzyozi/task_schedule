@@ -1,7 +1,7 @@
 // src/webgui/static/timeline.js
 
 document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = ''; // This will be relative to the current host, or can be set explicitly if needed.
+    const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
 
     // DOM element where the Timeline will be attached
     const container = document.getElementById('timeline');
@@ -28,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to fetch and render timeline data
     function fetchAndRenderTimelineData() {
-        fetch(`${API_BASE_URL}/api/timeline-data`)
+        fetch(`${API_BASE_URL}/api/timeline-items`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -36,46 +36,43 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
-                items.clear(); // Clear existing items
-                // Process data and add to items DataSet
-                // Example data structure for vis.js:
-                // { id: 1, content: 'Job A', start: '2025-09-20T10:00:00', end: '2025-09-20T10:05:00', type: 'range', className: 'job-completed' }
-                // { id: 2, content: 'Job B (Scheduled)', start: '2025-09-22T14:30:00', type: 'point', className: 'job-scheduled' }
-
-                data.forEach(job => {
-                    let className = '';
-                    let content = job.id; // Default content
-
-                    // Determine class name based on job status/type
-                    if (job.status === 'completed') {
-                        className = 'job-completed';
-                    } else if (job.status === 'failed') {
-                        className = 'job-failed';
-                    } else if (job.status === 'running') {
-                        className = 'job-running';
-                        content += ' (Running)';
-                    } else if (job.status === 'scheduled') {
-                        className = 'job-scheduled';
-                        content += ' (Scheduled)';
+                const groups = new vis.DataSet();
+                const uniqueGroupIds = [...new Set(data.map(item => item.group).filter(g => g))];
+                
+                uniqueGroupIds.forEach(groupId => {
+                    const representativeItem = data.find(item => item.group === groupId);
+                    let groupContent = groupId;
+                    if (representativeItem) {
+                        if (groupId.startsWith('workflow_')) {
+                            const wfName = representativeItem.content.split('.')[0];
+                            groupContent = `WF: ${wfName}`;
+                        } else {
+                            groupContent = `Job: ${groupId}`;
+                        }
                     }
-
-                    // Add item to DataSet
-                    items.add({
-                        id: job.id + '-' + job.start, // Unique ID for each item
-                        content: content,
-                        start: job.start,
-                        end: job.end, // Optional, for range items
-                        type: job.end ? 'range' : 'point', // 'range' for completed/failed, 'point' for scheduled/running
-                        className: className,
-                        title: `Job ID: ${job.id}<br>Status: ${job.status}<br>Function: ${job.func}<br>Start: ${new Date(job.start).toLocaleString()}` + (job.end ? `<br>End: ${new Date(job.end).toLocaleString()}` : '')
-                    });
+                    groups.add({ id: groupId, content: groupContent });
                 });
+
+                timeline.setGroups(groups);
+
+                items.clear();
+                items.add(
+                    data.map(item => ({
+                        id: item.id,
+                        content: item.content,
+                        start: item.start,
+                        end: item.end,
+                        group: item.group,
+                        className: `job-${item.status}`,
+                        type: item.end ? 'range' : 'point',
+                        title: `<b>${item.content}</b><br>Status: ${item.status}<br>Start: ${new Date(item.start).toLocaleString()}` + (item.end ? `<br>End: ${new Date(item.end).toLocaleString()}` : '')
+                    }))
+                );
 
                 timeline.fit(); // Adjust timeline to fit all items
             })
             .catch(error => {
                 console.error('Error fetching timeline data:', error);
-                // Display an error message on the timeline container
                 container.innerHTML = '<p class="text-danger">タイムラインデータの読み込みに失敗しました。</p>';
             });
     }

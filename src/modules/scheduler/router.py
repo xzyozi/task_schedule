@@ -43,7 +43,7 @@ def get_execution_logs(skip: int = Query(0, ge=0), limit: int = Query(100, ge=1,
         logger.error(f"Error fetching execution logs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch execution logs")
 
-@router.get("/timeline/data", response_model=List[schemas.TimelineItem], tags=["Dashboard"], summary="Get Timeline Data", description="Provides data for the job execution timeline, including scheduled and historical runs.")
+@router.get("/timeline-items", response_model=List[schemas.TimelineItem], tags=["Dashboard"], summary="Get Timeline Data", description="Provides data for the job execution timeline, including scheduled and historical runs.")
 def get_timeline_data(db: Session = Depends(get_db)):
     try:
         return service.get_timeline_data(db)
