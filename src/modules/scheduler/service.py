@@ -111,7 +111,10 @@ def get_dashboard_summary(db: Session) -> schemas.DashboardSummary:
     """
     Retrieves a summary of job statuses for the dashboard.
     """
-    total_jobs = len(scheduler_instance.scheduler.get_jobs())
+    total_job_defs = db.query(models.JobDefinition).count()
+    total_workflows = db.query(models.Workflow).count()
+    total_jobs = total_job_defs + total_workflows
+    
     running_jobs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'RUNNING').count()
     successful_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'COMPLETED').count()
     failed_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'FAILED').count()
