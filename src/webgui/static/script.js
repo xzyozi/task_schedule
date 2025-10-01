@@ -45,28 +45,38 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateJobList() {
         if (!jobListBody) return; // Do nothing if the table body isn't on the page
 
-        fetch(`${API_BASE_URL}/api/scheduler/jobs`)
+        fetch(`${API_BASE_URL}/api/unified-jobs`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return response.json();
             })
-            .then(jobs => {
+            .then(items => {
                 jobListBody.innerHTML = ''; // Clear existing rows
-                jobs.forEach(job => {
-                    const nextRun = job.next_run_time ? new Date(job.next_run_time).toLocaleString() : 'Paused';
-                    const status = job.next_run_time ? '<span class="badge bg-success">Scheduled</span>' : '<span class="badge bg-warning">Paused</span>';
+                items.forEach(item => {
+                    const nextRun = item.next_run_time ? new Date(item.next_run_time).toLocaleString() : '-';
+                    
+                    let statusBadge;
+                    if (!item.is_enabled || item.status === 'paused') {
+                        statusBadge = '<span class="badge bg-secondary">Paused</span>';
+                    } else {
+                        statusBadge = '<span class="badge bg-success">Scheduled</span>';
+                    }
+
+                    const idForScheduler = item.type === 'workflow' ? `workflow_${item.id}` : item.id;
+                    const detailUrl = item.type === 'workflow' ? `/workflows/${item.id}` : `/jobs/${item.id}`;
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${job.id}</td>
+                        <td><a href="${detailUrl}">${item.name}</a></td>
+                        <td>${item.schedule}</td>
                         <td>${nextRun}</td>
-                        <td>${status}</td>
+                        <td>${statusBadge}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary btn-run" data-job-id="${job.id}" title="Run Now">Run</button>
-                            <button class="btn btn-sm btn-secondary btn-pause" data-job-id="${job.id}" title="Pause">Pause</button>
-                            <button class="btn btn-sm btn-success btn-resume" data-job-id="${job.id}" title="Resume">Resume</button>
+                            <button class="btn btn-sm btn-primary btn-run" data-id="${idForScheduler}" title="Run Now">Run</button>
+                            <button class="btn btn-sm btn-secondary btn-pause" data-id="${idForScheduler}" title="Pause" ${!item.is_enabled ? 'disabled' : ''}>Pause</button>
+                            <button class="btn btn-sm btn-success btn-resume" data-id="${idForScheduler}" title="Resume" ${!item.is_enabled ? 'disabled' : ''}>Resume</button>
                         </td>
                     `;
                     jobListBody.appendChild(row);
@@ -75,7 +85,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => {
                 console.error('Error fetching job list:', error);
                 const row = document.createElement('tr');
-                row.innerHTML = `<td colspan="4" class="text-center text-danger">Failed to load job list.</td>`;
+                row.innerHTML = `<td colspan="5" class="text-center text-danger">Failed to load job list.</td>`;
                 jobListBody.innerHTML = '';
                 jobListBody.appendChild(row);
             });
@@ -87,8 +97,8 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     function handleJobAction(event) {
         const target = event.target;
-        const jobId = target.dataset.jobId;
-        if (!jobId) return;
+        const schedulerId = target.dataset.id;
+        if (!schedulerId) return;
 
         let action = '';
         if (target.classList.contains('btn-run')) {
@@ -100,7 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (action) {
-            fetch(`${API_BASE_URL}/api/scheduler/jobs/${jobId}/${action}`, {
+            fetch(`${API_BASE_URL}/api/scheduler/jobs/${schedulerId}/${action}`, {
                 method: 'POST'
             })
             .then(response => {
@@ -110,15 +120,16 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
-                console.log(`Job ${jobId} action ${action} successful:`, data.message);
+                console.log(`Action '${action}' for '${schedulerId}' successful:`, data.message);
                 // Refresh the list to show the updated status
-                updateJobList();
-                updateDashboard(); // Also refresh summary
+                setTimeout(() => {
+                    updateJobList();
+                    updateDashboard(); // Also refresh summary
+                }, 500); // Add a small delay
             })
             .catch(error => {
-                console.error(`Error performing action ${action} on job ${jobId}:`, error);
-                // Optionally, show an alert to the user
-                alert(`Action failed for job ${jobId}. See console for details.`);
+                console.error(`Error performing action ${action} on job ${schedulerId}:`, error);
+                alert(`Action failed for ${schedulerId}. See console for details.`);
             });
         }
     }

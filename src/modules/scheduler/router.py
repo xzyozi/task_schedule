@@ -51,6 +51,17 @@ def get_timeline_data(db: Session = Depends(get_db)):
         logger.error(f"Error fetching timeline data: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/unified-jobs", response_model=List[schemas.UnifiedJobItem], tags=["Dashboard"])
+def get_unified_jobs(db: Session = Depends(get_db)):
+    """
+    Retrieves a unified list of all jobs and workflows.
+    """
+    try:
+        return service.get_unified_jobs_list(db)
+    except Exception as e:
+        logger.error(f"Error fetching unified jobs list: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch unified jobs list")
+
 #
 # --- Filesystem Endpoints ---
 #

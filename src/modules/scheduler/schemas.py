@@ -136,3 +136,13 @@ class ProcessExecutionLogInfo(BaseModel):
 
 class ErrorResponse(BaseModel):
     detail: str
+
+class UnifiedJobItem(BaseModel):
+    id: str
+    type: str  # 'job' or 'workflow'
+    name: str
+    description: Optional[str] = None
+    is_enabled: bool
+    schedule: Optional[str]
+    next_run_time: Optional[datetime] = None
+    status: str # 'running', 'paused', 'scheduled'

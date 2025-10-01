@@ -193,7 +193,6 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     timeline_items.sort(key=lambda item: item.start)
     return timeline_items
 
-
 def get_execution_logs(db: Session, skip: int = 0, limit: int = 100) -> List[models.ProcessExecutionLog]:
     """
     Retrieves a paginated list of job execution logs.
@@ -269,7 +268,6 @@ def pause_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
             failed_ids[job_id] = "Not Found"
     return {"paused": paused_ids, "failed": failed_ids}
 
-
 def resume_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
     """
     Resumes a list of scheduled jobs.
@@ -308,3 +306,87 @@ def list_subdirectories(relative_path: str = "") -> List[str]:
         return [entry.name for entry in os.scandir(scan_path) if entry.is_dir()]
     except OSError:
         return []
+
+def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
+    """
+    Retrieves a unified list of all jobs and workflows for dashboard display.
+    """
+    unified_list = []
+    
+    # Get all scheduled jobs from APScheduler
+    scheduled_jobs = {job.id: job for job in scheduler_instance.scheduler.get_jobs()}
+    
+    # 1. Process Job Definitions
+    jobs_in_db = db.query(models.JobDefinition).all()
+    for job_def in jobs_in_db:
+        job_id = job_def.id
+        status = "paused"  # Default status
+        next_run = None
+        
+        if job_id in scheduled_jobs:
+            scheduled_job = scheduled_jobs[job_id]
+            next_run = scheduled_job.next_run_time
+            if scheduled_job.next_run_time is None:
+                status = "paused"
+            else:
+                status = "scheduled"
+        
+        if not job_def.is_enabled:
+            status = "paused"
+
+        trigger_str = f"{job_def.trigger_type}: "
+        if job_def.trigger_type == 'cron':
+            cron_fields = ['minute', 'hour', 'day', 'month', 'day_of_week']
+            parts = []
+            for field in cron_fields:
+                value = job_def.trigger_config.get(field)
+                parts.append(str(value) if value is not None else '*')
+            trigger_str += ' '.join(parts)
+        elif job_def.trigger_type == 'interval':
+            parts = []
+            for unit in ['weeks', 'days', 'hours', 'minutes', 'seconds']:
+                if job_def.trigger_config.get(unit, 0) > 0:
+                    parts.append(f"{job_def.trigger_config[unit]}{unit[0]}")
+            trigger_str += ' '.join(parts)
+
+        unified_list.append(schemas.UnifiedJobItem(
+            id=job_id,
+            type='job',
+            name=job_def.id,
+            description=job_def.description,
+            is_enabled=job_def.is_enabled,
+            schedule=trigger_str,
+            next_run_time=next_run,
+            status=status
+        ))
+
+    # 2. Process Workflows
+    workflows_in_db = db.query(models.Workflow).all()
+    for workflow in workflows_in_db:
+        job_id = f"workflow_{workflow.id}"
+        status = "paused"
+        next_run = None
+
+        if job_id in scheduled_jobs:
+            scheduled_job = scheduled_jobs[job_id]
+            next_run = scheduled_job.next_run_time
+            if scheduled_job.next_run_time is None:
+                status = "paused"
+            else:
+                status = "scheduled"
+        
+        if not workflow.is_enabled:
+            status = "paused"
+
+        unified_list.append(schemas.UnifiedJobItem(
+            id=str(workflow.id),
+            type='workflow',
+            name=workflow.name,
+            description=workflow.description,
+            is_enabled=workflow.is_enabled,
+            schedule=workflow.schedule or "Not Scheduled",
+            next_run_time=next_run,
+            status=status
+        ))
+        
+    return unified_list
