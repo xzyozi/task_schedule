@@ -36,11 +36,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
+                // Filter out items that are part of a workflow step
+                const filteredData = data.filter(item => item.group && !item.group.includes('_step_'));
+
                 const groups = new vis.DataSet();
-                const uniqueGroupIds = [...new Set(data.map(item => item.group).filter(g => g))];
+                const uniqueGroupIds = [...new Set(filteredData.map(item => item.group).filter(g => g))];
                 
                 uniqueGroupIds.forEach(groupId => {
-                    const representativeItem = data.find(item => item.group === groupId);
+                    const representativeItem = filteredData.find(item => item.group === groupId);
                     let groupContent = groupId;
                     if (representativeItem) {
                         if (groupId.startsWith('workflow_')) {
@@ -57,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 items.clear();
                 items.add(
-                    data.map(item => ({
+                    filteredData.map(item => ({
                         id: item.id,
                         content: item.content,
                         start: item.start,

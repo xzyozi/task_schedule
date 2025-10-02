@@ -119,3 +119,8 @@ body {
 .vis-time-axis .vis-grid.vis-minor {
     border-width: 0;
 }
+
+/* Remove the default border from the top of the vis-timeline container */
+.vis-timeline {
+    border-top: none;
+}

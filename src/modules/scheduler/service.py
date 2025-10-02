@@ -195,6 +195,9 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
         ).all())
 
     for log in recent_job_logs:
+        # Redundant check to ensure steps are not shown, in case of data inconsistency
+        if log.job_id and '_step_' in log.job_id:
+            continue
         timeline_items.append(schemas.TimelineItem(
             id=f"log-{log.id}",
             content=log.job_id,
