@@ -37,3 +37,6 @@ coverage.xml
 test/Book1(自動回復済み).xlsx
 test/test_plan_filtering.csv
 test/test_plan_bulk_operations.csv
+
+jobs.sqlite-shm
+jobs.sqlite-wal
