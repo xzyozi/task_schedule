@@ -189,7 +189,7 @@ def run_workflow(workflow_id: int, job_id: str = None):
             logger.info(f"Executing step {i+1}/{len(steps)}: '{step.name}' for workflow '{workflow_name}'")
             
             kwargs_for_executor = {
-                'job_id': f"workflow_{workflow_id}_step_{step.id}",
+                'job_id': f"{workflow_name}_{step.name}",
                 'workflow_run_id': workflow_run_id,
             }
 
