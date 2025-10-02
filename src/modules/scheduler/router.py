@@ -10,7 +10,7 @@ from core.database import get_db
 from modules.scheduler import models, schemas, loader
 from modules.scheduler.service import job_definition_service
 from modules.scheduler import scheduler_instance, service
-from util import logger_util, config_util
+from util import logger_util, config_util, time_util
 
 logger = logger_util.get_logger(__name__)
 
@@ -217,7 +217,7 @@ def resume_scheduled_job(job_id: str):
 @router.post("/scheduler/jobs/{job_id}/run", tags=["Scheduler Control"])
 def run_scheduled_job_immediately(job_id: str):
     try:
-        scheduler_instance.scheduler.modify_job(job_id, next_run_time=datetime.now())
+        scheduler_instance.scheduler.modify_job(job_id, next_run_time=time_util.get_current_utc_time())
         return {"message": f"Job '{job_id}' scheduled for immediate execution."}
     except JobLookupError:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found.")

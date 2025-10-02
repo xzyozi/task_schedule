@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 
 from sqlalchemy.orm import Session
 
-from util import logger_util
+from util import logger_util, time_util
 from util.config_util import config
 from datetime import datetime
 import uuid
@@ -85,7 +85,7 @@ def _execute_command_job_impl(db: Session, **kwargs):
         job_id=job_id,
         workflow_run_id=kwargs.get('workflow_run_id'),
         command=command_str,
-        start_time=datetime.now(),
+        start_time=time_util.get_current_utc_time(),
         status='RUNNING'
     )
     db.add(log_entry)
@@ -98,7 +98,7 @@ def _execute_command_job_impl(db: Session, **kwargs):
         env=kwargs.get('env')
     )
 
-    log_entry.end_time = datetime.now()
+    log_entry.end_time = time_util.get_current_utc_time()
     log_entry.exit_code = result.get('exit_code')
     log_entry.stdout = result.get('stdout')
     log_entry.stderr = result.get('stderr')
@@ -140,7 +140,7 @@ def _execute_python_job_impl(db: Session, **kwargs):
         job_id=job_id,
         workflow_run_id=kwargs.get('workflow_run_id'),
         command=target_func_path,
-        start_time=datetime.now(),
+        start_time=time_util.get_current_utc_time(),
         status='RUNNING'
     )
     db.add(log_entry)
@@ -158,7 +158,7 @@ def _execute_python_job_impl(db: Session, **kwargs):
         status = 'FAILED'
         stderr = traceback.format_exc()
 
-    log_entry.end_time = datetime.now()
+    log_entry.end_time = time_util.get_current_utc_time()
     log_entry.exit_code = exit_code
     log_entry.stdout = stdout
     log_entry.stderr = stderr
@@ -233,7 +233,7 @@ def run_workflow(workflow_id: int, job_id: str = None):
             workflow_run = final_db.query(models.WorkflowRun).filter(models.WorkflowRun.id == workflow_run_id).first()
             if workflow_run:
                 workflow_run.status = final_status
-                workflow_run.end_time = datetime.now()
+                workflow_run.end_time = time_util.get_current_utc_time()
                 final_db.commit()
             logger.info(f"Workflow '{workflow_name}' finished with status {final_status}.")
         finally:
