@@ -10,7 +10,7 @@ jobs.sqlite
 test/subprocessTest.py
 test/test.conf
 test/test.txt
-
+src/bk
 # logs
 log/*
 

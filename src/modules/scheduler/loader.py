@@ -171,6 +171,7 @@ def schedule_workflow(workflow: models.Workflow):
             day_of_week=day_of_week,
             misfire_grace_time=3600,
             max_instances=1,
+            jobstore='default'
         )
         logger.info(f"Scheduled workflow '{workflow.name}' with job ID '{job_id}'.")
     except Exception as e:

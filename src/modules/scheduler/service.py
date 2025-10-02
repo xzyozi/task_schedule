@@ -127,7 +127,11 @@ def get_dashboard_summary(db: Session) -> schemas.DashboardSummary:
 
 def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     """
-    Provides data for the job execution timeline, including scheduled and historical runs.
+    Provides data for the job execution timeline.
+    - Scheduled jobs and workflows are shown as points.
+    - Executed workflow runs are shown as single ranges.
+    - Executed regular jobs (not part of a workflow) are shown as ranges.
+    - Individual workflow steps are NOT shown.
     """
     
     def _make_aware(dt: Optional[datetime]) -> Optional[datetime]:
@@ -139,15 +143,15 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     now = datetime.now(timezone.utc)
     seven_days_ago = now - timedelta(days=7)
 
-    # Part 1: Scheduled Jobs (workflows and regular jobs)
+    # Part 1: Scheduled Jobs & Workflows
     workflows_by_id = {wf.id: wf for wf in db.query(models.Workflow).all()}
     scheduled_jobs = scheduler_instance.scheduler.get_jobs()
     for job in scheduled_jobs:
         if job.next_run_time:
             start_time_aware = _make_aware(job.next_run_time)
-            
             content = job.id
             group = job.id
+            item_id = f"scheduled-{job.id}"
 
             if job.id.startswith('workflow_'):
                 try:
@@ -160,7 +164,7 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
                     pass 
             
             timeline_items.append(schemas.TimelineItem(
-                id=f"scheduled-{job.id}-{start_time_aware.isoformat()}",
+                id=f"{item_id}-{start_time_aware.isoformat()}",
                 content=f"{content} (Scheduled)",
                 start=start_time_aware,
                 status="scheduled",
@@ -174,20 +178,16 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
         .all())
 
     for run in recent_workflow_runs:
-        end_time = _make_aware(run.end_time)
-        if run.status == 'RUNNING' and not end_time:
-            end_time = now
-        
         timeline_items.append(schemas.TimelineItem(
             id=f"wf_run-{run.id}",
             content=run.workflow.name,
             start=_make_aware(run.start_time),
-            end=end_time,
+            end=_make_aware(run.end_time) or (now if run.status == 'RUNNING' else None),
             status=run.status.lower(),
             group=f"workflow_{run.workflow_id}"
         ))
 
-    # Part 3: Executed Regular Jobs (not part of a workflow)
+    # Part 3: Executed Regular Jobs (non-workflow)
     recent_job_logs = (db.query(models.ProcessExecutionLog)
         .filter(
             models.ProcessExecutionLog.workflow_run_id == None,
@@ -195,15 +195,11 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
         ).all())
 
     for log in recent_job_logs:
-        end_time = _make_aware(log.end_time)
-        if log.status == 'RUNNING' and not end_time:
-            end_time = now
-
         timeline_items.append(schemas.TimelineItem(
             id=f"log-{log.id}",
             content=log.job_id,
             start=_make_aware(log.start_time),
-            end=end_time,
+            end=_make_aware(log.end_time) or (now if log.status == 'RUNNING' else None),
             status=log.status.lower(),
             group=log.job_id
         ))
