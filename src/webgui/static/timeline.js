@@ -19,6 +19,8 @@ document.addEventListener('DOMContentLoaded', function() {
         zoomMax: 1000 * 60 * 60 * 24 * 30 * 3, // 3 months
         zoomMin: 1000 * 60 * 10, // 10 minutes
         orientation: 'top', // Display items above the axis
+        groupHeightMode: 'fixed',
+        groupOrder: 'content',
         // Implement filtering, zooming, grouping as per gui.md
         // For now, basic setup.
     };
