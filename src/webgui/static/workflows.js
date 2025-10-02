@@ -23,8 +23,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 workflowsListBody.innerHTML = '';
                 workflows.forEach(wf => {
                     const row = document.createElement('tr');
+                    const isEnabled = wf.is_enabled;
                     row.innerHTML = `
-                        <td><span class="badge bg-${wf.is_enabled ? 'success' : 'secondary'}">${wf.is_enabled ? '有効' : '無効'}</span></td>
+                        <td>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input workflow-status-toggle" type="checkbox" role="switch" 
+                                       data-workflow-id="${wf.id}" ${isEnabled ? 'checked' : ''}>
+                                <label class="form-check-label">
+                                    ${isEnabled ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>'}
+                                </label>
+                            </div>
+                        </td>
                         <td><a href="/workflows/${wf.id}">${wf.name}</a></td>
                         <td>${wf.description || ''}</td>
                         <td>${wf.schedule || 'N/A'}</td>
@@ -174,6 +183,28 @@ document.addEventListener('DOMContentLoaded', function() {
                     .catch(error => alert(error.message));
             }
         }
+    });
+
+    workflowsListBody.addEventListener('change', function(event) {
+        const target = event.target;
+        const workflowId = target.dataset.workflowId;
+
+        if (!workflowId || !target.classList.contains('workflow-status-toggle')) return;
+
+        const action = target.checked ? 'resume' : 'pause';
+        
+        fetch(`${API_BASE_URL}/api/workflows/${workflowId}/${action}`, { method: 'POST' })
+            .then(response => {
+                if (!response.ok) throw new Error('ステータスの変更に失敗しました。');
+                return response.json();
+            })
+            .then(() => {
+                fetchAndDisplayWorkflows();
+            })
+            .catch(error => {
+                alert(`エラー: ${error.message}`);
+                target.checked = !target.checked; // Revert on failure
+            });
     });
 
     // --- Initial Load ---

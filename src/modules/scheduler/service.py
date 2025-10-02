@@ -107,6 +107,19 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
 
 workflow_service = WorkflowCRUD(models.Workflow)
 
+def update_workflow_enabled_status(db: Session, workflow_id: int, is_enabled: bool) -> Optional[models.Workflow]:
+    """
+    Updates the is_enabled status of a workflow.
+    """
+    workflow = workflow_service.get(db, id=workflow_id)
+    if workflow:
+        workflow.is_enabled = is_enabled
+        db.add(workflow)
+        db.commit()
+        db.refresh(workflow)
+    return workflow
+
+
 def get_dashboard_summary(db: Session) -> schemas.DashboardSummary:
     """
     Retrieves a summary of job statuses for the dashboard.

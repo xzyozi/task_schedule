@@ -153,6 +153,40 @@ def delete_workflow(workflow_id: int, db: Session = Depends(get_db)):
     loader.remove_workflow_job(workflow_id)
     return
 
+# --- Workflow Control Endpoints ---
+
+@router.post("/workflows/{workflow_id}/pause", tags=["Workflow Control"], summary="Pause a Workflow")
+def pause_workflow(workflow_id: int, db: Session = Depends(get_db)):
+    """
+    Pauses a workflow by removing its job from the scheduler and marking it as disabled.
+    """
+    service.update_workflow_enabled_status(db, workflow_id=workflow_id, is_enabled=False)
+    try:
+        loader.remove_workflow_job(workflow_id)
+        return {"message": f"Workflow '{workflow_id}' paused successfully."}
+    except Exception as e:
+        logger.error(f"Error removing workflow job {workflow_id} from scheduler: {e}", exc_info=True)
+        # Still return success as the DB state is updated
+        return {"message": f"Workflow '{workflow_id}' marked as disabled, but could not be removed from scheduler."}
+
+
+@router.post("/workflows/{workflow_id}/resume", tags=["Workflow Control"], summary="Resume a Workflow")
+def resume_workflow(workflow_id: int, db: Session = Depends(get_db)):
+    """
+    Resumes a workflow by scheduling it and marking it as enabled.
+    """
+    db_workflow = service.update_workflow_enabled_status(db, workflow_id=workflow_id, is_enabled=True)
+    if not db_workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    try:
+        loader.schedule_workflow(db_workflow)
+        return {"message": f"Workflow '{db_workflow.name}' resumed successfully."}
+    except Exception as e:
+        logger.error(f"Error scheduling workflow {workflow_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to schedule workflow {workflow_id}.")
+
+
 # --- Scheduler Control Endpoints ---
 @router.get("/scheduler/jobs", response_model=List[schemas.JobInfo], tags=["Scheduler Control"])
 def get_scheduled_jobs():
