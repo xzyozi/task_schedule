@@ -77,6 +77,7 @@ class WorkflowStepBase(BaseModel):
     kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
     on_failure: str = "stop"
     timeout: Optional[int] = None
+    run_in_background: bool = False
 
 class WorkflowStepCreate(WorkflowStepBase):
     pass
@@ -92,6 +93,7 @@ class WorkflowBase(BaseModel):
     description: Optional[str] = None
     schedule: Optional[str] = None
     is_enabled: bool = True
+    params_def: Optional[List[Dict[str, Any]]] = None
 
 class WorkflowCreate(WorkflowBase):
     steps: List[WorkflowStepCreate]
@@ -100,6 +102,9 @@ class Workflow(WorkflowBase):
     id: int
     steps: List[WorkflowStep] = []
     model_config = ConfigDict(from_attributes=True)
+
+class WorkflowRunCreate(BaseModel):
+    params_val: Optional[Dict[str, Any]] = None
 
 class TimelineItem(BaseModel):
     id: str

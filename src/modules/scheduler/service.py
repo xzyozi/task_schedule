@@ -420,3 +420,13 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
         ))
         
     return unified_list
+
+def run_workflow_immediately(db: Session, workflow_id: int, params: Optional[dict] = None):
+    """
+    Schedules a one-off, immediate execution of a workflow with optional runtime parameters.
+    """
+    scheduler_instance.scheduler.add_job(
+        'modules.scheduler.job_executors:run_workflow',
+        kwargs={'workflow_id': workflow_id, 'run_params': params}
+    )
+    return {"message": "Workflow scheduled for immediate execution with parameters."}

@@ -62,6 +62,14 @@
 
                     <hr>
 
+                    <h4>パラメータ定義</h4>
+                    <div id="params-container">
+                        <!-- Parameters will be dynamically added here -->
+                    </div>
+                    <button type="button" id="add-param-btn" class="btn btn-secondary mt-2">パラメータを追加</button>
+
+                    <hr>
+
                     <h4>ステップ定義</h4>
                     <div id="steps-container">
                         <!-- Steps will be dynamically added here -->
@@ -113,6 +121,26 @@
                 <label class="form-check-label">バックグラウンドで実行</label>
             </div>
             <button type="button" class="btn btn-danger btn-sm remove-step-btn">このステップを削除</button>
+        </div>
+    </div>
+</template>
+
+<!-- Template for a single parameter -->
+<template id="param-template">
+    <div class="param-card card mb-3">
+        <div class="card-body">
+            <h5 class="card-title">パラメータ</h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">パラメータ名 (変数名)</label>
+                    <input type="text" class="form-control param-name" placeholder="e.g., repo_url" required>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">表示ラベル</label>
+                    <input type="text" class="form-control param-label" placeholder="e.g., Repository URL" required>
+                </div>
+            </div>
+            <button type="button" class="btn btn-danger btn-sm remove-param-btn">このパラメータを削除</button>
         </div>
     </div>
 </template>

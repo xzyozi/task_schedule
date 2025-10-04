@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import traceback
 from importlib import import_module
@@ -178,7 +179,7 @@ def _execute_python_job_impl(db: Session, **kwargs):
     log_entry.status = status
     db.add(log_entry)
 
-def run_workflow(workflow_id: int, job_id: str = None):
+def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict] = None):
     db = next(database.get_db())
     try:
         workflow = db.query(models.Workflow).filter(models.Workflow.id == workflow_id).first()
@@ -200,8 +201,12 @@ def run_workflow(workflow_id: int, job_id: str = None):
         logger.info(f"Working directory for workflow '{workflow_name}' is {workflow_cwd}")
         # --- End CWD Generation ---
         
-        logger.info(f"Starting workflow '{workflow.name}' (ID: {workflow.id})")
-        workflow_run = models.WorkflowRun(workflow_id=workflow.id, status='RUNNING')
+        logger.info(f"Starting workflow '{workflow.name}' (ID: {workflow.id}) with params: {run_params}")
+        workflow_run = models.WorkflowRun(
+            workflow_id=workflow.id,
+            status='RUNNING',
+            params_val=run_params
+        )
         db.add(workflow_run)
         db.commit()
         workflow_run_id = workflow_run.id
@@ -220,14 +225,26 @@ def run_workflow(workflow_id: int, job_id: str = None):
                 'workflow_run_id': workflow_run_id,
             }
 
+            # --- Parameter Substitution ---
+            substituted_target = step.target
+            if run_params:
+                # Find all placeholders like {{ params.some_name }}
+                placeholders = re.findall(r"\{\{\s*params\.(\w+)\s*\}\}", substituted_target)
+                for param_name in placeholders:
+                    if param_name in run_params:
+                        # Replace placeholder with the actual value
+                        value = run_params[param_name]
+                        substituted_target = substituted_target.replace(f"{{{{ params.{param_name} }}}}", str(value))
+            # --- End Parameter Substitution ---
+
             if step.job_type == 'python':
-                kwargs_for_executor['target_func_path'] = step.target
+                kwargs_for_executor['target_func_path'] = substituted_target
                 kwargs_for_executor['target_args'] = step.args or []
                 kwargs_for_executor['target_kwargs'] = step.kwargs or {}
                 execute_python_job(**kwargs_for_executor)
             elif step.job_type in ['cmd', 'powershell', 'shell']:
                 kwargs_for_executor['job_type'] = step.job_type
-                kwargs_for_executor['command'] = step.target.split()
+                kwargs_for_executor['command'] = substituted_target.split()
 
                 # Combine step kwargs with the mandatory workflow_cwd
                 step_kwargs = step.kwargs or {}

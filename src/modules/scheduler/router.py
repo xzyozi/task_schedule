@@ -331,3 +331,23 @@ def update_notification_settings(email_recipients: str = "", webhook_url: str = 
     except Exception as e:
         logger.error(f"An unexpected error occurred while writing notification settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred while updating notification settings.")
+
+@router.post("/workflows/{workflow_id}/run", tags=["Workflow Control"], summary="Run a Workflow Immediately")
+def run_workflow_immediately(
+    workflow_id: int,
+    run_config: schemas.WorkflowRunCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Triggers an immediate, one-off execution of a workflow with specified runtime parameters.
+    """
+    db_workflow = service.workflow_service.get(db, id=workflow_id)
+    if not db_workflow:
+        raise HTTPException(status_code=404, detail="Workflow not found")
+
+    try:
+        result = service.run_workflow_immediately(db, workflow_id=workflow_id, params=run_config.params_val)
+        return result
+    except Exception as e:
+        logger.error(f"Error triggering immediate run for workflow {workflow_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to trigger workflow {workflow_id}.")
