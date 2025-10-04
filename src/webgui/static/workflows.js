@@ -61,6 +61,7 @@ document.addEventListener('DOMContentLoaded', function() {
             stepCard.querySelector('.step-job-type').value = stepData.job_type;
             stepCard.querySelector('.step-target').value = stepData.target;
             stepCard.querySelector('.step-on-failure').value = stepData.on_failure;
+            stepCard.querySelector('.step-run-in-background').checked = stepData.run_in_background;
         }
     }
 
@@ -115,6 +116,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 job_type: stepCard.querySelector('.step-job-type').value,
                 target: stepCard.querySelector('.step-target').value,
                 on_failure: stepCard.querySelector('.step-on-failure').value,
+                run_in_background: stepCard.querySelector('.step-run-in-background').checked,
             });
         });
 

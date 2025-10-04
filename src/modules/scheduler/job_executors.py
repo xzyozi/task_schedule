@@ -16,7 +16,7 @@ from . import models
 
 logger = logger_util.get_logger(__name__)
 
-def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None, run_in_background: bool = False) -> Dict[str, Any]:
     log_command = ' '.join(command_to_run)
     absolute_cwd = None
     if cwd:
@@ -34,17 +34,23 @@ def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str
         if env:
             process_env.update(env)
         proc_input = log_command if use_shell else command_to_run
-        process = subprocess.run(
-            proc_input, capture_output=True, text=True, check=False, shell=use_shell, cwd=absolute_cwd, env=process_env
-        )
-        stdout = process.stdout.strip()
-        stderr = process.stderr.strip()
-        exit_code = process.returncode
-        if exit_code != 0:
-            logger.error(f"Command '{log_command}' failed with exit code {exit_code}.\nCWD: {absolute_cwd}\nSTDOUT: {stdout}\nSTDERR: {stderr}")
+
+        if run_in_background:
+            logger.info(f"Executing in background: {log_command}")
+            subprocess.Popen(proc_input, shell=use_shell, cwd=absolute_cwd, env=process_env)
+            return {"stdout": "Process launched in background.", "stderr": "", "exit_code": 0}
         else:
-            logger.info(f"Command '{log_command}' completed successfully.\nSTDOUT: {stdout}")
-        return {"stdout": stdout, "stderr": stderr, "exit_code": exit_code}
+            process = subprocess.run(
+                proc_input, capture_output=True, text=True, check=False, shell=use_shell, cwd=absolute_cwd, env=process_env
+            )
+            stdout = process.stdout.strip()
+            stderr = process.stderr.strip()
+            exit_code = process.returncode
+            if exit_code != 0:
+                logger.error(f"Command '{log_command}' failed with exit code {exit_code}.\nCWD: {absolute_cwd}\nSTDOUT: {stdout}\nSTDERR: {stderr}")
+            else:
+                logger.info(f"Command '{log_command}' completed successfully.\nSTDOUT: {stdout}")
+            return {"stdout": stdout, "stderr": stderr, "exit_code": exit_code}
     except FileNotFoundError:
         cmd_name = command_to_run[0]
         logger.error(f"Command not found: {cmd_name}", exc_info=True)
@@ -52,6 +58,7 @@ def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str
     except Exception as e:
         logger.error(f"Error executing command '{log_command}': {e}", exc_info=True)
         return {"stdout": "", "stderr": str(e), "exit_code": 1}
+
 
 def execute_command_job(**kwargs):
     job_id = kwargs.get('job_id')
@@ -100,7 +107,8 @@ def _execute_command_job_impl(db: Session, **kwargs):
         command_to_run=executable_command,
         use_shell=use_shell,
         cwd=kwargs.get('cwd'),
-        env=kwargs.get('env')
+        env=kwargs.get('env'),
+        run_in_background=kwargs.get('run_in_background', False)
     )
 
     log_entry.end_time = time_util.get_current_utc_time()
@@ -227,6 +235,7 @@ def run_workflow(workflow_id: int, job_id: str = None):
 
                 kwargs_for_executor['cwd'] = step_kwargs.get('cwd')
                 kwargs_for_executor['env'] = step_kwargs.get('env')
+                kwargs_for_executor['run_in_background'] = step.run_in_background
                 execute_command_job(**kwargs_for_executor)
             else:
                 raise ValueError(f"Unknown step job_type: {step.job_type}")

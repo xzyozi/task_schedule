@@ -46,6 +46,7 @@ class WorkflowStep(Base):
     kwargs = Column(JSON, nullable=True)
     on_failure = Column(String, default='stop', nullable=False)
     timeout = Column(Integer, nullable=True)
+    run_in_background = Column(Boolean, default=False, nullable=False)
     
     workflow = relationship("Workflow", back_populates="steps")
 
