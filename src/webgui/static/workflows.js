@@ -11,6 +11,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const stepsContainer = document.getElementById('steps-container');
     const addStepBtn = document.getElementById('add-step-btn');
     const stepTemplate = document.getElementById('step-template');
+    const paramsContainer = document.getElementById('params-container');
+    const addParamBtn = document.getElementById('add-param-btn');
+    const paramTemplate = document.getElementById('param-template');
+
+    // Modal elements
+    const runWorkflowModal = new bootstrap.Modal(document.getElementById('runWorkflowModal'));
+    const runWorkflowModalLabel = document.getElementById('runWorkflowModalLabel');
+    const modalRunWorkflowIdInput = document.getElementById('modal-run-workflow-id');
+    const modalParamInputsContainer = document.getElementById('modal-param-inputs');
+    const confirmRunWorkflowBtn = document.getElementById('confirm-run-workflow-btn');
 
     let serverOsType = '';
 
@@ -40,6 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td>
                             <a href="/workflows/${wf.id}" class="btn btn-sm btn-primary">詳細</a>
                             <button class="btn btn-sm btn-info btn-edit-workflow" data-workflow-id="${wf.id}">編集</button>
+                            <button class="btn btn-sm btn-success btn-run-workflow" data-workflow-id="${wf.id}" data-workflow-name="${wf.name}">実行</button>
                             <button class="btn btn-sm btn-danger btn-delete-workflow" data-workflow-id="${wf.id}">削除</button>
                         </td>
                     `;
@@ -102,6 +113,79 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    // --- Parameter Functions and Listeners ---
+
+    function addParam(paramData = null) {
+        const newParam = paramTemplate.content.cloneNode(true);
+        const paramCard = newParam.querySelector('.param-card');
+        paramsContainer.appendChild(paramCard);
+        updateParamTitles();
+
+        if (paramData) {
+            paramCard.querySelector('.param-name').value = paramData.name;
+            paramCard.querySelector('.param-label').value = paramData.label;
+        }
+    }
+
+    function updateParamTitles() {
+        const params = paramsContainer.querySelectorAll('.param-card');
+        params.forEach((param, index) => {
+            param.querySelector('.card-title').textContent = `パラメータ ${index + 1}`;
+        });
+    }
+
+    addParamBtn.addEventListener('click', () => addParam());
+
+    paramsContainer.addEventListener('click', function(event) {
+        if (event.target.classList.contains('remove-param-btn')) {
+            event.target.closest('.param-card').remove();
+            updateParamTitles();
+        }
+    });
+
+    // --- Run Workflow Button Listener ---
+    confirmRunWorkflowBtn.addEventListener('click', function() {
+        const workflowId = modalRunWorkflowIdInput.value;
+        const paramInputs = modalParamInputsContainer.querySelectorAll('.modal-param-input');
+        const paramsVal = {};
+        let allParamsValid = true;
+
+        paramInputs.forEach(input => {
+            if (!input.value) {
+                allParamsValid = false;
+                input.classList.add('is-invalid'); // Bootstrap validation class
+            } else {
+                input.classList.remove('is-invalid');
+                paramsVal[input.dataset.paramName] = input.value;
+            }
+        });
+
+        if (!allParamsValid) {
+            alert('すべてのパラメータを入力してください。');
+            return;
+        }
+
+        fetch(`${API_BASE_URL}/api/workflows/${workflowId}/run`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ params_val: paramsVal })
+        })
+        .then(response => {
+            if (!response.ok) return response.json().then(err => { throw new Error(err.detail || 'Unknown error'); });
+            return response.json();
+        })
+        .then(data => {
+            alert(`ワークフローが実行キューに追加されました: ${data.message}`);
+            runWorkflowModal.hide();
+            fetchAndDisplayWorkflows(); // Refresh list to show potential status changes
+        })
+        .catch(error => {
+            console.error('Error running workflow:', error);
+            alert(`ワークフローの実行に失敗しました: ${error.message}`);
+        });
+    });    
+
+    // --- Workflow Form Submission ---
     workflowForm.addEventListener('submit', function(event) {
         event.preventDefault();
         const isEdit = !!workflowIdInput.value;
@@ -120,12 +204,21 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
 
+        const params = [];
+        paramsContainer.querySelectorAll('.param-card').forEach((paramCard) => {
+            params.push({
+                name: paramCard.querySelector('.param-name').value,
+                label: paramCard.querySelector('.param-label').value,
+            });
+        });
+
         const workflowData = {
             name: document.getElementById('workflow-name').value,
             description: document.getElementById('workflow-description').value,
             schedule: document.getElementById('workflow-schedule').value,
             is_enabled: document.getElementById('workflow-enabled').checked,
-            steps: steps
+            steps: steps,
+            params_def: params
         };
 
         fetch(url, {
@@ -163,10 +256,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('workflow-schedule').value = workflow.schedule;
                     document.getElementById('workflow-enabled').checked = workflow.is_enabled;
                     
-                    stepsContainer.innerHTML = '';
-                    workflow.steps.sort((a, b) => a.step_order - b.step_order).forEach(addStep);
+                stepsContainer.innerHTML = '';
+                workflow.steps.sort((a, b) => a.step_order - b.step_order).forEach(addStep);
 
-                    window.scrollTo(0, document.body.scrollHeight);
+                paramsContainer.innerHTML = '';
+                if (workflow.params_def) {
+                    workflow.params_def.forEach(addParam);
+                }
+
+                window.scrollTo(0, document.body.scrollHeight);
+
                 });
         }
 
@@ -213,4 +312,35 @@ document.addEventListener('DOMContentLoaded', function() {
     fetchOsInfo().then(() => {
         fetchAndDisplayWorkflows();
     });
+
+    // --- Run Workflow Modal Logic ---
+    function openRunWorkflowModal(workflowId, workflowName) {
+    runWorkflowModalLabel.textContent = `ワークフロー実行: ${workflowName}`;
+    modalRunWorkflowIdInput.value = workflowId;
+    modalParamInputsContainer.innerHTML = ''; // Clear previous inputs
+
+    fetch(`${API_BASE_URL}/api/workflows/${workflowId}`)
+        .then(response => response.json())
+        .then(workflow => {
+            if (workflow.params_def && workflow.params_def.length > 0) {
+                workflow.params_def.forEach(paramDef => {
+                    const paramInputDiv = document.createElement('div');
+                    paramInputDiv.classList.add('mb-3');
+                    paramInputDiv.innerHTML = `
+                        <label for="param-${paramDef.name}" class="form-label">${paramDef.label || paramDef.name}</label>
+                        <input type="text" class="form-control modal-param-input" id="param-${paramDef.name}" data-param-name="${paramDef.name}" placeholder="${paramDef.label || paramDef.name}" required>
+                    `;
+                    modalParamInputsContainer.appendChild(paramInputDiv);
+                });
+            } else {
+                modalParamInputsContainer.innerHTML = '<p>このワークフローにはパラメータが定義されていません。すぐに実行します。</p>';
+            }
+            runWorkflowModal.show();
+        })
+        .catch(error => {
+            console.error('Error fetching workflow for modal:', error);
+            alert('ワークフロー情報の取得に失敗しました。');
+        });
+    }
+
 });
