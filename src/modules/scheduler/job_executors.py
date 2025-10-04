@@ -2,6 +2,7 @@ import os
 import subprocess
 import traceback
 from importlib import import_module
+from pathlib import Path
 from typing import Dict, Any, Optional
 
 from sqlalchemy.orm import Session
@@ -19,7 +20,11 @@ def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str
     log_command = ' '.join(command_to_run)
     absolute_cwd = None
     if cwd:
-        absolute_cwd = config.scheduler_work_dir.joinpath(cwd).resolve()
+        path_obj = Path(cwd)
+        if path_obj.is_absolute():
+            absolute_cwd = path_obj
+        else:
+            absolute_cwd = config.scheduler_work_dir.joinpath(cwd).resolve()
         absolute_cwd.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Executing: {log_command}" + (f" in {absolute_cwd}" if absolute_cwd else ""))
@@ -172,14 +177,28 @@ def run_workflow(workflow_id: int, job_id: str = None):
         if not workflow:
             logger.error(f"Workflow with id {workflow_id} not found.")
             return
+
+        # --- CWD Generation and Security Check ---
+        workflow_name = workflow.name
+        # Sanitize workflow_name to prevent path traversal
+        if ".." in workflow_name or "/" in workflow_name or "\"" in workflow_name:
+            logger.error(f"Invalid workflow name for use as directory: {workflow_name}")
+            # TODO: Optionally, update workflow_run status to FAILED
+            return
+        
+        base_dir = os.path.join(os.path.expanduser('~'), '.task_scheduler')
+        workflow_cwd = os.path.join(base_dir, workflow_name)
+        os.makedirs(workflow_cwd, exist_ok=True)
+        logger.info(f"Working directory for workflow '{workflow_name}' is {workflow_cwd}")
+        # --- End CWD Generation ---
         
         logger.info(f"Starting workflow '{workflow.name}' (ID: {workflow.id})")
         workflow_run = models.WorkflowRun(workflow_id=workflow.id, status='RUNNING')
         db.add(workflow_run)
         db.commit()
         workflow_run_id = workflow_run.id
-        workflow_name = workflow.name
         steps = sorted(workflow.steps, key=lambda s: s.step_order)
+
     finally:
         db.close()
 
@@ -201,9 +220,13 @@ def run_workflow(workflow_id: int, job_id: str = None):
             elif step.job_type in ['cmd', 'powershell', 'shell']:
                 kwargs_for_executor['job_type'] = step.job_type
                 kwargs_for_executor['command'] = step.target.split()
-                if step.kwargs:
-                    kwargs_for_executor['cwd'] = step.kwargs.get('cwd')
-                    kwargs_for_executor['env'] = step.kwargs.get('env')
+
+                # Combine step kwargs with the mandatory workflow_cwd
+                step_kwargs = step.kwargs or {}
+                step_kwargs['cwd'] = workflow_cwd  # Always use the workflow's CWD
+
+                kwargs_for_executor['cwd'] = step_kwargs.get('cwd')
+                kwargs_for_executor['env'] = step_kwargs.get('env')
                 execute_command_job(**kwargs_for_executor)
             else:
                 raise ValueError(f"Unknown step job_type: {step.job_type}")
