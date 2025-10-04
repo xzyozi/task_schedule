@@ -30,6 +30,7 @@ class Workflow(Base):
     description = Column(Text, nullable=True)
     schedule = Column(String, nullable=True) # e.g., Cron string
     is_enabled = Column(Boolean, default=True, nullable=False)
+    params_def = Column(JSON, nullable=True)
     
     steps = relationship("WorkflowStep", back_populates="workflow", cascade="all, delete-orphan")
     runs = relationship("WorkflowRun", back_populates="workflow")
@@ -58,6 +59,7 @@ class WorkflowRun(Base):
     current_step = Column(Integer, default=0)
     start_time = Column(DateTime(timezone=True), server_default=func.now())
     end_time = Column(DateTime(timezone=True), nullable=True)
+    params_val = Column(JSON, nullable=True)
     
     logs = relationship("ProcessExecutionLog", back_populates="workflow_run")
     workflow = relationship("Workflow", back_populates="runs")
