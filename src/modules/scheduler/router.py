@@ -351,3 +351,12 @@ def run_workflow_immediately(
     except Exception as e:
         logger.error(f"Error triggering immediate run for workflow {workflow_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to trigger workflow {workflow_id}.")
+
+def get_workflow_run_logs(run_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieves all execution logs for a specific workflow run.
+    """
+    logs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.workflow_run_id == run_id).order_by(models.ProcessExecutionLog.start_time).all()
+    if not logs:
+        raise HTTPException(status_code=404, detail="Logs for this workflow run not found")
+    return logs
