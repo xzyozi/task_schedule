@@ -360,20 +360,20 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
     jobs_in_db = db.query(models.JobDefinition).all()
     for job_def in jobs_in_db:
         job_id = job_def.id
-        status = "paused"  # Default status
         next_run = None
-        
-        if job_id in scheduled_jobs:
-            scheduled_job = scheduled_jobs[job_id]
-            next_run = scheduled_job.next_run_time
-            if scheduled_job.next_run_time is None:
-                status = "paused"
-            else:
-                status = "scheduled"
-        
-        if not job_def.is_enabled:
-            status = "paused"
+        status = "disabled"
 
+        if job_def.is_enabled:
+            if job_id in scheduled_jobs:
+                scheduled_job = scheduled_jobs[job_id]
+                next_run = scheduled_job.next_run_time
+                if scheduled_job.next_run_time is None:
+                    status = "paused" 
+                else:
+                    status = "enabled"
+            else:
+                status = "enabled"
+        
         trigger_str = f"{job_def.trigger_type}: "
         if job_def.trigger_type == 'cron':
             cron_fields = ['minute', 'hour', 'day', 'month', 'day_of_week']
@@ -404,19 +404,21 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
     workflows_in_db = db.query(models.Workflow).all()
     for workflow in workflows_in_db:
         job_id = f"workflow_{workflow.id}"
-        status = "paused"
         next_run = None
+        status = "disabled"
 
-        if job_id in scheduled_jobs:
-            scheduled_job = scheduled_jobs[job_id]
-            next_run = scheduled_job.next_run_time
-            if scheduled_job.next_run_time is None:
-                status = "paused"
+        if workflow.is_enabled:
+            if job_id in scheduled_jobs:
+                scheduled_job = scheduled_jobs[job_id]
+                next_run = scheduled_job.next_run_time
+                if scheduled_job.next_run_time is None:
+                    status = "paused"
+                else:
+                    status = "enabled"
             else:
-                status = "scheduled"
-        
-        if not workflow.is_enabled:
-            status = "paused"
+                # If it's enabled in DB but not in scheduler, it might not have a schedule
+                # or there's a sync issue. We'll consider it 'enabled' from a config standpoint.
+                status = "enabled"
 
         unified_list.append(schemas.UnifiedJobItem(
             id=str(workflow.id),

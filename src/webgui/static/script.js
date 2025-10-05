@@ -58,10 +58,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     const nextRun = item.next_run_time ? new Date(item.next_run_time).toLocaleString() : '-';
                     
                     let statusBadge;
-                    if (!item.is_enabled || item.status === 'paused') {
-                        statusBadge = '<span class="badge bg-secondary">Paused</span>';
-                    } else {
-                        statusBadge = '<span class="badge bg-success">Scheduled</span>';
+                    switch (item.status) {
+                        case 'enabled':
+                            statusBadge = '<span class="badge bg-success">有効</span>';
+                            break;
+                        case 'disabled':
+                            statusBadge = '<span class="badge bg-secondary">無効</span>';
+                            break;
+                        case 'paused':
+                            statusBadge = '<span class="badge bg-warning">一時停止</span>';
+                            break;
+                        default:
+                            statusBadge = `<span class="badge bg-dark">${item.status}</span>`;
                     }
 
                     const idForScheduler = item.type === 'workflow' ? `workflow_${item.id}` : item.id;
@@ -75,8 +83,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         <td>${statusBadge}</td>
                         <td>
                             <button class="btn btn-sm btn-primary btn-run" data-id="${idForScheduler}" title="Run Now">Run</button>
-                            <button class="btn btn-sm btn-secondary btn-pause" data-id="${idForScheduler}" title="Pause" ${!item.is_enabled ? 'disabled' : ''}>Pause</button>
-                            <button class="btn btn-sm btn-success btn-resume" data-id="${idForScheduler}" title="Resume" ${!item.is_enabled ? 'disabled' : ''}>Resume</button>
+                            <button class="btn btn-sm btn-secondary btn-pause" data-id="${idForScheduler}" title="Pause" ${item.status === 'disabled' ? 'disabled' : ''}>Pause</button>
+                            <button class="btn btn-sm btn-success btn-resume" data-id="${idForScheduler}" title="Resume" ${item.status === 'disabled' ? 'disabled' : ''}>Resume</button>
                         </td>
                     `;
                     jobListBody.appendChild(row);

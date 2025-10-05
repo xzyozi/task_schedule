@@ -161,4 +161,4 @@ class UnifiedJobItem(BaseModel):
     is_enabled: bool
     schedule: Optional[str]
     next_run_time: Optional[datetime] = None
-    status: str # 'running', 'paused', 'scheduled'
+    status: str # 'enabled', 'disabled', 'paused'
