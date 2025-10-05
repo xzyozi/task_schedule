@@ -104,6 +104,16 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
         db.commit()
         db.refresh(db_obj)
         return db_obj
+    
+    def get(self, db: Session, id: int) -> Optional[models.Workflow]:
+        """
+        Get a workflow by ID, including its steps.
+        """
+        # steps と runs を結合ロードするように修正
+        return db.query(self.model).options(
+            joinedload(self.model.steps),
+            joinedload(self.model.runs)
+        ).filter(self.model.id == id).first()
 
 workflow_service = WorkflowCRUD(models.Workflow)
 

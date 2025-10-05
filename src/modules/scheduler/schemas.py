@@ -101,10 +101,21 @@ class WorkflowCreate(WorkflowBase):
 class Workflow(WorkflowBase):
     id: int
     steps: List[WorkflowStep] = []
+    runs: List['WorkflowRun'] = []
     model_config = ConfigDict(from_attributes=True)
 
 class WorkflowRunCreate(BaseModel):
     params_val: Optional[Dict[str, Any]] = None
+
+class WorkflowRun(BaseModel):
+    id: int
+    workflow_id: int
+    status: str
+    current_step: int
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    params_val: Optional[Dict[str, Any]] = None 
+    model_config = ConfigDict(from_attributes=True)
 
 class TimelineItem(BaseModel):
     id: str
