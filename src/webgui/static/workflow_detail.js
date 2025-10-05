@@ -46,13 +46,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('workflow-runs-body').addEventListener('click', function(event) {
                     if (event.target.classList.contains('btn-view-run-logs')) {
                         const runId = event.target.dataset.runId;
-                        fetch(`${API_BASE_URL}/api/workflow-runs/${runId}/logs`) // 新しいAPIエンドポイントを想定
+                        fetch(`${API_BASE_URL}/api/workflow-runs/${runId}/logs`) 
                             .then(response => response.json())
                             .then(logs => {
-                                logContentPre.textContent = logs.map(log => {
-                                    const statusBadge = log.status === 'COMPLETED' ? '✅' : log.status === 'FAILED' ? '❌' : '⏳';
-                                    return `${statusBadge} [${new Date(log.start_time).toLocaleString()}] ${log.command}\nSTDOUT:\n${log.stdout || '(なし)'}\nSTDERR:\n${log.stderr || '(なし)'}\n---`;
-                                }).join('\n\n');
+                                if (Array.isArray(logs)) { // logs が配列であることを確認
+                                    logContentPre.textContent = logs.map(log => {
+                                        const statusBadge = log.status === 'COMPLETED' ? '✅' : log.status === 'FAILED' ? '❌' : '⏳';
+                                        return `${statusBadge} [${new Date(log.start_time).toLocaleString()}] ${log.command}\nSTDOUT:\n${log.stdout || '(なし)'}\nSTDERR:\n${log.stderr || '(なし)'}\n---`;
+                                    }).join('\n\n');
+                                } else {
+                                    logContentPre.textContent = 'ログデータの形式が不正です。';
+                                    console.error('API returned non-array data for logs:', logs);
+                                }
                                 logViewerModal.show();
                             })
                             .catch(error => {

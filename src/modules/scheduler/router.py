@@ -352,6 +352,7 @@ def run_workflow_immediately(
         logger.error(f"Error triggering immediate run for workflow {workflow_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to trigger workflow {workflow_id}.")
 
+@router.get("/workflow-runs/{run_id}/logs", response_model=List[schemas.ProcessExecutionLogInfo], tags=["Workflow Runs"])
 def get_workflow_run_logs(run_id: int, db: Session = Depends(get_db)):
     """
     Retrieves all execution logs for a specific workflow run.
