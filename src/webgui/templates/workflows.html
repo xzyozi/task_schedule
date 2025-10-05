@@ -145,6 +145,28 @@
     </div>
 </template>
 
+<!-- Run Workflow Modal -->
+<div class="modal fade" id="runWorkflowModal" tabindex="-1" aria-labelledby="runWorkflowModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="runWorkflowModalLabel">ワークフロー実行: <span id="run-workflow-name"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modal-run-workflow-id">
+                <div id="modal-param-inputs">
+                    <!-- Dynamic parameter inputs will be loaded here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">キャンセル</button>
+                <button type="button" class="btn btn-primary" id="confirm-run-workflow-btn">実行</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}

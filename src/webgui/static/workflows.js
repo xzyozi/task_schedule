@@ -269,6 +269,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         }
 
+        if (target.classList.contains('btn-run-workflow')) {
+            const workflowId = target.dataset.workflowId;
+            const workflowName = target.dataset.workflowName;
+            openRunWorkflowModal(workflowId, workflowName);
+        }
+
         if (target.classList.contains('btn-delete-workflow')) {
             const workflowId = target.dataset.workflowId;
             if (confirm('本当にこのワークフローを削除しますか？')) {

@@ -34,7 +34,7 @@ def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str
         process_env = os.environ.copy()
         if env:
             process_env.update(env)
-        proc_input = log_command if use_shell else command_to_run
+        proc_input = command_to_run if use_shell else command_to_run # use_shell の場合は command_to_run をそのまま渡す
 
         if run_in_background:
             logger.info(f"Executing in background: {log_command}")
@@ -82,12 +82,15 @@ def _execute_command_job_impl(db: Session, **kwargs):
     executable_command = []
     use_shell = False
     if job_type == 'powershell':
+        # PowerShellは引数をリストで受け取るため、そのまま
         executable_command = ['powershell', '-Command'] + command_list
     elif job_type == 'cmd':
-        executable_command = command_list
+        # cmdはshell=Trueで実行されるため、単一の文字列として渡す
+        executable_command = command_list[0] if command_list else "" # command_listは単一要素のリストを想定
         use_shell = True
     elif job_type == 'shell':
-        executable_command = command_list
+        # shellはshell=Trueで実行されるため、単一の文字列として渡す
+        executable_command = command_list[0] if command_list else "" # command_listは単一要素のリストを想定
         use_shell = True
     else:
         raise ValueError(f"Unknown command job type: {job_type}")
@@ -228,13 +231,13 @@ def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict
             # --- Parameter Substitution ---
             substituted_target = step.target
             if run_params:
-                # Find all placeholders like {{ params.some_name }}
-                placeholders = re.findall(r"\{\{\s*params\.(\w+)\s*\}\}", substituted_target)
-                for param_name in placeholders:
-                    if param_name in run_params:
-                        # Replace placeholder with the actual value
-                        value = run_params[param_name]
-                        substituted_target = substituted_target.replace(f"{{{{ params.{param_name} }}}}", str(value))
+                # 正規表現でマッチした部分を直接置換する
+                # {{ params.変数名 }} の形式にマッチし、変数名部分をキャプチャ
+                substituted_target = re.sub(
+                    r"\{\{\s*params\.([a-zA-Z0-9_]+)\s*\}\}",
+                    lambda match: str(run_params.get(match.group(1), match.group(0))), # マッチした変数名でrun_paramsから値を取得、なければ元のプレースホルダーを維持
+                    substituted_target
+                )
             # --- End Parameter Substitution ---
 
             if step.job_type == 'python':
@@ -244,7 +247,7 @@ def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict
                 execute_python_job(**kwargs_for_executor)
             elif step.job_type in ['cmd', 'powershell', 'shell']:
                 kwargs_for_executor['job_type'] = step.job_type
-                kwargs_for_executor['command'] = substituted_target.split()
+                kwargs_for_executor['command'] = [substituted_target] # 単一要素のリストとして渡す
 
                 # Combine step kwargs with the mandatory workflow_cwd
                 step_kwargs = step.kwargs or {}
