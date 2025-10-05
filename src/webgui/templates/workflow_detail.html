@@ -65,23 +65,33 @@
     </div>
 </div>
 
-<!-- Log Viewer Modal -->
-<div class="modal fade" id="logViewerModal" tabindex="-1" aria-labelledby="logViewerModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="logViewerModalLabel">実行ログ詳細</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    <!-- Log Display Section -->
+    <div class="col-lg-12" id="log-display-section" style="display: none;">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3>ログ詳細: <span id="log-detail-id"></span></h3>
             </div>
-            <div class="modal-body">
-                <pre id="log-content" style="white-space: pre-wrap; word-break: break-all;"></pre>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">閉じる</button>
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="logTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="stdout-tab" data-bs-toggle="tab" data-bs-target="#stdout-content" type="button" role="tab" aria-controls="stdout-content" aria-selected="true">標準出力 (stdout)</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="stderr-tab" data-bs-toggle="tab" data-bs-target="#stderr-content" type="button" role="tab" aria-controls="stderr-content" aria-selected="false">標準エラー出力 (stderr)</button>
+                    </li>
+                </ul>
+                <div class="tab-content mt-3">
+                    <div class="tab-pane fade show active" id="stdout-content" role="tabpanel" aria-labelledby="stdout-tab">
+                        <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: scroll;"><code id="log-stdout"></code></pre>
+                    </div>
+                    <div class="tab-pane fade" id="stderr-content" role="tabpanel" aria-labelledby="stderr-tab">
+                        <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: scroll;"><code id="log-stderr"></code></pre>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary mt-3" id="copy-log-btn">ログをコピー</button>
             </div>
         </div>
     </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
