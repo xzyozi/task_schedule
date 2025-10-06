@@ -167,6 +167,13 @@ def _execute_python_job_impl(db: Session, **kwargs):
     db.flush()
 
     try:
+        # Ensure the path is in the 'module:function' format for the wrapper
+        if ':' not in target_func_path and '.' in target_func_path:
+            parts = target_func_path.rsplit('.', 1)
+            target_func_path_for_wrapper = ':'.join(parts)
+        else:
+            target_func_path_for_wrapper = target_func_path
+
         payload = json.dumps({'args': target_args, 'kwargs': target_kwargs})
         encoded_payload = base64.b64encode(payload.encode('utf-8')).decode('utf-8')
     except (TypeError, OverflowError) as e:
@@ -183,7 +190,7 @@ def _execute_python_job_impl(db: Session, **kwargs):
     command_to_run = [
         sys.executable, 
         str(wrapper_path), 
-        target_func_path, 
+        target_func_path_for_wrapper, 
         encoded_payload
     ]
 

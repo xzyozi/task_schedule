@@ -43,6 +43,9 @@ scheduler:
   # Using '~' resolves to the user's home directory.
   # This acts as a sandbox for all shell commands.
   work_dir: "~/.task_schedule/work_list"
+  # If true, the scheduler will periodically sync jobs from the database.
+  # This is a feature for testing and is disabled by default.
+  enable_db_sync: false
 
 # --------------------------------------------------------------------------- #
 # Development Settings

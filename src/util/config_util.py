@@ -89,6 +89,10 @@ class AppConfig:
     def delete_orphaned_jobs_on_sync(self) -> bool:
         return self.get('development.delete_orphaned_jobs_on_sync', False)
 
+    @property
+    def enable_db_sync(self) -> bool:
+        return self.get('scheduler.enable_db_sync', False)
+
 # Create a single, importable instance for the application to use.
 config = AppConfig()
 
