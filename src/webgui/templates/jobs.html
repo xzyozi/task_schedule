@@ -70,7 +70,8 @@
                     </div>
                     <div class="mb-3">
                         <label for="job-func" class="form-label">実行関数 / コマンド</label>
-                        <input type="text" class="form-control" id="job-func" placeholder="e.g., my.module:my_function or /path/to/script.sh" required>
+                        <input type="text" class="form-control" id="job-func-text" placeholder="e.g., /path/to/script.sh" required>
+                        <select class="form-select" id="job-func-python" style="display: none;"></select>
                     </div>
                     <div class="mb-3">
                         <label for="job-description" class="form-label">説明</label>

@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const jobForm = document.getElementById('job-form');
     const jobIdInput = document.getElementById('job-id');
     const jobTypeSelect = document.getElementById('job-type');
-    const jobFuncInput = document.getElementById('job-func');
+    const jobFuncTextInput = document.getElementById('job-func-text');
+    const jobFuncPythonSelect = document.getElementById('job-func-python');
     const jobDescriptionInput = document.getElementById('job-description');
     const jobEnabledCheckbox = document.getElementById('job-enabled');
     const triggerTypeSelect = document.getElementById('trigger-type');
@@ -45,6 +46,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
 
     const COMMAND_JOB_TYPES = ['cmd', 'powershell', 'shell'];
+    let availablePythonTasks = [];
 
     // --- Utility Functions ---
 
@@ -53,9 +55,13 @@ document.addEventListener('DOMContentLoaded', function() {
         intervalFieldsDiv.classList.toggle('d-none', type !== 'interval');
     }
 
-    function showCommandFields(jobType) {
-        const isCommandJob = COMMAND_JOB_TYPES.includes(jobType);
-        shellCommandFields.classList.toggle('d-none', !isCommandJob);
+    function toggleFuncInput(jobType) {
+        const isPython = jobType === 'python';
+        jobFuncPythonSelect.style.display = isPython ? 'block' : 'none';
+        jobFuncPythonSelect.required = isPython;
+        jobFuncTextInput.style.display = isPython ? 'none' : 'block';
+        jobFuncTextInput.required = !isPython;
+        shellCommandFields.classList.toggle('d-none', isPython);
     }
     
     function parseEnv(envString) {
@@ -80,7 +86,8 @@ document.addEventListener('DOMContentLoaded', function() {
         jobForm.reset();
         jobIdInput.value = '';
         jobTypeSelect.value = 'python';
-        jobFuncInput.value = '';
+        jobFuncTextInput.value = '';
+        jobFuncPythonSelect.value = '';
         jobDescriptionInput.value = '';
         jobEnabledCheckbox.checked = true;
         triggerTypeSelect.value = 'cron';
@@ -97,7 +104,7 @@ document.addEventListener('DOMContentLoaded', function() {
         jobIdInput.readOnly = false;
         jobIdHidden.value = '';
         showTriggerFields('cron');
-        showCommandFields('python');
+        toggleFuncInput('python');
     }
 
     function populateFormForEdit(jobId) {
@@ -115,17 +122,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 triggerTypeSelect.value = job.trigger.type;
                 jobTypeSelect.value = job.job_type;
 
+                toggleFuncInput(job.job_type);
+
                 if (COMMAND_JOB_TYPES.includes(job.job_type)) {
                     const command = job.kwargs.command || [];
-                    jobFuncInput.value = command.join(' ');
+                    jobFuncTextInput.value = command.join(' ');
                     jobCwdInput.value = job.kwargs.cwd || '';
                     jobEnvInput.value = formatEnv(job.kwargs.env);
                 } else { // python
-                    jobFuncInput.value = job.func;
+                    jobFuncPythonSelect.value = job.func;
                     jobCwdInput.value = '';
                     jobEnvInput.value = '';
                 }
-                showCommandFields(job.job_type);
 
                 showTriggerFields(job.trigger.type);
 
@@ -274,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function initializeJobTypes() {
-        fetch(`${API_BASE_URL}/api/system/os`)
+        return fetch(`${API_BASE_URL}/api/system/os`)
             .then(response => response.json())
             .then(data => {
                 const osType = data.os_type;
@@ -286,7 +294,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
             })
-            .catch(error => console.error('Error fetching OS info:', error));
+            .catch(error => {
+                console.error('Error fetching OS info:', error);
+                throw error; // Re-throw to be caught by Promise.all
+            });
+    }
+
+    function fetchPythonTasks() {
+        return fetch(`${API_BASE_URL}/api/python-tasks`)
+            .then(response => response.json())
+            .then(data => {
+                availablePythonTasks = data;
+                jobFuncPythonSelect.innerHTML = '<option value="">-- 関数を選択 --</option>';
+                availablePythonTasks.forEach(task => {
+                    const option = document.createElement('option');
+                    option.value = task;
+                    option.textContent = task;
+                    jobFuncPythonSelect.appendChild(option);
+                });
+            })
+            .catch(error => console.error('Error fetching Python tasks:', error));
     }
 
     // --- Event Listeners ---
@@ -322,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     jobTypeSelect.addEventListener('change', (event) => {
-        showCommandFields(event.target.value);
+        toggleFuncInput(event.target.value);
     });
 
     clearFormBtn.addEventListener('click', clearForm);
@@ -365,20 +392,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (COMMAND_JOB_TYPES.includes(jobType)) {
             jobData.func = 'modules.scheduler.job_executors:execute_command_job';
-            // Improved regex to handle single and double quotes
-            const commandParts = jobFuncInput.value.match(/'[^']+'|"([^"]*)"|\S+/g) || [];
+            const commandParts = jobFuncTextInput.value.match(/'[^']+'|"([^"]*)"|\S+/g) || [];
             jobData.kwargs.command = commandParts.map(part => part.replace(/^['"]|['"]$/g, ''));
             jobData.kwargs.job_type = jobType; // Pass job_type for the wrapper
             jobData.kwargs.cwd = jobCwdInput.value || null;
             jobData.kwargs.env = parseEnv(jobEnvInput.value) || null;
         } else { // python
-            jobData.func = jobFuncInput.value;
+            jobData.func = jobFuncPythonSelect.value;
         }
 
         if (jobData.trigger.type === 'cron') {
             jobData.trigger.minute = cronMinuteInput.value;
             jobData.trigger.hour = cronHourInput.value;
-            jobData.trigger.day_of_week = cronDayOfWeekInput.value; // Fixed variable name
+            jobData.trigger.day_of_week = cronDayOfWeekInput.value;
         } else if (jobData.trigger.type === 'interval') {
             jobData.trigger.weeks = parseInt(intervalWeeksInput.value) || 0;
             jobData.trigger.days = parseInt(intervalDaysInput.value) || 0;
@@ -470,8 +496,19 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // --- Initial Load ---
-    initializeJobTypes();
-    showTriggerFields('cron');
-    showCommandFields('python');
-    fetchAndDisplayJobs();
+    Promise.all([
+        initializeJobTypes(),
+        fetchPythonTasks()
+    ]).then(() => {
+        showTriggerFields('cron');
+        toggleFuncInput('python');
+        fetchAndDisplayJobs();
+    }).catch(error => {
+        console.error("Error during initial data load:", error);
+        // Still try to display jobs, as some functionality might work
+        showTriggerFields('cron');
+        toggleFuncInput('python');
+        fetchAndDisplayJobs();
+        alert("初期データの読み込み中にエラーが発生しました。Pythonジョブの選択など、一部の機能が利用できない可能性があります。");
+    });
 });

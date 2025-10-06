@@ -1,4 +1,6 @@
 import os
+import inspect
+import importlib
 from pathlib import Path
 from sqlalchemy.orm import Session, joinedload
 from core.crud import CRUDBase
@@ -442,3 +444,28 @@ def run_workflow_immediately(db: Session, workflow_id: int, params: Optional[dic
         kwargs={'workflow_id': workflow_id, 'run_params': params}
     )
     return {"message": "Workflow scheduled for immediate execution with parameters."}
+
+def get_available_python_tasks() -> List[str]:
+    """
+    Scans the 'tasks' directory and returns a list of available Python functions
+    that can be used as jobs.
+    """
+    tasks = []
+    # Correctly locate the tasks directory relative to this service.py file
+    tasks_dir = Path(__file__).parent.joinpath('tasks')
+    
+    for file_path in tasks_dir.glob('*.py'):
+        if file_path.name.startswith('__'):
+            continue
+            
+        module_name = f"modules.scheduler.tasks.{file_path.stem}"
+        try:
+            module = importlib.import_module(module_name)
+            for name, func in inspect.getmembers(module, inspect.isfunction):
+                # Ensure the function is defined in this module, not imported
+                if not name.startswith('_') and func.__module__ == module.__name__:
+                    tasks.append(f"{module_name}:{name}")
+        except Exception as e:
+            logger.error(f"Error inspecting module {module_name}: {e}", exc_info=True)
+            
+    return sorted(tasks)

@@ -79,6 +79,19 @@ def list_work_dir_subdirectories(path: str = Query("", description="The relative
 
 # --- Job Definition Endpoints ---
 #
+@router.get("/python-tasks", response_model=List[str], tags=["Job Definitions"], summary="List Available Python Tasks")
+def get_python_tasks():
+    """
+    Scans the `modules/scheduler/tasks` directory and returns a list of
+    importable Python functions that can be used as jobs.
+    """
+    try:
+        return service.get_available_python_tasks()
+    except Exception as e:
+        logger.error(f"Error fetching available python tasks: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch available python tasks")
+
+
 @router.get("/jobs", response_model=List[schemas.JobConfig], tags=["Job Definitions"], summary="List All Job Definitions")
 def read_jobs(db: Session = Depends(get_db), skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)):
     jobs = job_definition_service.get_multi(db, skip=skip, limit=limit)

@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const confirmRunWorkflowBtn = document.getElementById('confirm-run-workflow-btn');
 
     let serverOsType = '';
+    let availablePythonTasks = [];
 
     // --- Utility Functions ---
 
@@ -60,19 +61,61 @@ document.addEventListener('DOMContentLoaded', function() {
             .catch(error => console.error('Error fetching workflows:', error));
     }
 
+    function toggleTargetInput(stepCard, jobType) {
+        const textTarget = stepCard.querySelector('.step-target-text');
+        const pythonTarget = stepCard.querySelector('.step-target-python');
+
+        if (jobType === 'python') {
+            textTarget.style.display = 'none';
+            textTarget.required = false;
+            pythonTarget.style.display = 'block';
+            pythonTarget.required = true;
+        } else {
+            textTarget.style.display = 'block';
+            textTarget.required = true;
+            pythonTarget.style.display = 'none';
+            pythonTarget.required = false;
+        }
+    }
+
     function addStep(stepData = null) {
         const newStep = stepTemplate.content.cloneNode(true);
         const stepCard = newStep.querySelector('.step-card');
+        const jobTypeSelect = stepCard.querySelector('.step-job-type');
+        const pythonTargetSelect = stepCard.querySelector('.step-target-python');
+
+        // Populate python tasks dropdown
+        availablePythonTasks.forEach(task => {
+            const option = document.createElement('option');
+            option.value = task;
+            option.textContent = task;
+            pythonTargetSelect.appendChild(option);
+        });
+
         stepsContainer.appendChild(stepCard);
         updateStepTitles();
         initializeJobTypeOptions(stepCard);
 
+        jobTypeSelect.addEventListener('change', () => {
+            toggleTargetInput(stepCard, jobTypeSelect.value);
+        });
+
         if (stepData) {
             stepCard.querySelector('.step-name').value = stepData.name;
-            stepCard.querySelector('.step-job-type').value = stepData.job_type;
-            stepCard.querySelector('.step-target').value = stepData.target;
+            jobTypeSelect.value = stepData.job_type;
             stepCard.querySelector('.step-on-failure').value = stepData.on_failure;
             stepCard.querySelector('.step-run-in-background').checked = stepData.run_in_background;
+            
+            // Set target value after toggling visibility
+            toggleTargetInput(stepCard, stepData.job_type);
+            if (stepData.job_type === 'python') {
+                pythonTargetSelect.value = stepData.target;
+            } else {
+                stepCard.querySelector('.step-target-text').value = stepData.target;
+            }
+        } else {
+            // Default view
+            toggleTargetInput(stepCard, jobTypeSelect.value);
         }
     }
 
@@ -100,6 +143,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 serverOsType = data.os_type;
             })
             .catch(error => console.error('Error fetching OS info:', error));
+    }
+
+    function fetchPythonTasks() {
+        return fetch(`${API_BASE_URL}/api/python-tasks`)
+            .then(response => response.json())
+            .then(data => {
+                availablePythonTasks = data;
+            })
+            .catch(error => console.error('Error fetching Python tasks:', error));
     }
 
     // --- Event Listeners ---
@@ -194,11 +246,19 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const steps = [];
         stepsContainer.querySelectorAll('.step-card').forEach((stepCard, index) => {
+            const jobType = stepCard.querySelector('.step-job-type').value;
+            let targetValue;
+            if (jobType === 'python') {
+                targetValue = stepCard.querySelector('.step-target-python').value;
+            } else {
+                targetValue = stepCard.querySelector('.step-target-text').value;
+            }
+
             steps.push({
                 step_order: index + 1,
                 name: stepCard.querySelector('.step-name').value,
-                job_type: stepCard.querySelector('.step-job-type').value,
-                target: stepCard.querySelector('.step-target').value,
+                job_type: jobType,
+                target: targetValue,
                 on_failure: stepCard.querySelector('.step-on-failure').value,
                 run_in_background: stepCard.querySelector('.step-run-in-background').checked,
             });
@@ -315,8 +375,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // --- Initial Load ---
-    fetchOsInfo().then(() => {
+    Promise.all([
+        fetchOsInfo(),
+        fetchPythonTasks()
+    ]).then(() => {
         fetchAndDisplayWorkflows();
+    }).catch(error => {
+        console.error("Error during initial data load:", error);
+        // Still try to display workflows, as OS info might not be critical
+        fetchAndDisplayWorkflows();
+        alert("初期データの読み込み中にエラーが発生しました。一部の機能が利用できない可能性があります。");
     });
 
     // --- Run Workflow Modal Logic ---
