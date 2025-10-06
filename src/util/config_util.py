@@ -85,6 +85,10 @@ class AppConfig:
         
         return resolved_path
 
+    @property
+    def delete_orphaned_jobs_on_sync(self) -> bool:
+        return self.get('development.delete_orphaned_jobs_on_sync', False)
+
 # Create a single, importable instance for the application to use.
 config = AppConfig()
 

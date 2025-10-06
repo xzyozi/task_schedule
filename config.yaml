@@ -43,3 +43,13 @@ scheduler:
   # Using '~' resolves to the user's home directory.
   # This acts as a sandbox for all shell commands.
   work_dir: "~/.task_schedule/work_list"
+
+# --------------------------------------------------------------------------- #
+# Development Settings
+# --------------------------------------------------------------------------- #
+development:
+  # If true, jobs/workflows found in the database but NOT in the YAML files
+  # will be deleted from the database during a YAML sync.
+  # Set to false to allow jobs created via the UI to persist even if they
+  # are not defined in the YAML files.
+  delete_orphaned_jobs_on_sync: false

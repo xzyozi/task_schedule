@@ -9,6 +9,7 @@ from apscheduler.jobstores.base import JobLookupError
 from core import database
 from modules.scheduler import models, schemas, scheduler_instance
 from util import logger_util
+from util.config_util import config
 
 
 logger = logger_util.get_logger(__name__)
@@ -32,10 +33,11 @@ def _resolve_func_path(func_path: str):
 
 def apply_job_config(scheduler, job_configs):
     new_ids = {job.id for job in job_configs}
-    for job in scheduler.get_jobs():
-        if job.id not in new_ids:
-            scheduler.remove_job(job.id)
-            logger.info(f"Removed job: {job.id}")
+    if config.delete_orphaned_jobs_on_sync:
+        for job in scheduler.get_jobs():
+            if job.id not in new_ids:
+                scheduler.remove_job(job.id)
+                logger.info(f"Removed job: {job.id}")
 
     COMMAND_JOB_TYPES = ['cmd', 'powershell', 'shell']
 
