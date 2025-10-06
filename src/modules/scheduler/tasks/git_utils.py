@@ -1,38 +1,7 @@
 import os
 import subprocess
 import sys
-
-def run_command(command: list[str]) -> None:
-    """Helper to run a command and stream its output in real-time."""
-    try:
-        process = subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            encoding='utf-8',
-            bufsize=1 # Line-buffered
-        )
-
-        # Stream stdout
-        if process.stdout:
-            for line in iter(process.stdout.readline, ''):
-                print(line, end='')
-                sys.stdout.flush()
-        
-        # Stream stderr
-        if process.stderr:
-            for line in iter(process.stderr.readline, ''):
-                print(line, end='', file=sys.stderr)
-                sys.stderr.flush()
-            
-        process.wait()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, command)
-
-    except FileNotFoundError:
-        print(f"Error: Command '{command[0]}' not found. Please ensure it is installed and in the system's PATH.", file=sys.stderr)
-        raise
+from util.process_util import run_command
 
 def clone_or_pull_repo(repo_url: str):
     """

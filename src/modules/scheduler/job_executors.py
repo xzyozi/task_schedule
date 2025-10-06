@@ -2,6 +2,9 @@ import os
 import re
 import subprocess
 import traceback
+import json
+import base64
+import sys
 from importlib import import_module
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -163,23 +166,39 @@ def _execute_python_job_impl(db: Session, **kwargs):
     db.add(log_entry)
     db.flush()
 
-    stdout, stderr, exit_code, status = "", "", 0, 'COMPLETED'
     try:
-        if not target_func_path or (':' not in target_func_path and '.' not in target_func_path):
-            raise ValueError(f"Invalid function path format: '{target_func_path}'.")
-        target_func = _resolve_func_path(target_func_path)
-        result = target_func(*target_args, **target_kwargs)
-        stdout = str(result) if result is not None else ""
-    except Exception as e:
-        exit_code = 1
-        status = 'FAILED'
-        stderr = traceback.format_exc()
+        payload = json.dumps({'args': target_args, 'kwargs': target_kwargs})
+        encoded_payload = base64.b64encode(payload.encode('utf-8')).decode('utf-8')
+    except (TypeError, OverflowError) as e:
+        log_entry.end_time = time_util.get_current_utc_time()
+        log_entry.exit_code = 1
+        log_entry.stderr = f"Failed to serialize arguments for Python job: {e}\nArguments must be JSON-serializable."
+        log_entry.status = 'FAILED'
+        db.add(log_entry)
+        return
+
+    # Get the path to the wrapper script, assuming it's in the same directory
+    wrapper_path = Path(__file__).parent.joinpath("python_job_wrapper.py")
+
+    command_to_run = [
+        sys.executable, 
+        str(wrapper_path), 
+        target_func_path, 
+        encoded_payload
+    ]
+
+    result = _execute_subprocess(
+        command_to_run=command_to_run,
+        use_shell=False,
+        cwd=kwargs.get('cwd'),
+        env=kwargs.get('env')
+    )
 
     log_entry.end_time = time_util.get_current_utc_time()
-    log_entry.exit_code = exit_code
-    log_entry.stdout = stdout
-    log_entry.stderr = stderr
-    log_entry.status = status
+    log_entry.exit_code = result.get('exit_code')
+    log_entry.stdout = result.get('stdout')
+    log_entry.stderr = result.get('stderr')
+    log_entry.status = 'COMPLETED' if log_entry.exit_code == 0 else 'FAILED'
     db.add(log_entry)
 
 def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict] = None):
