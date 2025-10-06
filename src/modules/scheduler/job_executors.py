@@ -226,7 +226,7 @@ def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict
         # --- CWD Generation and Security Check ---
         workflow_name = workflow.name
         # Sanitize workflow_name to prevent path traversal
-        if ".." in workflow_name or "/" in workflow_name or "\"" in workflow_name:
+        if ".." in workflow_name or "/" in workflow_name or "\\" in workflow_name:
             logger.error(f"Invalid workflow name for use as directory: {workflow_name}")
             # TODO: Optionally, update workflow_run status to FAILED
             return
@@ -267,7 +267,7 @@ def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict
                 # 正規表現でマッチした部分を直接置換する
                 # {{ params.変数名 }} の形式にマッチし、変数名部分をキャプチャ
                 substituted_target = re.sub(
-                    r"\{\{\s*params\.([a-zA-Z0-9_]+)\s*\}\}",
+                    r"{{\s*params\.([a-zA-Z0-9_]+)\s*}}",
                     lambda match: str(run_params.get(match.group(1), match.group(0))), # マッチした変数名でrun_paramsから値を取得、なければ元のプレースホルダーを維持
                     substituted_target
                 )
