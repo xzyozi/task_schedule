@@ -7,7 +7,7 @@ import base64
 import sys
 from importlib import import_module
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 
 from sqlalchemy.orm import Session
 
@@ -20,8 +20,12 @@ from . import models
 
 logger = logger_util.get_logger(__name__)
 
-def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None, run_in_background: bool = False) -> Dict[str, Any]:
-    log_command = ' '.join(command_to_run)
+def _execute_subprocess(command_to_run: Union[list, str], use_shell: bool, cwd: Optional[str] = None, env: Optional[Dict[str, str]] = None, run_in_background: bool = False) -> Dict[str, Any]:
+    if isinstance(command_to_run, list):
+        log_command = ' '.join(command_to_run)
+    else:
+        log_command = command_to_run
+
     absolute_cwd = None
     if cwd:
         path_obj = Path(cwd)
@@ -37,7 +41,10 @@ def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str
         process_env = os.environ.copy()
         if env:
             process_env.update(env)
-        proc_input = command_to_run if use_shell else command_to_run # use_shell の場合は command_to_run をそのまま渡す
+        
+        # When use_shell=True, command_to_run should be a string.
+        # When use_shell=False, it should be a list of arguments.
+        proc_input = command_to_run
 
         if run_in_background:
             logger.info(f"Executing in background: {log_command}")
@@ -56,7 +63,7 @@ def _execute_subprocess(command_to_run: list, use_shell: bool, cwd: Optional[str
                 logger.info(f"Command '{log_command}' completed successfully.\nSTDOUT: {stdout}")
             return {"stdout": stdout, "stderr": stderr, "exit_code": exit_code}
     except FileNotFoundError:
-        cmd_name = command_to_run[0]
+        cmd_name = command_to_run[0] if isinstance(command_to_run, list) else command_to_run.split()[0]
         logger.error(f"Command not found: {cmd_name}", exc_info=True)
         return {"stdout": "", "stderr": f"Command not found: {cmd_name}", "exit_code": 127}
     except Exception as e:
