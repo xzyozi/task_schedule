@@ -226,7 +226,7 @@ def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict
         # --- CWD Generation and Security Check ---
         workflow_name = workflow.name
         # Sanitize workflow_name to prevent path traversal
-        if ".." in workflow_name or "/" in workflow_name or "\\" in workflow_name:
+        if ".." in workflow_name or "/" in workflow_name or "\"" in workflow_name:
             logger.error(f"Invalid workflow name for use as directory: {workflow_name}")
             # TODO: Optionally, update workflow_run status to FAILED
             return
