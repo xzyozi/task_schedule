@@ -38,5 +38,11 @@ test/Book1(自動回復済み).xlsx
 test/test_plan_filtering.csv
 test/test_plan_bulk_operations.csv
 
+# SQLite database files
+jobs.sqlite-journal
 jobs.sqlite-shm
 jobs.sqlite-wal
+# IDEs and editors
+
+# temp files
+temp/*
