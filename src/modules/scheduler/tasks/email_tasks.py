@@ -10,7 +10,8 @@ from typing import List, Optional, Dict, Any
 from jinja2 import Environment, FileSystemLoader
 
 from util import logger_util
-from util.config_util import PROJECT_ROOT # Import PROJECT_ROOT from config_util
+from util.config_util import PROJECT_ROOT, config # Import config as well
+from util import time_util # For send_task_failure_notification
 
 logger = logger_util.get_logger(__name__)
 
@@ -22,22 +23,31 @@ env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=True) # auto
 def send_email_task(
     to_email: str,
     subject: str,
-    sender_account: str,
-    smtp_server: str,
-    smtp_port: int,
-    template_name: Optional[str] = None, # New: Name of the Jinja2 template file
-    template_context: Optional[Dict[str, Any]] = None, # New: Context for the template
-    body: Optional[str] = None, # Original body, now optional if template is used
+    # sender_account: str, # Removed from parameters
+    # smtp_server: str,    # Removed from parameters
+    # smtp_port: int,      # Removed from parameters
+    template_name: Optional[str] = None,
+    template_context: Optional[Dict[str, Any]] = None,
+    body: Optional[str] = None,
     body_type: str = "plain",
     image_paths: Optional[List[str]] = None,
-    job_id: Optional[str] = None, # Added for scheduler context
-    workflow_run_id: Optional[str] = None # Added for scheduler context
+    job_id: Optional[str] = None,
+    workflow_run_id: Optional[str] = None
 ):
     """
     汎用的なメール送信タスク。Jinja2テンプレートまたは直接指定された本文を使用します。
     環境変数 EMAIL_SENDER_PASSWORD からパスワードを取得します。
+    送信元アカウント、SMTPサーバー、ポートは config_util から取得します。
     """
     logger.info(f"Attempting to send email for job_id: {job_id}, workflow_run_id: {workflow_run_id}")
+
+    sender_account = config.email_sender_account
+    smtp_server = config.email_smtp_server
+    smtp_port = config.email_smtp_port
+
+    if not sender_account:
+        logger.error("メール送信元アカウントが設定されていません。config.yamlのemail.sender_accountを確認してください。")
+        raise ValueError("Email sender account is not configured.")
 
     sender_password = os.getenv('EMAIL_SENDER_PASSWORD')
     if not sender_password:
@@ -48,8 +58,7 @@ def send_email_task(
     if template_name:
         try:
             template = env.get_template(template_name)
-            # Ensure body_type is html if a template is used
-            body_type = "html"
+            body_type = "html" # Ensure body_type is html if a template is used
             rendered_body = template.render(template_context or {})
         except Exception as e:
             logger.error(f"Jinja2テンプレートのレンダリング中にエラーが発生しました ({template_name}): {e}")
@@ -84,7 +93,6 @@ def send_email_task(
                 logger.error(f"添付ファイルの処理中にエラーが発生しました {image_path}: {e}")
 
     try:
-        # STARTTLS を使用したセキュアな接続
         with smtplib.SMTP(smtp_server, smtp_port) as server:
             server.ehlo()
             server.starttls(context=ssl.create_default_context())
@@ -104,3 +112,40 @@ def send_email_task(
     except Exception as e:
         logger.error(f"メール送信中に予期せぬエラーが発生しました: {e}")
         raise
+
+# Helper function for task failure notification
+def send_task_failure_notification(
+    task_id: str,
+    error_message: str,
+    error_details: Optional[str] = None,
+    recipient_email: str = "admin@example.com", # Default recipient
+    log_url: Optional[str] = None,
+    job_id: Optional[str] = None,
+    workflow_run_id: Optional[str] = None
+):
+    """
+    タスク失敗時に管理者へ通知メールを送信するヘルパー関数。
+    """
+    subject = f"【アラート】タスク失敗: {task_id}"
+    template_context = {
+        "main_message": f"タスク '{task_id}' が失敗しました。詳細を確認してください。",
+        "details": {
+            "タスクID": task_id,
+            "実行時刻": time_util.get_current_utc_time().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "ステータス": "FAILED"
+        },
+        "error_message": error_message,
+        "error_details": error_details,
+        "call_to_action_url": log_url,
+        "call_to_action_text": "ログを確認" if log_url else None,
+        "recipient_name": "管理者" # テンプレート内の挨拶用
+    }
+
+    send_email_task(
+        to_email=recipient_email,
+        subject=subject,
+        template_name="notification_email.html",
+        template_context=template_context,
+        job_id=job_id,
+        workflow_run_id=workflow_run_id
+    )

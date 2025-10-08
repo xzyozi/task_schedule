@@ -94,6 +94,26 @@ class AppConfig:
     def enable_db_sync(self) -> bool:
         return self.get('scheduler.enable_db_sync', False)
 
+    @property
+    def email_sender_account(self) -> str:
+        return self.get('email.sender_account')
+
+    @property
+    def email_smtp_server(self) -> str:
+        return self.get('email.smtp_server', 'smtp.gmail.com')
+
+    @property
+    def email_smtp_port(self) -> int:
+        return int(self.get('email.smtp_port', 587)) # Use 587 for STARTTLS
+
+    @property
+    def email_sender_password(self) -> str:
+        # Load from environment variable for security
+        password = os.getenv('EMAIL_SENDER_PASSWORD')
+        if not password:
+            logger.warning("EMAIL_SENDER_PASSWORD environment variable is not set. Email sending may fail.")
+        return password
+
 # Create a single, importable instance for the application to use.
 config = AppConfig()
 

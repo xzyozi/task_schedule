@@ -48,6 +48,18 @@ scheduler:
   enable_db_sync: false
 
 # --------------------------------------------------------------------------- #
+# Email Settings
+# --------------------------------------------------------------------------- #
+# Configuration for sending emails.
+# The password should be provided via the EMAIL_SENDER_PASSWORD environment variable.
+# --------------------------------------------------------------------------- #
+email:
+  sender_account: "your_email@example.com" # The email address from which to send emails
+  smtp_server: "smtp.gmail.com"            # SMTP server address
+  smtp_port: 587                           # SMTP server port (e.g., 587 for STARTTLS, 465 for SSL)
+
+
+# --------------------------------------------------------------------------- #
 # Development Settings
 # --------------------------------------------------------------------------- #
 development:
