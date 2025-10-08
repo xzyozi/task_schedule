@@ -23,9 +23,6 @@ env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=True) # auto
 def send_email_task(
     to_email: str,
     subject: str,
-    # sender_account: str, # Removed from parameters
-    # smtp_server: str,    # Removed from parameters
-    # smtp_port: int,      # Removed from parameters
     template_name: Optional[str] = None,
     template_context: Optional[Dict[str, Any]] = None,
     body: Optional[str] = None,
@@ -41,13 +38,30 @@ def send_email_task(
     """
     logger.info(f"Attempting to send email for job_id: {job_id}, workflow_run_id: {workflow_run_id}")
 
+    # --- Parameter Validation ---
+    if not to_email:
+        logger.error("送信先メールアドレス (to_email) が指定されていません。")
+        raise ValueError("Recipient email (to_email) is mandatory.")
+    if not subject:
+        logger.error("メール件名 (subject) が指定されていません。")
+        raise ValueError("Email subject is mandatory.")
+    # --- End Parameter Validation ---
+
     sender_account = config.email_sender_account
     smtp_server = config.email_smtp_server
     smtp_port = config.email_smtp_port
 
+    # --- Configuration Validation ---
     if not sender_account:
         logger.error("メール送信元アカウントが設定されていません。config.yamlのemail.sender_accountを確認してください。")
-        raise ValueError("Email sender account is not configured.")
+        raise ValueError("Email sender account is not configured in config.yaml or environment variable.")
+    if not smtp_server:
+        logger.error("SMTPサーバーが設定されていません。config.yamlのemail.smtp_serverを確認してください。")
+        raise ValueError("SMTP server is not configured in config.yaml or environment variable.")
+    if not smtp_port:
+        logger.error("SMTPポートが設定されていません。config.yamlのemail.smtp_portを確認してください。")
+        raise ValueError("SMTP port is not configured in config.yaml or environment variable.")
+    # --- End Configuration Validation ---
 
     sender_password = os.getenv('EMAIL_SENDER_PASSWORD')
     if not sender_password:
@@ -126,6 +140,15 @@ def send_task_failure_notification(
     """
     タスク失敗時に管理者へ通知メールを送信するヘルパー関数。
     """
+    # --- Parameter Validation ---
+    if not task_id:
+        logger.error("タスクID (task_id) が指定されていません。")
+        raise ValueError("Task ID (task_id) is mandatory.")
+    if not error_message:
+        logger.error("エラーメッセージ (error_message) が指定されていません。")
+        raise ValueError("Error message (error_message) is mandatory.")
+    # --- End Parameter Validation ---
+
     subject = f"【アラート】タスク失敗: {task_id}"
     template_context = {
         "main_message": f"タスク '{task_id}' が失敗しました。詳細を確認してください。",
@@ -148,4 +171,43 @@ def send_task_failure_notification(
         template_context=template_context,
         job_id=job_id,
         workflow_run_id=workflow_run_id
+    )
+
+# UI/jobs.yaml のタスク定義を簡素化するための新しいヘルパー関数
+def send_notification_email(
+    subject: str,
+    main_message: str,
+    to_email: str = "admin@example.com", # Default recipient
+    details: Optional[Dict[str, str]] = None,
+    error_message: Optional[str] = None,
+    error_details: Optional[str] = None,
+    call_to_action_url: Optional[str] = None,
+    call_to_action_text: Optional[str] = None,
+    recipient_name: Optional[str] = None, # For template greeting
+    image_paths: Optional[List[str]] = None,
+    **kwargs # Catch any extra arguments passed by the scheduler (e.g., job_id, workflow_run_id)
+):
+    """
+    汎用的な通知メールを送信するヘルパー関数。
+    notification_email.html テンプレートを使用し、共通のメール設定を適用します。
+    """
+    template_context = {
+        "main_message": main_message,
+        "details": details,
+        "error_message": error_message,
+        "error_details": error_details,
+        "call_to_action_url": call_to_action_url,
+        "call_to_action_text": call_to_action_text,
+        "recipient_name": recipient_name,
+        # Add any other common context variables here
+    }
+
+    send_email_task(
+        to_email=to_email,
+        subject=subject,
+        template_name="notification_email.html",
+        template_context=template_context,
+        image_paths=image_paths,
+        job_id=kwargs.get('job_id'),
+        workflow_run_id=kwargs.get('workflow_run_id')
     )
