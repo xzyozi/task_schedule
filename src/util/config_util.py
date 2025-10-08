@@ -96,15 +96,16 @@ class AppConfig:
 
     @property
     def email_sender_account(self) -> str:
-        return self.get('email.sender_account')
+        return os.getenv('EMAIL_SENDER_ACCOUNT', self.get('email.sender_account'))
 
     @property
     def email_smtp_server(self) -> str:
-        return self.get('email.smtp_server', 'smtp.gmail.com')
+        return os.getenv('EMAIL_SMTP_SERVER', self.get('email.smtp_server', 'smtp.gmail.com'))
 
     @property
     def email_smtp_port(self) -> int:
-        return int(self.get('email.smtp_port', 587)) # Use 587 for STARTTLS
+        port_str = os.getenv('EMAIL_SMTP_PORT', self.get('email.smtp_port', '587'))
+        return int(port_str)
 
     @property
     def email_sender_password(self) -> str:
