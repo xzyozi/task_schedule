@@ -4,26 +4,37 @@ import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+# from pathlib import Path # No longer needed for PROJECT_ROOT calculation
+
+from jinja2 import Environment, FileSystemLoader
 
 from util import logger_util
+from util.config_util import PROJECT_ROOT # Import PROJECT_ROOT from config_util
 
 logger = logger_util.get_logger(__name__)
+
+# Configure Jinja2 environment
+# TEMPLATE_DIR now uses the imported PROJECT_ROOT
+TEMPLATE_DIR = PROJECT_ROOT / "src" / "templates" / "emails"
+env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=True) # autoescape for security
 
 def send_email_task(
     to_email: str,
     subject: str,
-    body: str,
     sender_account: str,
     smtp_server: str,
     smtp_port: int,
+    template_name: Optional[str] = None, # New: Name of the Jinja2 template file
+    template_context: Optional[Dict[str, Any]] = None, # New: Context for the template
+    body: Optional[str] = None, # Original body, now optional if template is used
     body_type: str = "plain",
     image_paths: Optional[List[str]] = None,
     job_id: Optional[str] = None, # Added for scheduler context
     workflow_run_id: Optional[str] = None # Added for scheduler context
 ):
     """
-    汎用的なメール送信タスク。
+    汎用的なメール送信タスク。Jinja2テンプレートまたは直接指定された本文を使用します。
     環境変数 EMAIL_SENDER_PASSWORD からパスワードを取得します。
     """
     logger.info(f"Attempting to send email for job_id: {job_id}, workflow_run_id: {workflow_run_id}")
@@ -33,12 +44,28 @@ def send_email_task(
         logger.error("EMAIL_SENDER_PASSWORD 環境変数が設定されていません。メール送信をスキップします。")
         raise ValueError("EMAIL_SENDER_PASSWORD environment variable is not set.")
 
+    # Determine email body: use template if template_name is provided, otherwise use direct body
+    if template_name:
+        try:
+            template = env.get_template(template_name)
+            # Ensure body_type is html if a template is used
+            body_type = "html"
+            rendered_body = template.render(template_context or {})
+        except Exception as e:
+            logger.error(f"Jinja2テンプレートのレンダリング中にエラーが発生しました ({template_name}): {e}")
+            raise
+    elif body:
+        rendered_body = body
+    else:
+        logger.error("メール本文またはテンプレートが指定されていません。")
+        raise ValueError("Email body or template must be provided.")
+
     message = MIMEMultipart()
     message["From"] = sender_account
     message["To"] = to_email
     message["Subject"] = subject
 
-    message.attach(MIMEText(body, body_type))
+    message.attach(MIMEText(rendered_body, body_type))
 
     if image_paths:
         for i, image_path in enumerate(image_paths):

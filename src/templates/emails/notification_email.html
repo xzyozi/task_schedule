@@ -1,0 +1,45 @@
+{% extends "base_email.html" %}
+
+{% block title %}{{ subject }}{% endblock %}
+
+{% block content %}
+    <p>Hello{% if recipient_name %}, {{ recipient_name }}{% endif %},</p>
+
+    <p>{{ main_message }}</p>
+
+    {% if details %}
+        <table class="details-table">
+            <thead>
+                <tr>
+                    <th>項目</th>
+                    <th>詳細</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for key, value in details.items() %}
+                <tr>
+                    <td>{{ key }}</td>
+                    <td>{{ value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    {% if call_to_action_url and call_to_action_text %}
+        <p><a href="{{ call_to_action_url }}" class="button">{{ call_to_action_text }}</a></p>
+    {% endif %}
+
+    {% if error_message %}
+        <div class="error-message">
+            <p><strong>エラーが発生しました:</strong></p>
+            <p>{{ error_message }}</p>
+            {% if error_details %}
+                <pre>{{ error_details }}</pre>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    <p>Best regards,</p>
+    <p>Your Automated Task Scheduler</p>
+{% endblock %}

@@ -7,7 +7,8 @@ from util import logger_util
 logger = logger_util.get_logger(__name__)
 
 # Assuming this file is in src/util, the project root is three levels up.
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+_default_project_root = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(os.getenv("TASK_SCHEDULER_PROJECT_ROOT", str(_default_project_root)))
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 
 class AppConfig:
