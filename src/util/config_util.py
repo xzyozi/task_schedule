@@ -73,7 +73,13 @@ class AppConfig:
 
     @property
     def database_url(self) -> str:
-        return self.get('core.database_url', 'sqlite:///jobs.sqlite')
+        db_url = self.get('core.database_url', 'sqlite:///jobs.sqlite')
+        if db_url.startswith('sqlite:///'):
+            db_file = db_url[len('sqlite:///'):]
+            if db_file and not os.path.isabs(db_file) and db_file != ':memory:':
+                abs_db_path = (PROJECT_ROOT / db_file).resolve()
+                return f'sqlite:///{abs_db_path}'
+        return db_url
 
     @property
     def scheduler_work_dir(self) -> Path:

@@ -46,3 +46,8 @@ jobs.sqlite-wal
 
 # temp files
 temp/*
+# SOURCETEAIL
+task_schedule.srctrlprj
+task_schedule.srctrldb
+task_schedule.srctrlbm
+task_schedule.srctrldb_tmp

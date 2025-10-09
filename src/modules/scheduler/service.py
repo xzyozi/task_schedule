@@ -1,11 +1,12 @@
 import os
 import inspect
 import importlib
+import uuid
 from pathlib import Path
 from sqlalchemy.orm import Session, joinedload
 from core.crud import CRUDBase
 from . import models, schemas, scheduler_instance
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta, timezone
 from util import logger_util
 from util.config_util import config
@@ -13,54 +14,8 @@ from apscheduler.jobstores.base import JobLookupError
 
 logger = logger_util.get_logger(__name__)
 
-class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobConfig, schemas.JobConfig]):
-    def create_from_config(self, db: Session, *, job_in: schemas.JobConfig) -> models.JobDefinition:
-        """
-        Creates a JobDefinition in the database from a JobConfig Pydantic schema.
-        """
-        trigger_dict = job_in.trigger.model_dump()
-        trigger_type = trigger_dict.pop('type')
-        
-        db_obj = self.model(
-            id=job_in.id,
-            func=job_in.func,
-            description=job_in.description,
-            is_enabled=job_in.is_enabled,
-            job_type=job_in.job_type,
-            trigger_type=trigger_type,
-            trigger_config=trigger_dict,
-            args=job_in.args,
-            kwargs=job_in.kwargs,
-            cwd=job_in.cwd,
-            env=job_in.env,
-            max_instances=job_in.max_instances,
-            coalesce=job_in.coalesce,
-            misfire_grace_time=job_in.misfire_grace_time,
-        )
-        db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
-        return db_obj
-
-    def update_from_config(self, db: Session, *, db_obj: models.JobDefinition, job_in: schemas.JobConfig) -> models.JobDefinition:
-        """
-        Updates a JobDefinition in the database from a JobConfig Pydantic schema.
-        """
-        update_data = job_in.model_dump(exclude_unset=True, exclude={'id'})
-
-        if 'trigger' in update_data:
-            trigger_dict = update_data.pop('trigger')
-            db_obj.trigger_type = trigger_dict.get('type')
-            trigger_dict.pop('type', None)
-            db_obj.trigger_config = trigger_dict
-        
-        for field, value in update_data.items():
-            setattr(db_obj, field, value)
-        
-        db.add(db_obj)
-        db.commit()
-        db.refresh(db_obj)
-        return db_obj
+class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobCreate, schemas.JobUpdate]):
+    pass
 
 job_definition_service = JobDefinitionCRUD(models.JobDefinition)
 
@@ -118,6 +73,69 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
         ).filter(self.model.id == id).first()
 
 workflow_service = WorkflowCRUD(models.Workflow)
+
+def create_job_from_schema(db: Session, *, job_in: schemas.JobCreate) -> models.JobDefinition:
+    """
+    Creates a JobDefinition in the database from the new JobCreate Pydantic schema.
+    """
+    # Check for ID conflict if an ID is provided
+    if hasattr(job_in, 'id') and job_in.id and job_definition_service.get(db, id=job_in.id):
+        logger.warning(f"Job with ID '{job_in.id}' already exists.")
+        return None
+
+    # Separate trigger and task parameter models
+    trigger_dict = job_in.trigger.model_dump()
+    trigger_type = trigger_dict.pop('type')
+    
+    task_params_dict = job_in.task_parameters.model_dump()
+    task_type = task_params_dict.pop('task_type')
+
+    # Generate a unique ID for the job if not provided
+    job_id = getattr(job_in, 'id', None) or uuid.uuid4().hex[:12]
+
+    db_obj = models.JobDefinition(
+        id=job_id,
+        name=job_in.name,
+        description=job_in.description,
+        is_enabled=job_in.is_enabled,
+        task_type=task_type,
+        task_parameters=task_params_dict,
+        trigger_type=trigger_type,
+        trigger_config=trigger_dict,
+        max_instances=job_in.max_instances,
+        coalesce=job_in.coalesce,
+        misfire_grace_time=job_in.misfire_grace_time,
+    )
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+def update_job_from_schema(db: Session, *, db_obj: models.JobDefinition, job_in: schemas.JobUpdate) -> models.JobDefinition:
+    """
+    Updates a JobDefinition in the database from the new JobUpdate Pydantic schema.
+    """
+    update_data = job_in.model_dump(exclude_unset=True)
+
+    if 'trigger' in update_data and update_data['trigger'] is not None:
+        trigger_dict = update_data.pop('trigger')
+        db_obj.trigger_type = trigger_dict.get('type')
+        trigger_dict.pop('type', None)
+        db_obj.trigger_config = trigger_dict
+    
+    if 'task_parameters' in update_data and update_data['task_parameters'] is not None:
+        task_params_dict = update_data.pop('task_parameters')
+        db_obj.task_type = task_params_dict.get('task_type')
+        task_params_dict.pop('task_type', None)
+        db_obj.task_parameters = task_params_dict
+
+    for field, value in update_data.items():
+        setattr(db_obj, field, value)
+    
+    db.add(db_obj)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
 
 def update_workflow_enabled_status(db: Session, workflow_id: int, is_enabled: bool) -> Optional[models.Workflow]:
     """
@@ -247,41 +265,35 @@ def get_job_execution_history(db: Session, job_id: str) -> List[models.ProcessEx
     """
     return db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.job_id == job_id).order_by(models.ProcessExecutionLog.start_time.desc()).all()
 
-def get_scheduled_jobs_info() -> List[schemas.JobInfo]:
+def get_scheduled_jobs_info(db: Session) -> List[schemas.Job]:
     """
-    Retrieves a list of currently scheduled jobs with formatted trigger information.
+    Retrieves a list of currently scheduled jobs, combining scheduler info
+    with database definitions to return the full `schemas.Job` model.
     """
-    jobs = scheduler_instance.scheduler.get_jobs()
+    scheduled_jobs = scheduler_instance.scheduler.get_jobs()
+    job_ids = [job.id for job in scheduled_jobs if not job.id.startswith('workflow_')]
+    
+    if not job_ids:
+        return []
+
+    # Fetch corresponding job definitions from the database
+    job_defs = db.query(models.JobDefinition).filter(models.JobDefinition.id.in_(job_ids)).all()
+    job_defs_map = {job_def.id: job_def for job_def in job_defs}
+
     job_infos = []
-    for job in jobs:
-        if job.id.startswith('workflow_'):
-            continue
-        try:
-            trigger_dict = {"type": "unknown"}
-            trigger_class_name = job.trigger.__class__.__name__.lower()
-            if "cron" in trigger_class_name:
-                trigger_dict["type"] = "cron"
-                for field in job.trigger.fields:
-                    trigger_dict[field.name] = str(field)
-            elif "interval" in trigger_class_name:
-                trigger_dict["type"] = "interval"
-                td = job.trigger.interval
-                trigger_dict['weeks'] = td.days // 7
-                trigger_dict['days'] = td.days % 7
-                trigger_dict['hours'] = td.seconds // 3600
-                trigger_dict['minutes'] = (td.seconds // 60) % 60
-                trigger_dict['seconds'] = td.seconds % 60
-            func_repr = job.func
-            if not isinstance(func_repr, str):
-                func_repr = f"{job.func.__module__}:{job.func.__name__}"
-            job_info = schemas.JobInfo(
-                id=job.id, func=func_repr, trigger=trigger_dict, args=list(job.args),
-                kwargs=job.kwargs, max_instances=job.max_instances, coalesce=job.coalesce,
-                misfire_grace_time=job.misfire_grace_time, next_run_time=job.next_run_time
-            )
-            job_infos.append(job_info)
-        except Exception as e:
-            logger.error(f"Error processing job '{job.id}' for API response: {e}", exc_info=True)
+    for job in scheduled_jobs:
+        if job.id in job_defs_map:
+            db_job = job_defs_map[job.id]
+            
+            # Use the Pydantic model's validator to construct the base object
+            # The validator `assemble_from_db_model` in `schemas.py` handles the transformation
+            job_model = schemas.Job.model_validate(db_job)
+            
+            # Add the dynamic next_run_time from the scheduler
+            job_model.next_run_time = job.next_run_time
+            
+            job_infos.append(job_model)
+            
     return job_infos
 
 def delete_bulk_jobs(db: Session, job_ids: List[str]) -> int:
@@ -394,7 +406,7 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
         unified_list.append(schemas.UnifiedJobItem(
             id=job_id,
             type='job',
-            name=job_def.id,
+            name=job_def.name or job_def.id,
             description=job_def.description,
             is_enabled=job_def.is_enabled,
             schedule=trigger_str,

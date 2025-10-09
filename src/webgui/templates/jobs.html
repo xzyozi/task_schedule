@@ -53,44 +53,95 @@
                 <h2 id="job-form-title">新規ジョブ作成</h2>
             </div>
             <div class="card-body">
-                <form id="job-form">
+                <form id="job-form" novalidate>
                     <input type="hidden" id="job-id-hidden">
-                    <div class="mb-3">
-                        <label for="job-id" class="form-label">ジョブID</label>
-                        <input type="text" class="form-control" id="job-id" required>
-                    </div>
-                    <div class="mb-3">
-                        <label for="job-type" class="form-label">ジョブタイプ</label>
-                        <select class="form-select" id="job-type">
-                            <option value="python" selected>Python Function</option>
-                            <option value="cmd" data-os="windows" class="os-specific" style="display: none;">CMD</option>
-                            <option value="powershell" data-os="windows" class="os-specific" style="display: none;">PowerShell</option>
-                            <option value="shell" data-os="linux" class="os-specific" style="display: none;">Shell (Linux/macOS)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="job-func" class="form-label">実行関数 / コマンド</label>
-                        <input type="text" class="form-control" id="job-func-text" placeholder="e.g., /path/to/script.sh" required>
-                        <select class="form-select" id="job-func-python" style="display: none;"></select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="job-description" class="form-label">説明</label>
-                        <input type="text" class="form-control" id="job-description">
+                    
+                    <!-- Basic Job Details -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="job-name" class="form-label">ジョブ名</label>
+                            <input type="text" class="form-control" id="job-name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="job-description" class="form-label">説明</label>
+                            <input type="text" class="form-control" id="job-description">
+                        </div>
                     </div>
 
-                    <!-- Fields for Shell Command jobs -->
-                    <div id="shell-command-fields" class="d-none">
-                        <div class="mb-3">
-                            <label for="job-cwd" class="form-label">作業ディレクトリ (CWD)</label>
-                            <input type="text" class="form-control" id="job-cwd" placeholder="e.g., my_project/subdir">
-                            <div class="form-text">サンドボックス化された作業ディレクトリからの相対パス。</div>
+                    <hr>
+
+                    <!-- Task Type and Parameters -->
+                    <h5>タスク設定</h5>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="task-type" class="form-label">タスクタイプ</label>
+                            <select class="form-select" id="task-type">
+                                <option value="python" selected>Python</option>
+                                <option value="shell">Shell</option>
+                                <option value="email">Email</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Python Params -->
+                    <div id="python-params" class="task-params-group">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="python-module" class="form-label">モジュール</label>
+                                <input type="text" class="form-control" id="python-module" placeholder="e.g., modules.scheduler.tasks.sample_tasks" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="python-function" class="form-label">関数</label>
+                                <input type="text" class="form-control" id="python-function" placeholder="e.g., hello_world" required>
+                            </div>
                         </div>
                         <div class="mb-3">
-                            <label for="job-env" class="form-label">環境変数</label>
-                            <textarea class="form-control" id="job-env" rows="3" placeholder="KEY1=VALUE1
-KEY2=VALUE2"></textarea>
-                            <div class="form-text">1行に1つの KEY=VALUE ペア。</div>
+                            <label for="python-args" class="form-label">位置引数 (JSON)</label>
+                            <textarea class="form-control" id="python-args" rows="2" placeholder="e.g., ["arg1", 123]"></textarea>
                         </div>
+                        <div class="mb-3">
+                            <label for="python-kwargs" class="form-label">キーワード引数 (JSON)</label>
+                            <textarea class="form-control" id="python-kwargs" rows="2" placeholder="e.g., {"key": "value"}"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- Shell Params -->
+                    <div id="shell-params" class="task-params-group d-none">
+                        <div class="mb-3">
+                            <label for="shell-command" class="form-label">コマンド</label>
+                            <textarea class="form-control" id="shell-command" rows="3" required></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="shell-cwd" class="form-label">作業ディレクトリ (CWD)</label>
+                                <input type="text" class="form-control" id="shell-cwd" placeholder="e.g., my_project/subdir">
+                                <div class="form-text">作業ディレクトリからの相対パス。</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="shell-env" class="form-label">環境変数</label>
+                                <textarea class="form-control" id="shell-env" rows="2" placeholder="KEY1=VALUE1&#10;KEY2=VALUE2"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Email Params -->
+                    <div id="email-params" class="task-params-group d-none">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="email-to" class="form-label">宛先 (To)</label>
+                                <input type="email" class="form-control" id="email-to" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="email-subject" class="form-label">件名</label>
+                                <input type="text" class="form-control" id="email-subject" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="email-body" class="form-label">本文</label>
+                            <textarea class="form-control" id="email-body" rows="4"></textarea>
+                            <div class="form-text">テンプレートを使わない場合は、ここに直接本文を入力します。</div>
+                        </div>
+                        <!-- More advanced email fields like template can be added here -->
                     </div>
                     
                     <hr>

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, request, Response
 import requests
 
 # The template_folder is set to the 'templates' directory relative to this file's location.
@@ -58,6 +58,39 @@ def timeline_data():
     except requests.exceptions.RequestException as e:
         print(f"Error fetching timeline data from backend API: {e}")
         return jsonify({"error": "Could not fetch timeline data"}), 500
+
+@app.route('/api/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def api_proxy(path):
+    """A generic proxy for all /api/ requests."""
+    try:
+        # Construct the full API URL
+        url = f"{API_BASE_URL}/api/{path}"
+        
+        # Forward the request
+        resp = requests.request(
+            method=request.method,
+            url=url,
+            headers={key: value for (key, value) in request.headers if key != 'Host'},
+            data=request.get_data(),
+            cookies=request.cookies,
+            allow_redirects=False,
+            params=request.args
+        )
+
+        # Exclude certain headers from being forwarded
+        excluded_headers = ['content-encoding', 'content-length', 'transfer-encoding', 'connection']
+        headers = [
+            (name, value) for (name, value) in resp.raw.headers.items()
+            if name.lower() not in excluded_headers
+        ]
+
+        # Create a response to send back to the client
+        response = Response(resp.content, resp.status_code, headers)
+        return response
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error proxying request to API: {e}")
+        return jsonify({"error": "API proxy error"}), 502
 
 @app.route('/settings')
 def settings():

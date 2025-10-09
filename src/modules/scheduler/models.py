@@ -9,16 +9,16 @@ class JobDefinition(Base):
     __tablename__ = 'job_definitions'
 
     id = Column(String, primary_key=True, index=True)
-    func = Column(String, nullable=False)
+    name = Column(String, nullable=False, server_default="Unnamed Job")
     description = Column(String, nullable=True)
     is_enabled = Column(Boolean, default=True, nullable=False)
-    job_type = Column(String, nullable=False)
+
+    task_type = Column(String, nullable=False)
+    task_parameters = Column(JSON, nullable=False)
+
     trigger_type = Column(String, nullable=False)
     trigger_config = Column(JSON, nullable=False)
-    args = Column(JSON, default=list, nullable=False)
-    kwargs = Column(JSON, default=dict, nullable=False)
-    cwd = Column(String, nullable=True)
-    env = Column(JSON, nullable=True)
+    
     max_instances = Column(Integer, default=1, nullable=False)
     coalesce = Column(Boolean, default=False, nullable=False)
     misfire_grace_time = Column(Integer, nullable=True, default=3600)

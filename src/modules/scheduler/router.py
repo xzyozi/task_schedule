@@ -92,34 +92,42 @@ def get_python_tasks():
         raise HTTPException(status_code=500, detail="Failed to fetch available python tasks")
 
 
-@router.get("/jobs", response_model=List[schemas.JobConfig], tags=["Job Definitions"], summary="List All Job Definitions")
+@router.get("/jobs", response_model=List[schemas.Job], tags=["Job Definitions"], summary="List All Job Definitions")
 def read_jobs(db: Session = Depends(get_db), skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)):
     jobs = job_definition_service.get_multi(db, skip=skip, limit=limit)
-    return [schemas.JobConfig.model_validate(job) for job in jobs]
+    return [schemas.Job.model_validate(job) for job in jobs]
 
-@router.post("/jobs", response_model=schemas.JobConfig, status_code=status.HTTP_201_CREATED, tags=["Job Definitions"], summary="Create a New Job Definition")
-def create_job(job_in: schemas.JobConfig, db: Session = Depends(get_db)):
-    if job_definition_service.get(db, id=job_in.id):
-        raise HTTPException(status_code=409, detail="Job with this ID already exists")
-    db_job = job_definition_service.create_from_config(db, job_in=job_in)
+@router.post("/jobs", response_model=schemas.Job, status_code=status.HTTP_201_CREATED, tags=["Job Definitions"], summary="Create a New Job Definition")
+def create_job(job_in: schemas.JobCreate, db: Session = Depends(get_db)):
+    """
+    Creates a new job definition in the database and adds it to the scheduler.
+    The input is validated against the `JobCreate` schema, which uses a discriminated
+    union to validate `task_parameters` based on `task_type`.
+    """
+    # The service layer will handle the creation from the new schema.
+    db_job = service.create_job_from_schema(db, job_in=job_in)
+    if not db_job:
+        # The service should handle ID conflicts and raise an exception or return None.
+        raise HTTPException(status_code=409, detail="Job with this ID might already exist or creation failed.")
     loader.sync_jobs_from_db()
-    return schemas.JobConfig.model_validate(db_job)
+    return schemas.Job.model_validate(db_job)
 
-@router.get("/jobs/{job_id}", response_model=schemas.JobConfig, tags=["Job Definitions"])
+@router.get("/jobs/{job_id}", response_model=schemas.Job, tags=["Job Definitions"])
 def read_job(job_id: str, db: Session = Depends(get_db)):
     db_job = job_definition_service.get(db, id=job_id)
     if db_job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    return schemas.JobConfig.model_validate(db_job)
+    return schemas.Job.model_validate(db_job)
 
-@router.put("/jobs/{job_id}", response_model=schemas.JobConfig, tags=["Job Definitions"])
-def update_job(job_id: str, job_in: schemas.JobConfig, db: Session = Depends(get_db)):
+@router.put("/jobs/{job_id}", response_model=schemas.Job, tags=["Job Definitions"])
+def update_job(job_id: str, job_in: schemas.JobUpdate, db: Session = Depends(get_db)):
     db_job = job_definition_service.get(db, id=job_id)
     if db_job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    db_job = job_definition_service.update_from_config(db, db_obj=db_job, job_in=job_in)
+    # The service layer will need to handle the update from the new schema.
+    db_job = service.update_job_from_schema(db, db_obj=db_job, job_in=job_in)
     loader.sync_jobs_from_db()
-    return schemas.JobConfig.model_validate(db_job)
+    return schemas.Job.model_validate(db_job)
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Job Definitions"])
 def delete_job(job_id: str, db: Session = Depends(get_db)):
@@ -201,9 +209,11 @@ def resume_workflow(workflow_id: int, db: Session = Depends(get_db)):
 
 
 # --- Scheduler Control Endpoints ---
-@router.get("/scheduler/jobs", response_model=List[schemas.JobInfo], tags=["Scheduler Control"])
+@router.get("/scheduler/jobs", response_model=List[schemas.Job], tags=["Scheduler Control"])
 def get_scheduled_jobs():
     try:
+        # This service function will need to be updated to return data
+        # that can be validated by the new schemas.Job model.
         return service.get_scheduled_jobs_info()
     except Exception as e:
         logger.error(f"Error fetching scheduled jobs: {e}", exc_info=True)
@@ -236,22 +246,7 @@ def run_scheduled_job_immediately(job_id: str):
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found.")
 
 
-@router.put("/jobs/{job_id}", response_model=schemas.JobConfig, tags=["Job Definitions"])
-def update_job(job_id: str, job_in: schemas.JobConfig, db: Session = Depends(get_db)):
-    db_job = job_definition_service.get(db, id=job_id)
-    if db_job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    db_job = job_definition_service.update_from_config(db, db_obj=db_job, job_in=job_in)
-    loader.sync_jobs_from_db()
-    return schemas.JobConfig.model_validate(db_job)
 
-@router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Job Definitions"])
-def delete_job(job_id: str, db: Session = Depends(get_db)):
-    db_job = job_definition_service.remove(db, id=job_id)
-    if db_job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
-    loader.sync_jobs_from_db()
-    return
 
 @router.post("/jobs/bulk/delete", status_code=status.HTTP_200_OK, tags=["Job Definitions"])
 def delete_bulk_jobs(payload: schemas.BulkJobUpdate, db: Session = Depends(get_db)):
