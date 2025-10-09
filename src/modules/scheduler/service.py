@@ -457,27 +457,95 @@ def run_workflow_immediately(db: Session, workflow_id: int, params: Optional[dic
     )
     return {"message": "Workflow scheduled for immediate execution with parameters."}
 
-def get_available_python_tasks() -> List[str]:
+def get_available_tasks() -> List[schemas.AvailableTask]:
     """
-    Scans the 'tasks' directory and returns a list of available Python functions
-    that can be used as jobs.
+    Scans for available tasks and returns a structured list with their parameters,
+    controlled by decorators and application configuration.
     """
-    tasks = []
-    # Correctly locate the tasks directory relative to this service.py file
-    tasks_dir = Path(__file__).parent.joinpath('tasks')
+    tasks: List[schemas.AvailableTask] = []
     
+    # Part 1: Discover Python tasks from the 'tasks' directory
+    tasks_dir = Path(__file__).parent.joinpath('tasks')
     for file_path in tasks_dir.glob('*.py'):
         if file_path.name.startswith('__'):
             continue
-            
+
         module_name = f"modules.scheduler.tasks.{file_path.stem}"
         try:
             module = importlib.import_module(module_name)
             for name, func in inspect.getmembers(module, inspect.isfunction):
-                # Ensure the function is defined in this module, not imported
-                if not name.startswith('_') and func.__module__ == module.__name__:
-                    tasks.append(f"{module_name}:{name}")
+                # Only include functions that have the _task_meta attribute
+                if not hasattr(func, '_task_meta'):
+                    continue
+
+                meta = func._task_meta
+                if not meta.get('enabled', False):
+                    continue
+
+                sig = inspect.signature(func)
+                docstring = inspect.getdoc(func) or ""
+                
+                description = meta.get('description') or (docstring.strip().splitlines()[0] if docstring else "")
+                display_name = meta.get('name') or name.replace('_', ' ').title()
+
+                parameters = []
+                for param in sig.parameters.values():
+                    # Exclude injected parameters
+                    if param.name in ('self', 'cls', 'db', 'db_session', 'job_id', 'workflow_run_id', 'kwargs'):
+                        continue
+                    
+                    param_type = 'Any'
+                    if param.annotation is not inspect.Parameter.empty:
+                        param_type_str = str(param.annotation).replace('typing.', '')
+                        if 'Union[' in param_type_str and 'NoneType' in param_type_str:
+                            main_type = param_type_str.replace('Union[', '').replace(', NoneType]', '')
+                            param_type_str = f'Optional[{main_type}]'
+                        param_type = param_type_str
+                    
+                    parameters.append(schemas.AvailableTaskParameter(
+                        name=param.name,
+                        type=param_type,
+                        required=param.default is inspect.Parameter.empty,
+                        label=param.name.replace('_', ' ').title()
+                    ))
+
+                tasks.append(schemas.AvailableTask(
+                    id=f"python:{module_name}:{name}",
+                    name=display_name,
+                    task_type='python',
+                    module=module_name,
+                    function=name,
+                    description=description,
+                    parameters=parameters
+                ))
         except Exception as e:
-            logger.error(f"Error inspecting module {module_name}: {e}", exc_info=True)
-            
-    return sorted(tasks)
+            logger.error(f"Error inspecting module {module_name} for tasks: {e}", exc_info=True)
+
+    # Part 2: Add built-in tasks based on UI configuration
+    ui_config = config.task_ui_config
+    
+    # Shell Task
+    shell_config = ui_config.get('shell', {})
+    if shell_config.get('enabled', False):
+        shell_params = [schemas.AvailableTaskParameter(**param) for param in shell_config.get('parameters', [])]
+        tasks.append(schemas.AvailableTask(
+            id='shell',
+            name='Shell Command',
+            task_type='shell',
+            description='Executes a shell command or script.',
+            parameters=shell_params
+        ))
+
+    # Email Task
+    email_config = ui_config.get('email', {})
+    if email_config.get('enabled', False):
+        email_params = [schemas.AvailableTaskParameter(**param) for param in email_config.get('parameters', [])]
+        tasks.append(schemas.AvailableTask(
+            id='email',
+            name='Send Email',
+            task_type='email',
+            description='Sends an email notification.',
+            parameters=email_params
+        ))
+
+    return sorted(tasks, key=lambda t: t.name)

@@ -125,6 +125,10 @@ class AppConfig:
         email_conf['smtp_password'] = password
         return email_conf
 
+    @property
+    def task_ui_config(self) -> dict:
+        return self.get('task_ui_config', {})
+
 # Create a single, importable instance for the application to use.
 config = AppConfig()
 

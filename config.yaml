@@ -69,3 +69,70 @@ development:
   # Set to false to allow jobs created via the UI to persist even if they
   # are not defined in the YAML files.
   delete_orphaned_jobs_on_sync: false
+
+# --------------------------------------------------------------------------- #
+# Task UI Configuration
+# --------------------------------------------------------------------------- #
+# This section defines which parameters for built-in tasks (like Shell and
+# Email) are displayed in the Web UI. This allows simplifying the UI by
+# hiding complex or unused parameters.
+# To hide a parameter, simply comment it out or remove it from the list.
+# --------------------------------------------------------------------------- #
+task_ui_config:
+  shell:
+    enabled: true
+    parameters:
+      - name: "command"
+        label: "Command"
+        type: "str"
+        required: true
+        description: "The shell command to execute."
+      - name: "cwd"
+        label: "Working Directory"
+        type: "str"
+        required: false
+        description: "Optional: A relative path within the project work_dir."
+      - name: "env"
+        label: "Environment Variables"
+        type: "Dict[str, str]"
+        required: false
+        description: "Optional: Environment variables for the command (JSON format)."
+
+  email:
+    enabled: true
+    parameters:
+      - name: "to_email"
+        label: "To Email"
+        type: "EmailStr"
+        required: true
+        description: "Recipient's email address."
+      - name: "subject"
+        label: "Subject"
+        type: "str"
+        required: true
+        description: "Email subject."
+      - name: "body"
+        label: "Body"
+        type: "str"
+        required: false
+        description: "Email body content. Use this or a template."
+      - name: "template_name"
+        label: "Template Name"
+        type: "str"
+        required: false
+        description: "Name of the email template file in the templates/emails directory."
+      - name: "template_context"
+        label: "Template Context"
+        type: "Dict[str, Any]"
+        required: false
+        description: "JSON object with data for the template."
+      # - name: "body_type"
+      #   label: "Body Type"
+      #   type: "str"
+      #   required: false
+      #   description: "Type of email body (plain or html). Defaults to plain."
+      # - name: "image_paths"
+      #   label: "Image Paths"
+      #   type: "List[str]"
+      #   required: false
+      #   description: "List of image file paths to attach (JSON format)."

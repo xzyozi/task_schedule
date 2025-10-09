@@ -241,3 +241,22 @@ class TaskFailureNotificationParams(BaseModel):
     error_details: Optional[str] = Field(None, description="Detailed error information (e.g., traceback)")
     recipient_email: EmailStr = Field("admin@example.com", description="Recipient's email address (defaults to admin)")
     log_url: Optional[HttpUrl] = Field(None, description="URL to the task's log for more details")
+
+
+# --- Schemas for Discoverable Tasks ---
+
+class AvailableTaskParameter(BaseModel):
+    name: str
+    type: str
+    required: bool
+    label: str
+    description: Optional[str] = None
+
+class AvailableTask(BaseModel):
+    id: str
+    name: str
+    task_type: str
+    description: str
+    parameters: List['AvailableTaskParameter']
+    module: Optional[str] = None
+    function: Optional[str] = None

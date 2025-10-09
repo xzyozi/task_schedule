@@ -3,6 +3,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     const API_BASE_URL = ''; // Use relative paths
 
+    // --- Global State ---
+    let availableTasks = [];
+    let jobsData = []; // Cache for jobs data
+
     // --- Element Selectors ---
     const jobsListBody = document.getElementById('jobs-list-body');
     const searchInput = document.getElementById('job-search-input');
@@ -17,28 +21,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const jobEnabledCheckbox = document.getElementById('job-enabled');
     const clearFormBtn = document.getElementById('clear-form-btn');
 
-    // Task parameter elements
-    const taskTypeSelect = document.getElementById('task-type');
-    const pythonParamsDiv = document.getElementById('python-params');
-    const shellParamsDiv = document.getElementById('shell-params');
-    const emailParamsDiv = document.getElementById('email-params');
-    const taskParamsGroups = document.querySelectorAll('.task-params-group');
-
-    // Python fields
-    const pythonModuleInput = document.getElementById('python-module');
-    const pythonFunctionInput = document.getElementById('python-function');
-    const pythonArgsTextarea = document.getElementById('python-args');
-    const pythonKwargsTextarea = document.getElementById('python-kwargs');
-
-    // Shell fields
-    const shellCommandTextarea = document.getElementById('shell-command');
-    const shellCwdInput = document.getElementById('shell-cwd');
-    const shellEnvTextarea = document.getElementById('shell-env');
-
-    // Email fields
-    const emailToInput = document.getElementById('email-to');
-    const emailSubjectInput = document.getElementById('email-subject');
-    const emailBodyTextarea = document.getElementById('email-body');
+    // Task parameter elements (dynamic)
+    const taskSelect = document.getElementById('task-select');
+    const dynamicParamsContainer = document.getElementById('dynamic-params-container');
 
     // Trigger elements
     const triggerTypeSelect = document.getElementById('trigger-type');
@@ -62,51 +47,101 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Utility Functions ---
 
     function showToast(message, type = 'success') {
-        // A simple toast notification function. Implement a proper library if needed.
         const toast = document.createElement('div');
-        toast.className = `toast position-fixed top-0 end-0 p-3 ${type === 'success' ? 'bg-success' : 'bg-danger'} text-white`;
+        toast.className = `toast show position-fixed top-0 end-0 p-3 ${type === 'success' ? 'bg-success' : 'bg-danger'} text-white`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
         toast.textContent = message;
         document.body.appendChild(toast);
-        setTimeout(() => toast.remove(), 3000);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
     }
 
-    function parseJsonInput(value, defaultValue) {
+    function parseJsonInput(value, paramName, defaultValue) {
         if (!value.trim()) return defaultValue;
         try {
             return JSON.parse(value);
         } catch (e) {
-            alert(`JSON形式が無効です: ${e.message}`);
+            alert(`Parameter "${paramName}" has invalid JSON: ${e.message}`);
             throw e; // Stop form submission
         }
     }
 
-    function parseEnv(envString) {
-        const env = {};
-        if (envString) {
-            envString.split(/\r?\n/).forEach(line => {
-                const parts = line.split('=');
-                if (parts.length === 2) {
-                    env[parts[0].trim()] = parts[1].trim();
-                }
-            });
+    // --- Dynamic Form Generation ---
+
+    function generateFormField(param) {
+        const formGroup = document.createElement('div');
+        formGroup.className = 'mb-3';
+
+        const label = document.createElement('label');
+        label.htmlFor = `param-${param.name}`;
+        label.className = 'form-label';
+        label.textContent = param.label;
+        if (param.required) {
+            const requiredSpan = document.createElement('span');
+            requiredSpan.className = 'text-danger';
+            requiredSpan.textContent = ' *';
+            label.appendChild(requiredSpan);
         }
-        return env;
+        formGroup.appendChild(label);
+
+        let input;
+        const inputId = `param-${param.name}`;
+        const isJson = param.type.includes('Dict') || param.type.includes('List');
+        const isBool = param.type.toLowerCase().includes('bool');
+
+        if (isBool) {
+            input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'form-check-input';
+        } else if (isJson) {
+            input = document.createElement('textarea');
+            input.rows = 3;
+            input.placeholder = `Enter JSON for ${param.name}`;
+            input.className = 'form-control';
+        } else {
+            input = document.createElement('input');
+            input.type = param.type.toLowerCase().includes('int') ? 'number' : 'text';
+            input.className = 'form-control';
+        }
+
+        input.id = inputId;
+        input.name = param.name;
+        if (param.required) {
+            input.required = true;
+        }
+
+        formGroup.appendChild(input);
+
+        if (param.description) {
+            const helpText = document.createElement('div');
+            helpText.className = 'form-text';
+            helpText.textContent = param.description;
+            formGroup.appendChild(helpText);
+        }
+        return formGroup;
     }
 
-    function formatEnv(envObject) {
-        if (!envObject) return '';
-        return Object.entries(envObject).map(([key, value]) => `${key}=${value}`).join('\n');
+    function generateParamsForm(taskId) {
+        dynamicParamsContainer.innerHTML = '';
+        const selectedTask = availableTasks.find(t => t.id === taskId);
+
+        if (!selectedTask || !selectedTask.parameters || selectedTask.parameters.length === 0) {
+            dynamicParamsContainer.classList.add('d-none');
+            return;
+        }
+
+        selectedTask.parameters.forEach(param => {
+            const field = generateFormField(param);
+            dynamicParamsContainer.appendChild(field);
+        });
+        dynamicParamsContainer.classList.remove('d-none');
     }
 
     // --- Form Logic ---
-
-    function updateFormForJobType(jobType) {
-        taskParamsGroups.forEach(div => div.classList.add('d-none'));
-        const activeDiv = document.getElementById(`${jobType}-params`);
-        if (activeDiv) {
-            activeDiv.classList.remove('d-none');
-        }
-    }
 
     function showTriggerFields(type) {
         cronFieldsDiv.classList.toggle('d-none', type !== 'cron');
@@ -117,69 +152,103 @@ document.addEventListener('DOMContentLoaded', function() {
         jobForm.reset();
         jobIdHidden.value = '';
         jobFormTitle.textContent = '新規ジョブ作成';
-        taskTypeSelect.value = 'python';
-        updateFormForJobType('python');
+        
+        taskSelect.value = '';
+        taskSelect.disabled = false;
+        dynamicParamsContainer.innerHTML = '';
+        dynamicParamsContainer.classList.add('d-none');
+
         triggerTypeSelect.value = 'cron';
         showTriggerFields('cron');
     }
 
-    function populateFormForEdit(jobId) {
-        fetch(`${API_BASE_URL}/api/jobs/${jobId}`)
-            .then(response => {
-                if (!response.ok) throw new Error('ジョブ定義の取得に失敗しました。');
-                return response.json();
-            })
-            .then(job => {
-                clearForm();
-                jobIdHidden.value = job.id;
-                jobNameInput.value = job.name;
-                jobDescriptionInput.value = job.description || '';
-                jobEnabledCheckbox.checked = job.is_enabled;
-                
-                taskTypeSelect.value = job.task_parameters.task_type;
-                updateFormForJobType(job.task_parameters.task_type);
+    async function populateFormForEdit(jobId) {
+        // Ensure tasks are loaded before populating
+        if (availableTasks.length === 0) {
+            await fetchAvailableTasks();
+        }
 
-                const params = job.task_parameters;
-                switch (params.task_type) {
-                    case 'python':
-                        pythonModuleInput.value = params.module;
-                        pythonFunctionInput.value = params.function;
-                        pythonArgsTextarea.value = JSON.stringify(params.args || [], null, 2);
-                        pythonKwargsTextarea.value = JSON.stringify(params.kwargs || {}, null, 2);
-                        break;
-                    case 'shell':
-                        shellCommandTextarea.value = params.command;
-                        shellCwdInput.value = params.cwd || '';
-                        shellEnvTextarea.value = formatEnv(params.env);
-                        break;
-                    case 'email':
-                        emailToInput.value = params.to_email;
-                        emailSubjectInput.value = params.subject;
-                        emailBodyTextarea.value = params.body || '';
-                        break;
+        const job = jobsData.find(j => j.id === jobId);
+        if (!job) {
+            alert('ジョブが見つかりません。');
+            return;
+        }
+
+        clearForm();
+        jobIdHidden.value = job.id;
+        jobNameInput.value = job.name;
+        jobDescriptionInput.value = job.description || '';
+        jobEnabledCheckbox.checked = job.is_enabled;
+
+        const params = job.task_parameters;
+        let taskId;
+        if (params.task_type === 'python') {
+            taskId = `python:${params.module}:${params.function}`;
+        } else {
+            taskId = params.task_type;
+        }
+
+        taskSelect.value = taskId;
+        generateParamsForm(taskId);
+        taskSelect.disabled = true; // Don't allow changing task type on edit
+
+        // Populate dynamic fields
+        if (params) {
+            for (const [key, value] of Object.entries(params)) {
+                const input = document.getElementById(`param-${key}`);
+                if (!input) continue;
+
+                if (input.type === 'checkbox') {
+                    input.checked = !!value;
+                } else if (input.tagName === 'TEXTAREA') {
+                    input.value = JSON.stringify(value, null, 2);
+                } else {
+                    input.value = value;
                 }
+            }
+        }
 
-                triggerTypeSelect.value = job.trigger.type;
-                showTriggerFields(job.trigger.type);
-                const trigger = job.trigger;
-                if (trigger.type === 'cron') {
-                    cronMinuteInput.value = trigger.minute || '*';
-                    cronHourInput.value = trigger.hour || '*';
-                    cronDayOfWeekInput.value = trigger.day_of_week || '*';
-                } else if (trigger.type === 'interval') {
-                    intervalWeeksInput.value = trigger.weeks || 0;
-                    intervalDaysInput.value = trigger.days || 0;
-                    intervalHoursInput.value = trigger.hours || 0;
-                    intervalMinutesInput.value = trigger.minutes || 0;
-                }
+        triggerTypeSelect.value = job.trigger.type;
+        showTriggerFields(job.trigger.type);
+        const trigger = job.trigger;
+        if (trigger.type === 'cron') {
+            cronMinuteInput.value = trigger.minute || '*';
+            cronHourInput.value = trigger.hour || '*';
+            cronDayOfWeekInput.value = trigger.day_of_week || '*';
+        } else if (trigger.type === 'interval') {
+            intervalWeeksInput.value = trigger.weeks || 0;
+            intervalDaysInput.value = trigger.days || 0;
+            intervalHoursInput.value = trigger.hours || 0;
+            intervalMinutesInput.value = trigger.minutes || 0;
+        }
 
-                jobFormTitle.textContent = `ジョブ編集: ${job.name}`;
-                window.scrollTo(0, 0); // Scroll to top to see the form
-            })
-            .catch(error => alert(`ジョブの編集データを取得できませんでした: ${error.message}`));
+        jobFormTitle.textContent = `ジョブ編集: ${job.name}`;
+        window.scrollTo(0, document.body.scrollHeight); // Scroll to form
     }
 
     // --- API and Display Logic ---
+
+    async function fetchAvailableTasks() {
+        taskSelect.disabled = true;
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/available-tasks`);
+            if (!response.ok) throw new Error('Failed to fetch tasks');
+            availableTasks = await response.json();
+            
+            taskSelect.innerHTML = '<option value="" selected disabled>タスクを選択...</option>';
+            availableTasks.forEach(task => {
+                const option = document.createElement('option');
+                option.value = task.id;
+                option.textContent = task.name;
+                taskSelect.appendChild(option);
+            });
+            taskSelect.disabled = false;
+
+        } catch (error) {
+            console.error('Error fetching available tasks:', error);
+            taskSelect.innerHTML = '<option value="" selected disabled>タスクの読み込みに失敗しました。</option>';
+        }
+    }
 
     function formatTask(taskParams) {
         if (!taskParams) return 'N/A';
@@ -187,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'python':
                 return `<span class="badge bg-primary">Py</span> ${taskParams.module}:${taskParams.function}`;
             case 'shell':
-                return `<span class="badge bg-secondary">Sh</span> ${taskParams.command}`;
+                return `<span class="badge bg-secondary">Sh</span> ${taskParams.command.substring(0, 50)}...`;
             case 'email':
                 return `<span class="badge bg-info">Mail</span> To: ${taskParams.to_email}`;
             default:
@@ -213,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function formatDateTime(isoString) {
-        if (!isoString) return '---';
+        if (!isoString) return '--';
         try {
             return new Date(isoString).toLocaleString('ja-JP');
         } catch (e) {
@@ -225,6 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch(`${API_BASE_URL}/api/jobs`)
             .then(response => response.json())
             .then(jobs => {
+                jobsData = jobs; // Cache the data
                 jobsListBody.innerHTML = '';
                 if (jobs.length === 0) {
                     jobsListBody.innerHTML = `<tr><td colspan="7" class="text-center">登録済みのジョブはありません。</td></tr>`;
@@ -256,54 +326,66 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Event Listeners ---
 
-    taskTypeSelect.addEventListener('change', (e) => updateFormForJobType(e.target.value));
+    taskSelect.addEventListener('change', (e) => generateParamsForm(e.target.value));
     triggerTypeSelect.addEventListener('change', (e) => showTriggerFields(e.target.value));
     newJobBtn.addEventListener('click', clearForm);
     clearFormBtn.addEventListener('click', clearForm);
 
     jobForm.addEventListener('submit', function(event) {
         event.preventDefault();
+        const selectedTaskId = taskSelect.value;
+        if (!selectedTaskId) {
+            alert('タスクを選択してください。');
+            return;
+        }
+
+        const selectedTask = availableTasks.find(t => t.id === selectedTaskId);
         const isEdit = !!jobIdHidden.value;
         const method = isEdit ? 'PUT' : 'POST';
         const url = isEdit ? `${API_BASE_URL}/api/jobs/${jobIdHidden.value}` : `${API_BASE_URL}/api/jobs`;
 
-        let task_parameters = {};
-        const taskType = taskTypeSelect.value;
+        let task_parameters = {
+            task_type: selectedTask.task_type
+        };
+
+        // For python tasks, add module and function
+        if (selectedTask.task_type === 'python') {
+            task_parameters.module = selectedTask.module;
+            task_parameters.function = selectedTask.function;
+        }
 
         try {
-            switch (taskType) {
-                case 'python':
-                    task_parameters = {
-                        task_type: 'python',
-                        module: pythonModuleInput.value,
-                        function: pythonFunctionInput.value,
-                        args: parseJsonInput(pythonArgsTextarea.value, []),
-                        kwargs: parseJsonInput(pythonKwargsTextarea.value, {}),
-                    };
-                    break;
-                case 'shell':
-                    task_parameters = {
-                        task_type: 'shell',
-                        command: shellCommandTextarea.value,
-                        cwd: shellCwdInput.value || null,
-                        env: parseEnv(shellEnvTextarea.value) || null,
-                    };
-                    break;
-                case 'email':
-                    if (!emailBodyTextarea.value.trim()) {
-                        alert('Emailの本文は必須です。');
-                        throw new Error('Email body is required.');
+            // Dynamically gather parameters from the generated form
+            selectedTask.parameters.forEach(param => {
+                const input = document.getElementById(`param-${param.name}`);
+                if (!input) return;
+
+                let value;
+                if (input.type === 'checkbox') {
+                    value = input.checked;
+                } else if (input.tagName === 'TEXTAREA') {
+                    const isJson = param.type.includes('Dict') || param.type.includes('List');
+                    if (isJson) {
+                        value = parseJsonInput(input.value, param.name, isJson && param.type.includes('List') ? [] : {});
+                    } else {
+                        value = input.value;
                     }
-                    task_parameters = {
-                        task_type: 'email',
-                        to_email: emailToInput.value,
-                        subject: emailSubjectInput.value,
-                        body: emailBodyTextarea.value,
-                    };
-                    break;
-            }
+                } else {
+                    value = input.value;
+                }
+                
+                if (input.required && !value && input.type !== 'checkbox') {
+                    throw new Error(`必須パラメータ "${param.label}" が空です。`);
+                }
+
+                // Only include the parameter if it has a value or is required
+                if (value !== null && value !== '' || param.required) {
+                    task_parameters[param.name] = value;
+                }
+            });
         } catch (e) {
-            return; // Stop submission if validation fails
+            alert(e.message);
+            return; // Stop submission
         }
 
         const jobData = {
@@ -312,67 +394,40 @@ document.addEventListener('DOMContentLoaded', function() {
             is_enabled: jobEnabledCheckbox.checked,
             trigger: { type: triggerTypeSelect.value },
             task_parameters: task_parameters,
-            max_instances: 3,
-            coalesce: false,
-            misfire_grace_time: 3600,
         };
-
-        // For new jobs, use the job name as the ID
+        
         if (!isEdit) {
-            if (!jobData.name) {
+            jobData.id = jobNameInput.value.trim().replace(/\s+/g, '_');
+             if (!jobData.id) {
                 alert('ジョブ名は必須です。');
                 return;
             }
-            jobData.id = jobData.name;
         }
 
         if (jobData.trigger.type === 'cron') {
             jobData.trigger.minute = cronMinuteInput.value;
             jobData.trigger.hour = cronHourInput.value;
             jobData.trigger.day_of_week = cronDayOfWeekInput.value;
-        } else if (jobData.trigger.type === 'interval') {
+        } else {
             jobData.trigger.weeks = parseInt(intervalWeeksInput.value) || 0;
             jobData.trigger.days = parseInt(intervalDaysInput.value) || 0;
             jobData.trigger.hours = parseInt(intervalHoursInput.value) || 0;
             jobData.trigger.minutes = parseInt(intervalMinutesInput.value) || 0;
         }
 
-        // Add a debug alert to inspect the data being sent
-        // alert("Sending data:\n" + JSON.stringify(jobData, null, 2));
-        // console.debug("Sending data:", JSON.stringify(jobData, null, 2));
-
         fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(jobData),
         })
-        .then(response => {
-            if (!response.ok) {
-                // On error, parse the JSON and throw the whole error object
-                return response.json().then(err => { throw err; });
-            }
-            return response.json();
-        })
+        .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
         .then(data => {
             showToast(`ジョブ '${data.name}' が${isEdit ? '更新' : '作成'}されました。`);
             clearForm();
             fetchAndDisplayJobs();
         })
         .catch(error => {
-            let errorMessage = "Unknown error";
-            // Check if the error has a 'detail' property, which is common for FastAPI validation errors
-            if (error && error.detail) {
-                try {
-                    // Try to format the validation error details
-                    errorMessage = error.detail.map(d => `${d.loc.join(' -> ')}: ${d.msg}`).join('\n');
-                } catch (e) {
-                    errorMessage = JSON.stringify(error.detail);
-                }
-            } else {
-                // Fallback for other types of errors
-                errorMessage = error.message || JSON.stringify(error);
-            }
-            console.error('Error saving job:', errorMessage);
+            const errorMessage = error.detail ? JSON.stringify(error.detail) : error.message;
             alert(`ジョブの保存に失敗しました:\n${errorMessage}`);
         });
     });
@@ -399,7 +454,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // --- Initial Load ---
-    updateFormForJobType('python');
     showTriggerFields('cron');
     fetchAndDisplayJobs();
+    fetchAvailableTasks();
 });

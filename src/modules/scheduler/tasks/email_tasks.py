@@ -12,6 +12,7 @@ from jinja2 import Environment, FileSystemLoader
 from util import logger_util
 from util.config_util import PROJECT_ROOT, config # Import config as well
 from util import time_util # For send_task_failure_notification
+from ..task_utils import task
 
 logger = logger_util.get_logger(__name__)
 
@@ -172,7 +173,7 @@ def send_task_failure_notification(
         workflow_run_id=workflow_run_id
     )
 
-# UI/jobs.yaml のタスク定義を簡素化するための新しいヘルパー関数
+@task(name="Send Notification Email", description="Sends a formatted notification email using a template.")
 def send_notification_email(
     subject: str,
     main_message: str,

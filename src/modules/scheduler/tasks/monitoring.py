@@ -3,7 +3,9 @@ from datetime import datetime
 from core.database import SessionLocal
 from modules.scheduler.models import ProcessExecutionLog
 import logging
+from ..task_utils import task
 
+@task(name="Check API Status", description="Checks the health of an API endpoint.")
 def check_api_status(api_endpoint: str, timeout_seconds: int, job_id: str = None):
     """
     Checks the health of an API endpoint.
