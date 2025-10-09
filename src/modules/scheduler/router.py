@@ -134,8 +134,14 @@ def delete_job(job_id: str, db: Session = Depends(get_db)):
     db_job = job_definition_service.remove(db, id=job_id)
     if db_job is None:
         raise HTTPException(status_code=404, detail="Job not found")
-    loader.sync_jobs_from_db()
-    return
+    
+    try:
+        scheduler_instance.scheduler.remove_job(job_id)
+        logger.info(f"Removed job '{job_id}' from scheduler.")
+    except JobLookupError:
+        logger.warning(f"Job '{job_id}' was not found in the scheduler for removal, but was deleted from the database.")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 # --- Workflow Definition Endpoints ---
 
