@@ -41,38 +41,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Filter out items that are part of a workflow step
                 const filteredData = data.filter(item => item.group && !item.group.includes('_step_'));
 
+                const newItems = filteredData.map(item => ({
+                    id: item.id,
+                    content: item.content,
+                    start: item.start,
+                    end: item.end,
+                    group: item.group,
+                    className: `job-${item.status}`,
+                    type: item.end ? 'range' : 'point',
+                    title: `<b>${item.content}</b><br>Status: ${item.status}<br>Start: ${new Date(item.start).toLocaleString()}` + (item.end ? `<br>End: ${new Date(item.end).toLocaleString()}` : '')
+                }));
+
+                items.clear();
+                items.add(newItems);
+
                 const groups = new vis.DataSet();
-                const uniqueGroupIds = [...new Set(filteredData.map(item => item.group).filter(g => g))];
-                
+                const uniqueGroupIds = [...new Set(newItems.map(item => item.group).filter(g => g))];
+
                 uniqueGroupIds.forEach(groupId => {
-                    const representativeItem = filteredData.find(item => item.group === groupId);
                     let groupContent = groupId;
-                    if (representativeItem) {
-                        if (groupId.startsWith('workflow_')) {
-                            const wfName = representativeItem.content.split('.')[0];
-                            groupContent = `WF: ${wfName}`;
-                        } else {
-                            groupContent = `Job: ${groupId}`;
-                        }
+                    if (groupId.startsWith('workflow_')) {
+                        const representativeItem = newItems.find(item => item.group === groupId);
+                        const wfName = representativeItem ? representativeItem.content.split('.')[0] : groupId;
+                        groupContent = `WF: ${wfName}`;
+                    } else {
+                        groupContent = `Job: ${groupId}`;
                     }
                     groups.add({ id: groupId, content: groupContent });
                 });
 
                 timeline.setGroups(groups);
-
-                items.clear();
-                items.add(
-                    filteredData.map(item => ({
-                        id: item.id,
-                        content: item.content,
-                        start: item.start,
-                        end: item.end,
-                        group: item.group,
-                        className: `job-${item.status}`,
-                        type: item.end ? 'range' : 'point',
-                        title: `<b>${item.content}</b><br>Status: ${item.status}<br>Start: ${new Date(item.start).toLocaleString()}` + (item.end ? `<br>End: ${new Date(item.end).toLocaleString()}` : '')
-                    }))
-                );
 
                 timeline.fit(); // Adjust timeline to fit all items
             })

@@ -125,3 +125,7 @@ body {
 .vis-timeline {
     border: none;
 }
+
+.vis-group:empty {
+    display: none;
+}
