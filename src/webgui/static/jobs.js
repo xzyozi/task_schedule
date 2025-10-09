@@ -290,16 +290,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     };
                     break;
                 case 'email':
+                    if (!emailBodyTextarea.value.trim()) {
+                        alert('Emailの本文は必須です。');
+                        throw new Error('Email body is required.');
+                    }
                     task_parameters = {
                         task_type: 'email',
                         to_email: emailToInput.value,
                         subject: emailSubjectInput.value,
-                        body: emailBodyTextarea.value || null,
+                        body: emailBodyTextarea.value,
                     };
                     break;
             }
         } catch (e) {
-            return; // Stop submission if JSON parsing fails
+            return; // Stop submission if validation fails
         }
 
         const jobData = {
@@ -308,7 +312,19 @@ document.addEventListener('DOMContentLoaded', function() {
             is_enabled: jobEnabledCheckbox.checked,
             trigger: { type: triggerTypeSelect.value },
             task_parameters: task_parameters,
+            max_instances: 3,
+            coalesce: false,
+            misfire_grace_time: 3600,
         };
+
+        // For new jobs, use the job name as the ID
+        if (!isEdit) {
+            if (!jobData.name) {
+                alert('ジョブ名は必須です。');
+                return;
+            }
+            jobData.id = jobData.name;
+        }
 
         if (jobData.trigger.type === 'cron') {
             jobData.trigger.minute = cronMinuteInput.value;
@@ -321,13 +337,20 @@ document.addEventListener('DOMContentLoaded', function() {
             jobData.trigger.minutes = parseInt(intervalMinutesInput.value) || 0;
         }
 
+        // Add a debug alert to inspect the data being sent
+        // alert("Sending data:\n" + JSON.stringify(jobData, null, 2));
+        // console.debug("Sending data:", JSON.stringify(jobData, null, 2));
+
         fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(jobData),
         })
         .then(response => {
-            if (!response.ok) return response.json().then(err => { throw new Error(err.detail || 'Unknown error'); });
+            if (!response.ok) {
+                // On error, parse the JSON and throw the whole error object
+                return response.json().then(err => { throw err; });
+            }
             return response.json();
         })
         .then(data => {
@@ -336,8 +359,21 @@ document.addEventListener('DOMContentLoaded', function() {
             fetchAndDisplayJobs();
         })
         .catch(error => {
-            console.error('Error saving job:', error);
-            alert(`ジョブの保存に失敗しました: ${error.message}`);
+            let errorMessage = "Unknown error";
+            // Check if the error has a 'detail' property, which is common for FastAPI validation errors
+            if (error && error.detail) {
+                try {
+                    // Try to format the validation error details
+                    errorMessage = error.detail.map(d => `${d.loc.join(' -> ')}: ${d.msg}`).join('\n');
+                } catch (e) {
+                    errorMessage = JSON.stringify(error.detail);
+                }
+            } else {
+                // Fallback for other types of errors
+                errorMessage = error.message || JSON.stringify(error);
+            }
+            console.error('Error saving job:', errorMessage);
+            alert(`ジョブの保存に失敗しました:\n${errorMessage}`);
         });
     });
 

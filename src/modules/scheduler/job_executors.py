@@ -172,6 +172,7 @@ def execute_email_job(job_id: str, task_params: dict):
         
         try:
             email_kwargs = params.model_dump()
+            email_kwargs.pop('task_type', None)
             email_kwargs['job_id'] = job_id
             email_tasks.send_email_task(**email_kwargs)
             _log_job_end(log_entry, exit_code=0, stdout="Email sent successfully.")

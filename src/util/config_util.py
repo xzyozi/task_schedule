@@ -2,6 +2,8 @@ import yaml
 from pathlib import Path
 import json
 import os
+import re
+from typing import Any
 from util import logger_util
 
 logger = logger_util.get_logger(__name__)
@@ -27,6 +29,20 @@ class AppConfig:
                 raise FileNotFoundError(f"Configuration file not found at: {config_path}")
             with open(config_path, 'r') as f:
                 self._config = yaml.safe_load(f)
+            self._config = self._replace_env_vars(self._config)
+
+    def _replace_env_vars(self, config_item: Any) -> Any:
+        """Recursively replaces ${VAR} or $VAR with environment variable values."""
+        if isinstance(config_item, dict):
+            return {k: self._replace_env_vars(v) for k, v in config_item.items()}
+        elif isinstance(config_item, list):
+            return [self._replace_env_vars(i) for i in config_item]
+        elif isinstance(config_item, str):
+            return re.sub(r'\$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}?',
+                          lambda match: os.getenv(match.group(1), ''),
+                          config_item)
+        else:
+            return config_item
 
     def get(self, key, default=None):
         """Gets a configuration value using dot notation."""
@@ -101,25 +117,13 @@ class AppConfig:
         return self.get('scheduler.enable_db_sync', False)
 
     @property
-    def email_sender_account(self) -> str:
-        return os.getenv('EMAIL_SENDER_ACCOUNT', self.get('email.sender_account'))
-
-    @property
-    def email_smtp_server(self) -> str:
-        return os.getenv('EMAIL_SMTP_SERVER', self.get('email.smtp_server', 'smtp.gmail.com'))
-
-    @property
-    def email_smtp_port(self) -> int:
-        port_str = os.getenv('EMAIL_SMTP_PORT', self.get('email.smtp_port', '587'))
-        return int(port_str)
-
-    @property
-    def email_sender_password(self) -> str:
-        # Load from environment variable for security
+    def email_config(self) -> dict:
+        email_conf = self.get('email', {})
         password = os.getenv('EMAIL_SENDER_PASSWORD')
-        if not password:
+        if not password and email_conf.get('smtp_server'):
             logger.warning("EMAIL_SENDER_PASSWORD environment variable is not set. Email sending may fail.")
-        return password
+        email_conf['smtp_password'] = password
+        return email_conf
 
 # Create a single, importable instance for the application to use.
 config = AppConfig()

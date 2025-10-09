@@ -47,23 +47,22 @@ def send_email_task(
         raise ValueError("Email subject is mandatory.")
     # --- End Parameter Validation ---
 
-    sender_account = config.email_sender_account
-    smtp_server = config.email_smtp_server
-    smtp_port = config.email_smtp_port
+    email_conf = config.email_config
+    sender_account = email_conf.get('smtp_user')
+    smtp_server = email_conf.get('smtp_server')
+    smtp_port = email_conf.get('smtp_port')
+    sender_password = email_conf.get('smtp_password')
 
     # --- Configuration Validation ---
     if not sender_account:
-        logger.error("メール送信元アカウントが設定されていません。config.yamlのemail.sender_accountを確認してください。")
-        raise ValueError("Email sender account is not configured in config.yaml or environment variable.")
+        logger.error("メール送信元アカウントが設定されていません。config.yamlのemail.smtp_userまたは対応する環境変数を確認してください。")
+        raise ValueError("Email sender user (smtp_user) is not configured.")
     if not smtp_server:
         logger.error("SMTPサーバーが設定されていません。config.yamlのemail.smtp_serverを確認してください。")
-        raise ValueError("SMTP server is not configured in config.yaml or environment variable.")
+        raise ValueError("SMTP server is not configured.")
     if not smtp_port:
         logger.error("SMTPポートが設定されていません。config.yamlのemail.smtp_portを確認してください。")
-        raise ValueError("SMTP port is not configured in config.yaml or environment variable.")
-    # --- End Configuration Validation ---
-
-    sender_password = os.getenv('EMAIL_SENDER_PASSWORD')
+        raise ValueError("SMTP port is not configured.")
     if not sender_password:
         logger.error("EMAIL_SENDER_PASSWORD 環境変数が設定されていません。メール送信をスキップします。")
         raise ValueError("EMAIL_SENDER_PASSWORD environment variable is not set.")
