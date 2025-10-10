@@ -148,7 +148,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     function fetchPythonTasks() {
-        return fetch(`${getApiBaseUrl()}/api/python-tasks`)
+        return fetch(`${getApiBaseUrl()}/api/available-tasks`)
             .then(response => response.json())
             .then(data => {
                 availablePythonTasks = data;

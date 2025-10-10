@@ -8,7 +8,7 @@ from util import logger_util
 
 logger = logger_util.get_logger(__name__)
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 @router.get("/dashboard/summary", response_model=schemas.DashboardSummary, tags=["Dashboard"], summary="Get Dashboard Summary", description="Provides a high-level summary of job statuses.")
 def get_dashboard_summary(db: Session = Depends(get_db)):

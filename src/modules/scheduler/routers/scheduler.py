@@ -7,7 +7,7 @@ from util import logger_util, time_util
 
 logger = logger_util.get_logger(__name__)
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 @router.get("/scheduler/jobs", response_model=List[schemas.Job], tags=["Scheduler Control"])
 def get_scheduled_jobs():

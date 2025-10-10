@@ -11,7 +11,7 @@ from util import logger_util
 
 logger = logger_util.get_logger(__name__)
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 @router.get("/available-tasks", response_model=List[schemas.AvailableTask], tags=["Job Definitions"], summary="List Available Tasks")
 def get_available_tasks():

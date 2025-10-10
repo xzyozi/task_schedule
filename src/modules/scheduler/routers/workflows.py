@@ -8,7 +8,7 @@ from util import logger_util
 
 logger = logger_util.get_logger(__name__)
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 @router.post("/workflows", response_model=schemas.Workflow, status_code=status.HTTP_201_CREATED, tags=["Workflow Definitions"])
 def create_workflow(workflow_in: schemas.WorkflowCreate, db: Session = Depends(get_db)):

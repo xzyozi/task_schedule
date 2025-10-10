@@ -12,7 +12,7 @@ API_BACKEND_URL = config.api_base_url
 
 @app.route('/webgui-config')
 def webgui_config():
-    return jsonify({"API_BASE_URL": "/api"})
+    return jsonify({"API_BASE_URL": API_BASE_URL})
 
 @app.route('/')
 def index():

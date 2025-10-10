@@ -1,7 +1,7 @@
 import platform
 from fastapi import APIRouter
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 @router.get("/system/os", tags=["System"], summary="Get OS Information")
 def get_os_info():

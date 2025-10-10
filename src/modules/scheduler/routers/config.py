@@ -4,7 +4,7 @@ from util import logger_util, config_util
 
 logger = logger_util.get_logger(__name__)
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 @router.get("/jobs_yaml", tags=["Configuration"])
 def get_jobs_yaml_content():
