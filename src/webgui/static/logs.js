@@ -1,7 +1,10 @@
-// src/webgui/static/logs.js
+import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
 
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = 'http://127.0.0.1:8000';
+document.addEventListener('DOMContentLoaded', async function() { 
+    // Remove: const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
+
+    await fetchConfig(); // Fetch config first
+    
     const logListBody = document.getElementById('log-list-body');
 
     /**
@@ -10,7 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateLogList() {
         if (!logListBody) return;
 
-        fetch(`${API_BASE_URL}/api/logs?limit=50`) // Fetch the last 50 logs
+        fetch(`${getApiBaseUrl()}/api/logs?limit=50`) // Fetch the last 50 logs // Use getApiBaseUrl()
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);

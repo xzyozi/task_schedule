@@ -1,7 +1,13 @@
-// src/webgui/static/script.js
+import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
 
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = 'http://127.0.0.1:8000';
+document.addEventListener('DOMContentLoaded', async function() {
+    // Remove: let API_BASE_URL = ''; // Will be fetched dynamically
+
+    // Remove: Function to fetch configuration
+    // Remove: async function fetchConfig() { ... }
+
+    // Fetch config first
+    await fetchConfig(); // This now calls the imported fetchConfig
 
     // --- Dashboard Summary Elements ---
     const totalJobsElement = document.querySelector('.card.bg-primary .card-text');
@@ -16,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
      * Fetches and updates the dashboard summary cards.
      */
     function updateDashboard() {
-        fetch(`${API_BASE_URL}/api/dashboard/summary`)
+        fetch(`${getApiBaseUrl()}/api/dashboard/summary`) // Use getApiBaseUrl()
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -45,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateJobList() {
         if (!jobListBody) return; // Do nothing if the table body isn't on the page
 
-        fetch(`${API_BASE_URL}/api/unified-jobs`)
+        fetch(`${getApiBaseUrl()}/api/unified-jobs`) // Use getApiBaseUrl()
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
@@ -118,7 +124,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (action) {
-            fetch(`${API_BASE_URL}/api/scheduler/jobs/${schedulerId}/${action}`, {
+            fetch(`${getApiBaseUrl()}/scheduler/jobs/${schedulerId}/${action}`, { // Use getApiBaseUrl()
                 method: 'POST'
             })
             .then(response => {
@@ -144,15 +150,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Initial Load and Interval Updates ---
 
-    // Update everything immediately on load
-    updateDashboard();
-    updateJobList();
-
-    // Set up periodic updates
-    setInterval(() => {
+    // Ensure API_BASE_URL is set before making initial calls and setting up intervals
+    (async () => {
+        await fetchConfig(); // Ensure config is loaded before initial updates
         updateDashboard();
         updateJobList();
-    }, 5000); // Update every 5 seconds
+
+        // Set up periodic updates
+        setInterval(() => {
+            updateDashboard();
+            updateJobList();
+        }, 5000); // Update every 5 seconds
+    })();
 
     // Add single event listener for all job actions
     if (jobListBody) {

@@ -8,6 +8,11 @@ from util.config_util import config
 
 # Configuration
 API_BASE_URL = config.api_base_url
+API_BACKEND_URL = config.api_base_url
+
+@app.route('/webgui-config')
+def webgui_config():
+    return jsonify({"API_BASE_URL": "/api"})
 
 @app.route('/')
 def index():
@@ -64,7 +69,7 @@ def api_proxy(path):
     """A generic proxy for all /api/ requests."""
     try:
         # Construct the full API URL
-        url = f"{API_BASE_URL}/api/{path}"
+        url = f"{API_BACKEND_URL}/api/{path}"
         
         # Forward the request
         resp = requests.request(

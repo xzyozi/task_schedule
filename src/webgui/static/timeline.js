@@ -1,7 +1,9 @@
-// src/webgui/static/timeline.js
+import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
 
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
+document.addEventListener('DOMContentLoaded', async function() { 
+    // Remove: const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
+
+    await fetchConfig(); // Fetch config first
 
     // DOM element where the Timeline will be attached
     const container = document.getElementById('timeline');
@@ -30,7 +32,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Function to fetch and render timeline data
     function fetchAndRenderTimelineData() {
-        fetch(`${API_BASE_URL}/api/timeline-items`)
+        fetch(`${getApiBaseUrl()}/api/timeline-items`) // Use getApiBaseUrl()
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);

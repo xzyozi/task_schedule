@@ -1,5 +1,10 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = 'http://127.0.0.1:8000';
+import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
+
+document.addEventListener('DOMContentLoaded', async function() { 
+    // Remove: const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
+
+    await fetchConfig(); // Fetch config first
+    
     const workflowId = document.getElementById('workflow-id-hidden').value;
 
     // Log Display Elements
@@ -10,7 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const copyLogBtn = document.getElementById('copy-log-btn');
 
     function fetchWorkflowDetails() {
-        fetch(`${API_BASE_URL}/api/workflows/${workflowId}`)
+        fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`) // Use getApiBaseUrl()
             .then(response => response.json())
             .then(workflow => {
                 document.getElementById('workflow-name').textContent = workflow.name;
@@ -52,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('workflow-runs-body').addEventListener('click', function(event) {
         if (event.target.classList.contains('btn-view-run-logs')) {
             const runId = event.target.dataset.runId;
-            fetch(`${API_BASE_URL}/api/workflow-runs/${runId}/logs`) 
+            fetch(`${getApiBaseUrl()}/api/workflow-runs/${runId}/logs`) // Use getApiBaseUrl()
                 .then(response => response.json())
                 .then(logs => {
                     let combinedStdout = '';
@@ -104,6 +109,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const textArea = document.createElement("textarea");
             textArea.value = textToCopy;
             textArea.style.position = "fixed"; // Avoid scrolling to bottom
+            textArea.style.left = "-9999px"; // Hide from view
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();

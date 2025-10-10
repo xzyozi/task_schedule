@@ -1,7 +1,9 @@
-// src/webgui/static/workflows.js
+import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
 
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = 'http://127.0.0.1:8000';
+document.addEventListener('DOMContentLoaded', async function() { 
+    // Remove: const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
+
+    await fetchConfig(); // Fetch config first
 
     // Main elements
     const workflowsListBody = document.getElementById('workflows-list-body');
@@ -28,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Utility Functions ---
 
     function fetchAndDisplayWorkflows() {
-        fetch(`${API_BASE_URL}/api/workflows`)
+        fetch(`${getApiBaseUrl()}/api/workflows`) // Use getApiBaseUrl()
             .then(response => response.json())
             .then(workflows => {
                 workflowsListBody.innerHTML = '';
@@ -137,7 +139,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchOsInfo() {
-        return fetch(`${API_BASE_URL}/api/system/os`)
+        return fetch(`${getApiBaseUrl()}/api/system/os`)
             .then(response => response.json())
             .then(data => {
                 serverOsType = data.os_type;
@@ -146,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchPythonTasks() {
-        return fetch(`${API_BASE_URL}/api/python-tasks`)
+        return fetch(`${getApiBaseUrl()}/api/python-tasks`)
             .then(response => response.json())
             .then(data => {
                 availablePythonTasks = data;
@@ -217,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        fetch(`${API_BASE_URL}/api/workflows/${workflowId}/run`, {
+        fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}/run`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ params_val: paramsVal })
@@ -242,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
         event.preventDefault();
         const isEdit = !!workflowIdInput.value;
         const method = isEdit ? 'PUT' : 'POST';
-        const url = isEdit ? `${API_BASE_URL}/api/workflows/${workflowIdInput.value}` : `${API_BASE_URL}/api/workflows`;
+        const url = isEdit ? `${getApiBaseUrl()}/api/workflows/${workflowIdInput.value}` : `${getApiBaseUrl()}/api/workflows`;
 
         const steps = [];
         stepsContainer.querySelectorAll('.step-card').forEach((stepCard, index) => {
@@ -250,7 +252,8 @@ document.addEventListener('DOMContentLoaded', function() {
             let targetValue;
             if (jobType === 'python') {
                 targetValue = stepCard.querySelector('.step-target-python').value;
-            } else {
+            }
+            else {
                 targetValue = stepCard.querySelector('.step-target-text').value;
             }
 
@@ -306,7 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const target = event.target;
         if (target.classList.contains('btn-edit-workflow')) {
             const workflowId = target.dataset.workflowId;
-            fetch(`${API_BASE_URL}/api/workflows/${workflowId}`)
+            fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`) // Use getApiBaseUrl()
                 .then(response => response.json())
                 .then(workflow => {
                     workflowFormTitle.textContent = `ワークフロー編集: ${workflow.name}`;
@@ -338,12 +341,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (target.classList.contains('btn-delete-workflow')) {
             const workflowId = target.dataset.workflowId;
             if (confirm('本当にこのワークフローを削除しますか？')) {
-                fetch(`${API_BASE_URL}/api/workflows/${workflowId}`, { method: 'DELETE' })
+                fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`, { method: 'DELETE' }) // Use getApiBaseUrl()
                     .then(response => {
                         if (response.ok) {
                             alert('ワークフローが削除されました。');
                             fetchAndDisplayWorkflows();
-                        } else {
+                        }
+                        else {
                             throw new Error('削除に失敗しました。');
                         }
                     })
@@ -360,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const action = target.checked ? 'resume' : 'pause';
         
-        fetch(`${API_BASE_URL}/api/workflows/${workflowId}/${action}`, { method: 'POST' })
+        fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}/${action}`, { method: 'POST' }) // Use getApiBaseUrl()
             .then(response => {
                 if (!response.ok) throw new Error('ステータスの変更に失敗しました。');
                 return response.json();
@@ -393,7 +397,7 @@ document.addEventListener('DOMContentLoaded', function() {
     modalRunWorkflowIdInput.value = workflowId;
     modalParamInputsContainer.innerHTML = ''; // Clear previous inputs
 
-    fetch(`${API_BASE_URL}/api/workflows/${workflowId}`)
+    fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`) // Use getApiBaseUrl()
         .then(response => response.json())
         .then(workflow => {
             if (workflow.params_def && workflow.params_def.length > 0) {
@@ -406,7 +410,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     `;
                     modalParamInputsContainer.appendChild(paramInputDiv);
                 });
-            } else {
+            }
+            else {
                 modalParamInputsContainer.innerHTML = '<p>このワークフローにはパラメータが定義されていません。すぐに実行します。</p>';
             }
             runWorkflowModal.show();

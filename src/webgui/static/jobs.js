@@ -1,7 +1,10 @@
-// src/webgui/static/jobs.js
+import { fetchConfig, getApiBaseUrl } from './api_config.js';
 
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = ''; // Use relative paths
+document.addEventListener('DOMContentLoaded', async function() {
+    // Remove: let API_BASE_URL = ''; // Will be fetched dynamically
+
+    // Fetch config first
+    await fetchConfig(); // This now calls the imported fetchConfig
 
     // --- Global State ---
     let availableTasks = [];
@@ -231,7 +234,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function fetchAvailableTasks() {
         taskSelect.disabled = true;
         try {
-            const response = await fetch(`${API_BASE_URL}/api/available-tasks`);
+            const response = await fetch(`${getApiBaseUrl()}/api/available-tasks`); // Use getApiBaseUrl()
             if (!response.ok) throw new Error('Failed to fetch tasks');
             availableTasks = await response.json();
             
@@ -291,7 +294,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchAndDisplayJobs() {
-        fetch(`${API_BASE_URL}/api/jobs`)
+        fetch(`${getApiBaseUrl()}/api/jobs`) // Use getApiBaseUrl()
             .then(response => response.json())
             .then(jobs => {
                 jobsData = jobs; // Cache the data
@@ -342,7 +345,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedTask = availableTasks.find(t => t.id === selectedTaskId);
         const isEdit = !!jobIdHidden.value;
         const method = isEdit ? 'PUT' : 'POST';
-        const url = isEdit ? `${API_BASE_URL}/api/jobs/${jobIdHidden.value}` : `${API_BASE_URL}/api/jobs`;
+        const url = isEdit ? `${getApiBaseUrl()}/api/jobs/${jobIdHidden.value}` : `${getApiBaseUrl()}/api/jobs`; // Use getApiBaseUrl()
 
         let task_parameters = {
             task_type: selectedTask.task_type
@@ -442,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
             populateFormForEdit(jobId);
         } else if (target.classList.contains('btn-delete')) {
             if (confirm(`ジョブ定義 '${jobId}' を削除してもよろしいですか？\nこの操作は元に戻せません。`)) {
-                fetch(`${API_BASE_URL}/api/jobs/${jobId}`, { method: 'DELETE' })
+                fetch(`${getApiBaseUrl()}/api/jobs/${jobId}`, { method: 'DELETE' }) // Use getApiBaseUrl()
                     .then(response => {
                         if (!response.ok) throw new Error('削除に失敗しました。');
                         showToast(`ジョブ定義 '${jobId}' が削除されました。`);
@@ -454,7 +457,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // --- Initial Load ---
-    showTriggerFields('cron');
-    fetchAndDisplayJobs();
-    fetchAvailableTasks();
+    // Ensure config is loaded before initial updates
+    (async () => {
+        await fetchConfig();
+        showTriggerFields('cron');
+        fetchAndDisplayJobs();
+        fetchAvailableTasks();
+    })();
 });

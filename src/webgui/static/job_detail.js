@@ -1,5 +1,9 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = 'http://127.0.0.1:8000';
+import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
+
+document.addEventListener('DOMContentLoaded', async function() { // Make async
+    // Remove: const API_BASE_URL = 'http://127.0.0.1:8000';
+    await fetchConfig(); // Fetch config first
+
     const jobId = document.getElementById('job-id-hidden').value; // Get job_id from hidden input
 
     // Job Definition Elements
@@ -56,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Fetch and Display Functions ---
 
     function fetchJobDetails() {
-        fetch(`${API_BASE_URL}/api/jobs/${jobId}`)
+        fetch(`${getApiBaseUrl()}/api/jobs/${jobId}`) // Use getApiBaseUrl()
             .then(response => {
                 if (!response.ok) throw new Error('ジョブ定義の取得に失敗しました。');
                 return response.json();
@@ -71,9 +75,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 showTriggerFields(job.trigger.type);
 
                 if (job.trigger.type === 'cron') {
-                    cronMinuteInput.value = job.trigger.minute || '*'
-                    cronHourInput.value = job.trigger.hour || '*'
-                    cronDayOfWeekInput.value = job.trigger.day_of_week || '*'
+                    cronMinuteInput.value = job.trigger.minute || '*';
+                    cronHourInput.value = job.trigger.hour || '*';
+                    cronDayOfWeekInput.value = job.trigger.day_of_week || '*';
                 } else if (job.trigger.type === 'interval') {
                     intervalWeeksInput.value = job.trigger.weeks || 0;
                     intervalDaysInput.value = job.trigger.days || 0;
@@ -88,7 +92,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchExecutionHistory() {
-        fetch(`${API_BASE_URL}/api/jobs/${jobId}/history`)
+        fetch(`${getApiBaseUrl()}/api/jobs/${jobId}/history`) // Use getApiBaseUrl()
             .then(response => {
                 if (!response.ok) throw new Error('実行履歴の取得に失敗しました。');
                 return response.json();
@@ -163,6 +167,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const textArea = document.createElement("textarea");
             textArea.value = textToCopy;
             textArea.style.position = "fixed"; // Avoid scrolling to bottom
+            textArea.style.left = "-9999px"; // Hide from view
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();
