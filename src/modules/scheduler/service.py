@@ -31,7 +31,13 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
         db.refresh(db_workflow)
 
         for step_in in obj_in.steps:
-            step_data = step_in.model_dump()
+            # Extract task_parameters from the Pydantic schema
+            task_parameters_data = step_in.task_parameters.model_dump()
+            
+            step_data = step_in.model_dump(exclude={'task_parameters'})
+            # Add the task_parameters dictionary to the step_data
+            step_data['task_parameters'] = task_parameters_data
+            
             db_step = models.WorkflowStep(**step_data, workflow_id=db_workflow.id)
             db.add(db_step)
         
@@ -54,7 +60,13 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
         
         # Create new steps
         for step_in in obj_in.steps:
-            step_data = step_in.model_dump()
+            # Extract task_parameters from the Pydantic schema
+            task_parameters_data = step_in.task_parameters.model_dump()
+            
+            step_data = step_in.model_dump(exclude={'task_parameters'})
+            # Add the task_parameters dictionary to the step_data
+            step_data['task_parameters'] = task_parameters_data
+            
             db_step = models.WorkflowStep(**step_data, workflow_id=db_obj.id)
             db.add(db_step)
             

@@ -41,10 +41,7 @@ class WorkflowStep(Base):
     workflow_id = Column(Integer, ForeignKey('workflows.id'), nullable=False)
     step_order = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
-    job_type = Column(String, nullable=False)
-    target = Column(Text, nullable=False)
-    args = Column(JSON, nullable=True)
-    kwargs = Column(JSON, nullable=True)
+    task_parameters = Column(JSON, nullable=False) # Unified task definition
     on_failure = Column(String, default='stop', nullable=False)
     timeout = Column(Integer, nullable=True)
     run_in_background = Column(Boolean, default=False, nullable=False)

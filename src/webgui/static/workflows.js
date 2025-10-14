@@ -1,11 +1,8 @@
-import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
+import { fetchConfig, getApiBaseUrl } from './api_config.js';
 
-document.addEventListener('DOMContentLoaded', async function() { 
-    // Remove: const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
+document.addEventListener('DOMContentLoaded', async function() {
+    await fetchConfig();
 
-    await fetchConfig(); // Fetch config first
-
-    // Main elements
     const workflowsListBody = document.getElementById('workflows-list-body');
     const workflowForm = document.getElementById('workflow-form');
     const workflowFormTitle = document.getElementById('workflow-form-title');
@@ -17,7 +14,6 @@ document.addEventListener('DOMContentLoaded', async function() {
     const addParamBtn = document.getElementById('add-param-btn');
     const paramTemplate = document.getElementById('param-template');
 
-    // Modal elements
     const runWorkflowModal = new bootstrap.Modal(document.getElementById('runWorkflowModal'));
     const runWorkflowModalLabel = document.getElementById('runWorkflowModalLabel');
     const modalRunWorkflowIdInput = document.getElementById('modal-run-workflow-id');
@@ -25,12 +21,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     const confirmRunWorkflowBtn = document.getElementById('confirm-run-workflow-btn');
 
     let serverOsType = '';
-    let availablePythonTasks = [];
+    let availablePythonTasks = []; // Now stores objects with module and function
 
     // --- Utility Functions ---
 
     function fetchAndDisplayWorkflows() {
-        fetch(`${getApiBaseUrl()}/api/workflows`) // Use getApiBaseUrl()
+        fetch(`${getApiBaseUrl()}/api/workflows`)
             .then(response => response.json())
             .then(workflows => {
                 workflowsListBody.innerHTML = '';
@@ -40,7 +36,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     row.innerHTML = `
                         <td>
                             <div class="form-check form-switch">
-                                <input class="form-check-input workflow-status-toggle" type="checkbox" role="switch" 
+                                <input class="form-check-input workflow-status-toggle" type="checkbox" role="switch"
                                        data-workflow-id="${wf.id}" ${isEnabled ? 'checked' : ''}>
                                 <label class="form-check-label">
                                     ${isEnabled ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>'}
@@ -63,20 +59,30 @@ document.addEventListener('DOMContentLoaded', async function() {
             .catch(error => console.error('Error fetching workflows:', error));
     }
 
-    function toggleTargetInput(stepCard, jobType) {
-        const textTarget = stepCard.querySelector('.step-target-text');
-        const pythonTarget = stepCard.querySelector('.step-target-python');
+    function toggleTaskParameterInputs(stepCard, taskType) {
+        const pythonParamsContainer = stepCard.querySelector('.python-params-container');
+        const shellParamsContainer = stepCard.querySelector('.shell-params-container');
+        const genericTargetContainer = stepCard.querySelector('.step-target-generic');
+        const genericTargetInput = stepCard.querySelector('.step-target-text');
+        const shellCommandInput = stepCard.querySelector('.shell-command');
 
-        if (jobType === 'python') {
-            textTarget.style.display = 'none';
-            textTarget.required = false;
-            pythonTarget.style.display = 'block';
-            pythonTarget.required = true;
+        // Hide all first
+        pythonParamsContainer.style.display = 'none';
+        shellParamsContainer.style.display = 'none';
+        genericTargetContainer.style.display = 'none';
+
+        // Disable required for all specific inputs
+        genericTargetInput.required = false;
+        if (shellCommandInput) shellCommandInput.required = false; // Check if element exists
+
+        if (taskType === 'python') {
+            pythonParamsContainer.style.display = 'block';
+        } else if (['cmd', 'powershell', 'shell'].includes(taskType)) {
+            shellParamsContainer.style.display = 'block';
+            if (shellCommandInput) shellCommandInput.required = true; // Ensure shell command is required when visible
         } else {
-            textTarget.style.display = 'block';
-            textTarget.required = true;
-            pythonTarget.style.display = 'none';
-            pythonTarget.required = false;
+            genericTargetContainer.style.display = 'block';
+            genericTargetInput.required = true;
         }
     }
 
@@ -84,40 +90,39 @@ document.addEventListener('DOMContentLoaded', async function() {
         const newStep = stepTemplate.content.cloneNode(true);
         const stepCard = newStep.querySelector('.step-card');
         const jobTypeSelect = stepCard.querySelector('.step-job-type');
-        const pythonTargetSelect = stepCard.querySelector('.step-target-python');
-
-        // Populate python tasks dropdown
-        availablePythonTasks.forEach(task => {
-            const option = document.createElement('option');
-            option.value = task;
-            option.textContent = task;
-            pythonTargetSelect.appendChild(option);
-        });
 
         stepsContainer.appendChild(stepCard);
         updateStepTitles();
-        initializeJobTypeOptions(stepCard);
+
+        // Initialize visibility based on default or loaded job type
+        const initialJobType = stepData ? stepData.task_parameters.task_type : jobTypeSelect.value;
+        toggleTaskParameterInputs(stepCard, initialJobType);
 
         jobTypeSelect.addEventListener('change', () => {
-            toggleTargetInput(stepCard, jobTypeSelect.value);
+            toggleTaskParameterInputs(stepCard, jobTypeSelect.value);
         });
 
         if (stepData) {
             stepCard.querySelector('.step-name').value = stepData.name;
-            jobTypeSelect.value = stepData.job_type;
+            jobTypeSelect.value = stepData.task_parameters.task_type;
             stepCard.querySelector('.step-on-failure').value = stepData.on_failure;
             stepCard.querySelector('.step-run-in-background').checked = stepData.run_in_background;
-            
-            // Set target value after toggling visibility
-            toggleTargetInput(stepCard, stepData.job_type);
-            if (stepData.job_type === 'python') {
-                pythonTargetSelect.value = stepData.target;
+
+            const taskParams = stepData.task_parameters;
+
+            if (taskParams.task_type === 'python') {
+                stepCard.querySelector('.python-module').value = taskParams.module || '';
+                stepCard.querySelector('.python-function').value = taskParams.function || '';
+                stepCard.querySelector('.python-args').value = JSON.stringify(taskParams.args || []);
+                stepCard.querySelector('.python-kwargs').value = JSON.stringify(taskParams.kwargs || {});
+            } else if (['cmd', 'powershell', 'shell'].includes(taskParams.task_type)) {
+                stepCard.querySelector('.shell-command').value = taskParams.command || '';
+                stepCard.querySelector('.shell-cwd').value = taskParams.cwd || '';
+                stepCard.querySelector('.shell-env').value = JSON.stringify(taskParams.env || {});
             } else {
-                stepCard.querySelector('.step-target-text').value = stepData.target;
+                // For other generic types, if any, use the generic target text field
+                stepCard.querySelector('.step-target-text').value = taskParams.target || ''; // Assuming a 'target' field for generic types
             }
-        } else {
-            // Default view
-            toggleTargetInput(stepCard, jobTypeSelect.value);
         }
     }
 
@@ -128,30 +133,36 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
     }
 
+    function fetchOsInfo() {
+        return fetch(`${getApiBaseUrl()}/api/system/os`)
+            .then(response => response.json())
+            .then(data => {
+                serverOsType = data.os_type;
+                // After fetching OS info, initialize job type options for all existing steps
+                stepsContainer.querySelectorAll('.step-card').forEach(stepCard => {
+                    initializeJobTypeOptions(stepCard);
+                });
+            })
+            .catch(error => console.error('Error fetching OS info:', error));
+    }
+
     function initializeJobTypeOptions(container) {
         const options = container.querySelectorAll('option.os-specific');
         options.forEach(option => {
             const supportedOs = option.dataset.os;
             if (serverOsType.toLowerCase().includes(supportedOs)) {
                 option.style.display = 'block';
+            } else {
+                option.style.display = 'none'; // Hide options not supported by OS
             }
         });
-    }
-
-    function fetchOsInfo() {
-        return fetch(`${getApiBaseUrl()}/api/system/os`)
-            .then(response => response.json())
-            .then(data => {
-                serverOsType = data.os_type;
-            })
-            .catch(error => console.error('Error fetching OS info:', error));
     }
 
     function fetchPythonTasks() {
         return fetch(`${getApiBaseUrl()}/api/available-tasks`)
             .then(response => response.json())
             .then(data => {
-                availablePythonTasks = data;
+                availablePythonTasks = data; // Store full objects
             })
             .catch(error => console.error('Error fetching Python tasks:', error));
     }
@@ -177,7 +188,8 @@ document.addEventListener('DOMContentLoaded', async function() {
 
         if (paramData) {
             paramCard.querySelector('.param-name').value = paramData.name;
-            paramCard.querySelector('.param-label').value = paramData.label;
+            paramCard.querySelector('.param-label').value = paramData.label || ''; // Use label from paramData
+            // Add other fields if WorkflowParameter schema expands (type, default, required)
         }
     }
 
@@ -207,7 +219,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         paramInputs.forEach(input => {
             if (!input.value) {
                 allParamsValid = false;
-                input.classList.add('is-invalid'); // Bootstrap validation class
+                input.classList.add('is-invalid');
             } else {
                 input.classList.remove('is-invalid');
                 paramsVal[input.dataset.paramName] = input.value;
@@ -231,13 +243,13 @@ document.addEventListener('DOMContentLoaded', async function() {
         .then(data => {
             alert(`ワークフローが実行キューに追加されました: ${data.message}`);
             runWorkflowModal.hide();
-            fetchAndDisplayWorkflows(); // Refresh list to show potential status changes
+            fetchAndDisplayWorkflows();
         })
         .catch(error => {
             console.error('Error running workflow:', error);
             alert(`ワークフローの実行に失敗しました: ${error.message}`);
         });
-    });    
+    });
 
     // --- Workflow Form Submission ---
     workflowForm.addEventListener('submit', function(event) {
@@ -249,19 +261,35 @@ document.addEventListener('DOMContentLoaded', async function() {
         const steps = [];
         stepsContainer.querySelectorAll('.step-card').forEach((stepCard, index) => {
             const jobType = stepCard.querySelector('.step-job-type').value;
-            let targetValue;
+            let taskParameters = {};
+
             if (jobType === 'python') {
-                targetValue = stepCard.querySelector('.step-target-python').value;
-            }
-            else {
-                targetValue = stepCard.querySelector('.step-target-text').value;
+                taskParameters = {
+                    task_type: 'python',
+                    module: stepCard.querySelector('.python-module').value,
+                    function: stepCard.querySelector('.python-function').value,
+                    args: JSON.parse(stepCard.querySelector('.python-args').value || '[]'),
+                    kwargs: JSON.parse(stepCard.querySelector('.python-kwargs').value || '{}')
+                };
+            } else if (['cmd', 'powershell', 'shell'].includes(jobType)) {
+                taskParameters = {
+                    task_type: jobType,
+                    command: stepCard.querySelector('.shell-command').value,
+                    cwd: stepCard.querySelector('.shell-cwd').value || null,
+                    env: JSON.parse(stepCard.querySelector('.shell-env').value || '{}')
+                };
+            } else {
+                // Generic type, assuming it still uses a 'target' field
+                taskParameters = {
+                    task_type: jobType,
+                    target: stepCard.querySelector('.step-target-text').value
+                };
             }
 
             steps.push({
                 step_order: index + 1,
                 name: stepCard.querySelector('.step-name').value,
-                job_type: jobType,
-                target: targetValue,
+                task_parameters: taskParameters, // Use the new unified field
                 on_failure: stepCard.querySelector('.step-on-failure').value,
                 run_in_background: stepCard.querySelector('.step-run-in-background').checked,
             });
@@ -272,6 +300,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             params.push({
                 name: paramCard.querySelector('.param-name').value,
                 label: paramCard.querySelector('.param-label').value,
+                // Add other fields from WorkflowParameter schema if they exist in the form
             });
         });
 
@@ -309,7 +338,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const target = event.target;
         if (target.classList.contains('btn-edit-workflow')) {
             const workflowId = target.dataset.workflowId;
-            fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`) // Use getApiBaseUrl()
+            fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`)
                 .then(response => response.json())
                 .then(workflow => {
                     workflowFormTitle.textContent = `ワークフロー編集: ${workflow.name}`;
@@ -318,17 +347,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                     document.getElementById('workflow-description').value = workflow.description;
                     document.getElementById('workflow-schedule').value = workflow.schedule;
                     document.getElementById('workflow-enabled').checked = workflow.is_enabled;
-                    
-                stepsContainer.innerHTML = '';
-                workflow.steps.sort((a, b) => a.step_order - b.step_order).forEach(addStep);
 
-                paramsContainer.innerHTML = '';
-                if (workflow.params_def) {
-                    workflow.params_def.forEach(addParam);
-                }
+                    stepsContainer.innerHTML = '';
+                    workflow.steps.sort((a, b) => a.step_order - b.step_order).forEach(addStep);
 
-                window.scrollTo(0, document.body.scrollHeight);
+                    paramsContainer.innerHTML = '';
+                    if (workflow.params_def) {
+                        workflow.params_def.forEach(addParam);
+                    }
 
+                    window.scrollTo(0, document.body.scrollHeight);
                 });
         }
 
@@ -341,7 +369,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (target.classList.contains('btn-delete-workflow')) {
             const workflowId = target.dataset.workflowId;
             if (confirm('本当にこのワークフローを削除しますか？')) {
-                fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`, { method: 'DELETE' }) // Use getApiBaseUrl()
+                fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`, { method: 'DELETE' })
                     .then(response => {
                         if (response.ok) {
                             alert('ワークフローが削除されました。');
@@ -363,8 +391,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!workflowId || !target.classList.contains('workflow-status-toggle')) return;
 
         const action = target.checked ? 'resume' : 'pause';
-        
-        fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}/${action}`, { method: 'POST' }) // Use getApiBaseUrl()
+
+        fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}/${action}`, { method: 'POST' })
             .then(response => {
                 if (!response.ok) throw new Error('ステータスの変更に失敗しました。');
                 return response.json();
@@ -374,7 +402,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             })
             .catch(error => {
                 alert(`エラー: ${error.message}`);
-                target.checked = !target.checked; // Revert on failure
+                target.checked = !target.checked;
             });
     });
 
@@ -386,40 +414,38 @@ document.addEventListener('DOMContentLoaded', async function() {
         fetchAndDisplayWorkflows();
     }).catch(error => {
         console.error("Error during initial data load:", error);
-        // Still try to display workflows, as OS info might not be critical
         fetchAndDisplayWorkflows();
         alert("初期データの読み込み中にエラーが発生しました。一部の機能が利用できない可能性があります。");
     });
 
     // --- Run Workflow Modal Logic ---
     function openRunWorkflowModal(workflowId, workflowName) {
-    runWorkflowModalLabel.textContent = `ワークフロー実行: ${workflowName}`;
-    modalRunWorkflowIdInput.value = workflowId;
-    modalParamInputsContainer.innerHTML = ''; // Clear previous inputs
+        runWorkflowModalLabel.textContent = `ワークフロー実行: ${workflowName}`;
+        modalRunWorkflowIdInput.value = workflowId;
+        modalParamInputsContainer.innerHTML = '';
 
-    fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`) // Use getApiBaseUrl()
-        .then(response => response.json())
-        .then(workflow => {
-            if (workflow.params_def && workflow.params_def.length > 0) {
-                workflow.params_def.forEach(paramDef => {
-                    const paramInputDiv = document.createElement('div');
-                    paramInputDiv.classList.add('mb-3');
-                    paramInputDiv.innerHTML = `
-                        <label for="param-${paramDef.name}" class="form-label">${paramDef.label || paramDef.name}</label>
-                        <input type="text" class="form-control modal-param-input" id="param-${paramDef.name}" data-param-name="${paramDef.name}" placeholder="${paramDef.label || paramDef.name}" required>
-                    `;
-                    modalParamInputsContainer.appendChild(paramInputDiv);
-                });
-            }
-            else {
-                modalParamInputsContainer.innerHTML = '<p>このワークフローにはパラメータが定義されていません。すぐに実行します。</p>';
-            }
-            runWorkflowModal.show();
-        })
-        .catch(error => {
-            console.error('Error fetching workflow for modal:', error);
-            alert('ワークフロー情報の取得に失敗しました。');
-        });
+        fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`)
+            .then(response => response.json())
+            .then(workflow => {
+                if (workflow.params_def && workflow.params_def.length > 0) {
+                    workflow.params_def.forEach(paramDef => {
+                        const paramInputDiv = document.createElement('div');
+                        paramInputDiv.classList.add('mb-3');
+                        paramInputDiv.innerHTML = `
+                            <label for="param-${paramDef.name}" class="form-label">${paramDef.label || paramDef.name}</label>
+                            <input type="text" class="form-control modal-param-input" id="param-${paramDef.name}" data-param-name="${paramDef.name}" placeholder="${paramDef.label || paramDef.name}" required>
+                        `;
+                        modalParamInputsContainer.appendChild(paramInputDiv);
+                    });
+                }
+                else {
+                    modalParamInputsContainer.innerHTML = '<p>このワークフローにはパラメータが定義されていません。すぐに実行します。</p>';
+                }
+                runWorkflowModal.show();
+            })
+            .catch(error => {
+                console.error('Error fetching workflow for modal:', error);
+                alert('ワークフロー情報の取得に失敗しました。');
+            });
     }
-
 });

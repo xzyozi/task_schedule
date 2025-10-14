@@ -130,10 +130,7 @@ class Job(JobBase):
 class WorkflowStepBase(BaseModel):
     name: str
     step_order: int
-    job_type: str
-    target: str
-    args: Optional[List[Any]] = Field(default_factory=list)
-    kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    task_parameters: Annotated[AnyJobParams, Field(discriminator="task_type")] # Unified task definition
     on_failure: str = "stop"
     timeout: Optional[int] = None
     run_in_background: bool = False
@@ -147,12 +144,19 @@ class WorkflowStep(WorkflowStepBase):
     model_config = ConfigDict(from_attributes=True)
 
 # Schemas for Workflow
+class WorkflowParameter(BaseModel):
+    name: str = Field(..., description="Name of the parameter")
+    type: str = Field("string", description="Data type of the parameter (e.g., 'string', 'integer', 'boolean')")
+    default: Optional[Any] = Field(None, description="Default value for the parameter")
+    description: Optional[str] = Field(None, description="Description of the parameter")
+    required: bool = False
+
 class WorkflowBase(BaseModel):
     name: str
     description: Optional[str] = None
     schedule: Optional[str] = None
     is_enabled: bool = True
-    params_def: Optional[List[Dict[str, Any]]] = None
+    params_def: Optional[List[WorkflowParameter]] = None # Use the new WorkflowParameter schema
 
 class WorkflowCreate(WorkflowBase):
     steps: List[WorkflowStepCreate]

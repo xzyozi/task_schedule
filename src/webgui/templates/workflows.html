@@ -105,10 +105,45 @@
                     <option value="shell" data-os="linux" class="os-specific" style="display: none;">Shell (Linux/macOS)</option>
                 </select>
             </div>
-            <div class="mb-3">
+            <div class="mb-3 step-target-generic" style="display: none;">
                 <label class="form-label">ターゲット</label>
-                <input type="text" class="form-control step-target-text" placeholder="e.g., echo 'Hello'" required>
-                <select class="form-select step-target-python" style="display: none;"></select>
+                <input type="text" class="form-control step-target-text" placeholder="e.g., echo 'Hello'">
+            </div>
+
+            <!-- Python Job Parameters -->
+            <div class="python-params-container">
+                <div class="mb-3">
+                    <label class="form-label">モジュール名</label>
+                    <input type="text" class="form-control python-module" placeholder="e.g., my_tasks.main">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">関数名</label>
+                    <input type="text" class="form-control python-function" placeholder="e.g., my_function">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">引数 (JSON配列)</label>
+                    <input type="text" class="form-control python-args" placeholder="e.g., [1, 'hello']">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">キーワード引数 (JSONオブジェクト)</label>
+                    <input type="text" class="form-control python-kwargs" placeholder="e.g., {'key': 'value'}">
+                </div>
+            </div>
+
+            <!-- Shell Job Parameters -->
+            <div class="shell-params-container" style="display: none;">
+                <div class="mb-3">
+                    <label class="form-label">コマンド</label>
+                    <input type="text" class="form-control shell-command" placeholder="e.g., ls -l" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">作業ディレクトリ (相対パス)</label>
+                    <input type="text" class="form-control shell-cwd" placeholder="e.g., my_project_dir">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">環境変数 (JSONオブジェクト)</label>
+                    <input type="text" class="form-control shell-env" placeholder="e.g., {'VAR1': 'value1'}">
+                </div>
             </div>
             <div class="mb-3">
                 <label class="form-label">失敗時の挙動</label>
