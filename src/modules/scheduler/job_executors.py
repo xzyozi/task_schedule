@@ -194,10 +194,11 @@ def execute_email_job(job_id: str, task_params: dict):
 
 # --- Workflow Executor (Updated) ---
 
-def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict] = None):
+def run_workflow(workflow_id: int, job_id: str = None):
     db = next(database.get_db())
+    workflow_run_id = None
     try:
-        workflow = db.query(models.Workflow).filter(models.Workflow.id == workflow_id).first()
+        workflow = db.query(models.Workflow).options(joinedload(models.Workflow.steps)).filter(models.Workflow.id == workflow_id).first()
         if not workflow:
             logger.error(f"Workflow with id {workflow_id} not found.")
             return
@@ -208,19 +209,20 @@ def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict
         workflow_cwd.mkdir(parents=True, exist_ok=True)
         logger.info(f"Working directory for workflow '{workflow_name}' is {workflow_cwd}")
         
-        logger.info(f"Starting workflow '{workflow.name}' (ID: {workflow.id}) with params: {run_params}")
+        logger.info(f"Starting workflow '{workflow.name}' (ID: {workflow.id})")
         workflow_run = models.WorkflowRun(
             workflow_id=workflow.id,
-            status='RUNNING',
-            params_val=run_params
+            status='RUNNING'
         )
         db.add(workflow_run)
         db.commit()
+        db.refresh(workflow_run)
         workflow_run_id = workflow_run.id
         steps = sorted(workflow.steps, key=lambda s: s.step_order)
 
     finally:
-        db.close()
+        if db.is_active:
+            db.close()
 
     final_status = 'COMPLETED'
     try:
@@ -229,41 +231,27 @@ def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict
             
             step_job_id = f"{workflow_name}_{step.step_order}_{step.name}"
             
-            substituted_target = step.target
-            if run_params:
-                substituted_target = re.sub(
-                    r"{{\s*params\.([a-zA-Z0-9_]+)\s*}}",
-                    lambda match: str(run_params.get(match.group(1), match.group(0))),
-                    substituted_target
-                )
+            task_params = step.task_parameters
+            task_type = task_params.get('task_type')
 
-            if step.job_type == 'python':
-                module, function = substituted_target.split(':', 1)
-                task_params = {
-                    'task_type': 'python',
-                    'module': module,
-                    'function': function,
-                    'args': step.args or [],
-                    'kwargs': step.kwargs or {}
-                }
-                execute_python_job(job_id=step_job_id, task_params=task_params)
-
-            elif step.job_type == 'shell':
-                task_params = {
-                    'task_type': 'shell',
-                    'command': substituted_target,
-                    'cwd': str(workflow_cwd.relative_to(config.scheduler_work_dir)),
-                    'env': (step.kwargs or {}).get('env')
-                }
-                execute_shell_job(job_id=step_job_id, task_params=task_params)
+            if task_type == 'python':
+                execute_python_job(job_id=step_job_id, task_params=task_params, workflow_run_id=workflow_run_id)
+            elif task_type == 'shell':
+                if 'cwd' not in task_params or not task_params['cwd']:
+                    task_params['cwd'] = str(workflow_cwd.relative_to(config.scheduler_work_dir))
+                execute_shell_job(job_id=step_job_id, task_params=task_params, workflow_run_id=workflow_run_id)
+            elif task_type == 'email':
+                execute_email_job(job_id=step_job_id, task_params=task_params, workflow_run_id=workflow_run_id)
             else:
-                logger.error(f"Unknown step job_type: {step.job_type} for step '{step.name}'")
-                continue
+                logger.error(f"Unknown step task_type: {task_type} for step '{step.name}'")
+                final_status = 'FAILED'
+                break 
 
             temp_db = next(database.get_db())
             try:
                 last_log = temp_db.query(models.ProcessExecutionLog).filter(
-                    models.ProcessExecutionLog.job_id == step_job_id
+                    models.ProcessExecutionLog.job_id == step_job_id,
+                    models.ProcessExecutionLog.workflow_run_id == workflow_run_id
                 ).order_by(models.ProcessExecutionLog.start_time.desc()).first()
 
                 if last_log and last_log.status == 'FAILED':
@@ -279,13 +267,14 @@ def run_workflow(workflow_id: int, job_id: str = None, run_params: Optional[dict
         final_status = 'FAILED'
     
     finally:
-        final_db = next(database.get_db())
-        try:
-            workflow_run = final_db.query(models.WorkflowRun).filter(models.WorkflowRun.id == workflow_run_id).first()
-            if workflow_run:
-                workflow_run.status = final_status
-                workflow_run.end_time = time_util.get_current_utc_time()
-                final_db.commit()
-            logger.info(f"Workflow '{workflow_name}' finished with status {final_status}.")
-        finally:
-            final_db.close()
+        if workflow_run_id:
+            final_db = next(database.get_db())
+            try:
+                workflow_run_to_update = final_db.query(models.WorkflowRun).filter(models.WorkflowRun.id == workflow_run_id).first()
+                if workflow_run_to_update:
+                    workflow_run_to_update.status = final_status
+                    workflow_run_to_update.end_time = time_util.get_current_utc_time()
+                    final_db.commit()
+                logger.info(f"Workflow '{workflow_name}' finished with status {final_status}.")
+            finally:
+                final_db.close()

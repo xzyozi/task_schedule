@@ -144,19 +144,11 @@ class WorkflowStep(WorkflowStepBase):
     model_config = ConfigDict(from_attributes=True)
 
 # Schemas for Workflow
-class WorkflowParameter(BaseModel):
-    name: str = Field(..., description="Name of the parameter")
-    type: str = Field("string", description="Data type of the parameter (e.g., 'string', 'integer', 'boolean')")
-    default: Optional[Any] = Field(None, description="Default value for the parameter")
-    description: Optional[str] = Field(None, description="Description of the parameter")
-    required: bool = False
-
 class WorkflowBase(BaseModel):
     name: str
     description: Optional[str] = None
     schedule: Optional[str] = None
     is_enabled: bool = True
-    params_def: Optional[List[WorkflowParameter]] = None # Use the new WorkflowParameter schema
 
 class WorkflowCreate(WorkflowBase):
     steps: List[WorkflowStepCreate]
@@ -168,7 +160,7 @@ class Workflow(WorkflowBase):
     model_config = ConfigDict(from_attributes=True)
 
 class WorkflowRunCreate(BaseModel):
-    params_val: Optional[Dict[str, Any]] = None
+    pass
 
 class WorkflowRun(BaseModel):
     id: int
@@ -177,7 +169,6 @@ class WorkflowRun(BaseModel):
     current_step: int
     start_time: datetime
     end_time: Optional[datetime] = None
-    params_val: Optional[Dict[str, Any]] = None 
     model_config = ConfigDict(from_attributes=True)
 
 class TimelineItem(BaseModel):

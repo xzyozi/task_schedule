@@ -77,18 +77,17 @@ def resume_workflow(workflow_id: int, db: Session = Depends(get_db)):
 @router.post("/workflows/{workflow_id}/run", tags=["Workflow Control"], summary="Run a Workflow Immediately")
 def run_workflow_immediately(
     workflow_id: int,
-    run_config: schemas.WorkflowRunCreate,
     db: Session = Depends(get_db)
 ):
     """
-    Triggers an immediate, one-off execution of a workflow with specified runtime parameters.
+    Triggers an immediate, one-off execution of a workflow.
     """
     db_workflow = service.workflow_service.get(db, id=workflow_id)
     if not db_workflow:
         raise HTTPException(status_code=404, detail="Workflow not found")
 
     try:
-        result = service.run_workflow_immediately(db, workflow_id=workflow_id, params=run_config.params_val)
+        result = service.run_workflow_immediately(db, workflow_id=workflow_id)
         return result
     except Exception as e:
         logger.error(f"Error triggering immediate run for workflow {workflow_id}: {e}", exc_info=True)
