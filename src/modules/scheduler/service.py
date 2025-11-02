@@ -540,11 +540,27 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
     shell_config = ui_config.get('shell', {})
     if shell_config.get('enabled', False):
         shell_params = [schemas.AvailableTaskParameter(**param) for param in shell_config.get('parameters', [])]
+        
+        # Add multiple shell types that all map to the 'shell' task_type
         tasks.append(schemas.AvailableTask(
             id='shell',
-            name='Shell Command',
+            name='Shell (Linux/macOS)',
             task_type='shell',
             description='Executes a shell command or script.',
+            parameters=shell_params
+        ))
+        tasks.append(schemas.AvailableTask(
+            id='cmd',
+            name='CMD (Windows)',
+            task_type='shell',
+            description='Executes a command using Windows CMD.',
+            parameters=shell_params
+        ))
+        tasks.append(schemas.AvailableTask(
+            id='powershell',
+            name='PowerShell (Windows)',
+            task_type='shell',
+            description='Executes a PowerShell command.',
             parameters=shell_params
         ))
 
