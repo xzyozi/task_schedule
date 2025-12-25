@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from util import logger_util, time_util
 from util.config_util import config
@@ -95,12 +95,12 @@ def _execute_subprocess(
 
 # --- New Job Executors ---
 
-def execute_shell_job(job_id: str, task_params: dict):
+def execute_shell_job(job_id: str, task_params: dict, workflow_run_id: Optional[int] = None):
     db = next(database.get_db())
     log_entry = None
     try:
         params = schemas.ShellJobParams.model_validate(task_params)
-        log_entry = _log_job_start(db, job_id, params.command)
+        log_entry = _log_job_start(db, job_id, params.command, workflow_run_id=workflow_run_id)
         
         command_list = shlex.split(params.command)
 
@@ -122,13 +122,13 @@ def execute_shell_job(job_id: str, task_params: dict):
     finally:
         db.close()
 
-def execute_python_job(job_id: str, task_params: dict):
+def execute_python_job(job_id: str, task_params: dict, workflow_run_id: Optional[int] = None):
     db = next(database.get_db())
     log_entry = None
     try:
         params = schemas.PythonJobParams.model_validate(task_params)
         target_func_path = f"{params.module}:{params.function}"
-        log_entry = _log_job_start(db, job_id, target_func_path)
+        log_entry = _log_job_start(db, job_id, target_func_path, workflow_run_id=workflow_run_id)
 
         try:
             payload = json.dumps({'args': params.args, 'kwargs': params.kwargs})
@@ -162,13 +162,13 @@ def execute_python_job(job_id: str, task_params: dict):
     finally:
         db.close()
 
-def execute_email_job(job_id: str, task_params: dict):
+def execute_email_job(job_id: str, task_params: dict, workflow_run_id: Optional[int] = None):
     db = next(database.get_db())
     log_entry = None
     try:
         params = schemas.EmailJobParams.model_validate(task_params)
         log_command = f"send_email to:{params.to_email} subject:{params.subject}"
-        log_entry = _log_job_start(db, job_id, log_command)
+        log_entry = _log_job_start(db, job_id, log_command, workflow_run_id=workflow_run_id)
         
         try:
             email_kwargs = params.model_dump()

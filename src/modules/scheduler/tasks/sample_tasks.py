@@ -13,7 +13,7 @@ def print_current_time(**kwargs):
     print(f"Sample job executed at: {now}")
 
 @task(name="Simple Echo", description="Prints the provided message to the log.")
-def echo(message: str):
+def echo(message: str = "No message provided"):
     """Prints a message."""
     logger.info(f"Echo: {message}")
     print(f"Echo: {message}")
