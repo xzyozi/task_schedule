@@ -12,6 +12,12 @@ router = APIRouter()
 
 @router.post("/workflows", response_model=schemas.Workflow, status_code=status.HTTP_201_CREATED, tags=["Workflow Definitions"])
 def create_workflow(workflow_in: schemas.WorkflowCreate, db: Session = Depends(get_db)):
+    existing_workflow = service.workflow_service.get_by_name(db, name=workflow_in.name)
+    if existing_workflow:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Workflow with name '{workflow_in.name}' already exists."
+        )
     db_workflow = service.workflow_service.create_with_steps(db, obj_in=workflow_in)
     loader.schedule_workflow(db_workflow)
     return db_workflow

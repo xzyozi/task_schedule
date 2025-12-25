@@ -20,6 +20,9 @@ class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobCreate, schema
 job_definition_service = JobDefinitionCRUD(models.JobDefinition)
 
 class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Workflow]):
+    def get_by_name(self, db: Session, *, name: str) -> Optional[models.Workflow]:
+        return db.query(self.model).filter(self.model.name == name).first()
+
     def create_with_steps(self, db: Session, *, obj_in: schemas.WorkflowCreate) -> models.Workflow:
         """
         Create a new workflow and its associated steps.
