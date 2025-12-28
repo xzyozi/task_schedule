@@ -1,47 +1,48 @@
-from fastapi import APIRouter, HTTPException
-
-from util import logger_util, config_util
+from fastapi import APIRouter, HTTPException, Body
+from typing import Dict, Any
+from util.config_util import config, get_notification_settings, update_notification_settings
+from util import logger_util
 
 logger = logger_util.get_logger(__name__)
 
-router = APIRouter()
+router = APIRouter(
+    prefix="/config",
+    tags=["Configuration"],
+)
 
-@router.get("/jobs_yaml", tags=["Configuration"])
-def get_jobs_yaml_content():
+@router.get("/ui", response_model=Dict[str, Any])
+def get_ui_config():
+    """
+    Get the UI-specific configuration.
+    """
     try:
-        content = config_util.read_jobs_yaml_content()
-        return {"content": content}
-    except FileNotFoundError as e:
-        logger.error(f"Error reading jobs.yaml: {e}", exc_info=True)
-        raise HTTPException(status_code=404, detail=str(e))
+        return config.task_ui_config
     except Exception as e:
-        logger.error(f"Error reading jobs.yaml: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to read jobs.yaml")
+        logger.error(f"Failed to retrieve UI configuration: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve UI configuration")
 
-@router.get("/settings/notifications", tags=["Settings"])
-def get_notification_settings():
+@router.get("/notification-settings")
+def get_settings():
+    """
+    Get current notification settings (email recipients, webhook URL).
+    """
     try:
-        settings = config_util.get_notification_settings()
+        settings = get_notification_settings()
         return settings
-    except IOError as e:
-        logger.error(f"Error reading notification settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to read notification settings: {e}")
     except Exception as e:
-        logger.error(f"An unexpected error occurred while reading notification settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while reading notification settings.")
+        logger.error(f"Failed to get notification settings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get notification settings")
 
-@router.post("/settings/notifications", tags=["Settings"])
-def update_notification_settings(email_recipients: str = "", webhook_url: str = ""):
-    settings = {
-        "email_recipients": email_recipients,
-        "webhook_url": webhook_url
-    }
+@router.post("/notification-settings")
+def update_settings(
+    settings: Dict[str, str] = Body(..., example={"email_recipients": "user@example.com", "webhook_url": "https://hooks.example.com/..."})
+):
+    """
+    Update notification settings.
+    """
     try:
-        config_util.update_notification_settings(settings)
-        return {"message": "Notification settings updated successfully."}
-    except IOError as e:
-        logger.error(f"Error writing notification settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to update notification settings: {e}")
+        update_notification_settings(settings)
+        return {"message": "Notification settings updated successfully"}
     except Exception as e:
-        logger.error(f"An unexpected error occurred while writing notification settings: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while updating notification settings.")
+        logger.error(f"Failed to update notification settings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to update notification settings")
