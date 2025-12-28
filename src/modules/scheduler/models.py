@@ -42,6 +42,7 @@ class WorkflowStep(Base):
     step_order = Column(Integer, nullable=False)
     name = Column(String, nullable=False)
     task_parameters = Column(JSON, nullable=False) # Unified task definition
+    output_variable_name = Column(String, nullable=True)
     on_failure = Column(String, default='stop', nullable=False)
     timeout = Column(Integer, nullable=True)
     run_in_background = Column(Boolean, default=False, nullable=False)

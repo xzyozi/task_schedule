@@ -34,10 +34,11 @@ def main():
         
         target_func = _resolve_func(target_func_path)
         
-        result = target_func(*args, **kwargs)
+        return_value = target_func(*args, **kwargs)
         
-        if result is not None:
-            print(result)
+        # Wrap the return value in a JSON structure
+        output = {"return_value": return_value}
+        print(json.dumps(output))
         
         sys.exit(0)
     except Exception:
