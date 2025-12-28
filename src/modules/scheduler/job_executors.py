@@ -95,115 +95,147 @@ def _execute_subprocess(
 
 # --- New Job Executors ---
 
-def execute_shell_job(job_id: str, task_params: dict, db: Session, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
-    log_entry = None
+def execute_shell_job(job_id: str, task_params: dict, db: Optional[Session] = None, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
+    
+    db_session = db if db else next(database.get_db())
+    local_session = not db
+
     try:
-        params = schemas.ShellJobParams.model_validate(task_params)
-        log_entry = _log_job_start(db, job_id, params.command, workflow_run_id=workflow_run_id)
-        
-        command_list = shlex.split(params.command)
-
-        result = _execute_subprocess(
-            command_to_run=command_list,
-            cwd=params.cwd,
-            env=params.env
-        )
-        _log_job_end(log_entry, **result)
-        # The calling function (run_workflow) is responsible for the commit
-        return result
-    except ValidationError as e:
-        logger.error(f"Invalid parameters for shell job '{job_id}': {e}")
-        result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
-        if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-        return result
-    except Exception as e:
-        logger.error(f"Error in execute_shell_job for job '{job_id}': {e}", exc_info=True)
-        result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
-        if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-        return result
-
-def execute_python_job(job_id: str, task_params: dict, db: Session, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
-    log_entry = None
-    try:
-        params = schemas.PythonJobParams.model_validate(task_params)
-        target_func_path = f"{params.module}:{params.function}"
-        log_entry = _log_job_start(db, job_id, target_func_path, workflow_run_id=workflow_run_id)
-
+        log_entry = None
         try:
-            payload = json.dumps({'args': params.args, 'kwargs': params.kwargs})
-            encoded_payload = base64.b64encode(payload.encode('utf-8')).decode('utf-8')
-        except (TypeError, OverflowError) as e:
-            err_msg = f"Failed to serialize arguments for Python job: {e}. Arguments must be JSON-serializable."
-            result = {"stdout": "", "stderr": err_msg, "exit_code": 1, "return_value": None}
-            _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-            return result
-
-        wrapper_path = Path(__file__).parent.joinpath("python_job_wrapper.py")
-        command_to_run = [
-            sys.executable, 
-            str(wrapper_path), 
-            target_func_path, 
-            encoded_payload
-        ]
-
-        result = _execute_subprocess(command_to_run=command_to_run)
-        
-        # Extract the actual return value from the wrapper's stdout
-        return_value = None
-        if result["exit_code"] == 0 and result["stdout"]:
-            try:
-                output_data = json.loads(result["stdout"])
-                return_value = output_data.get("return_value")
-            except json.JSONDecodeError:
-                # If stdout is not valid JSON, treat it as plain stdout
-                pass
-        
-        result["return_value"] = return_value
-        
-        _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-        return result
-        
-    except ValidationError as e:
-        logger.error(f"Invalid parameters for python job '{job_id}': {e}")
-        result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
-        if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-        return result
-    except Exception as e:
-        logger.error(f"Error in execute_python_job for job '{job_id}': {e}", exc_info=True)
-        result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
-        if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-        return result
-
-def execute_email_job(job_id: str, task_params: dict, db: Session, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
-    log_entry = None
-    try:
-        params = schemas.EmailJobParams.model_validate(task_params)
-        log_command = f"send_email to:{params.to_email} subject:{params.subject}"
-        log_entry = _log_job_start(db, job_id, log_command, workflow_run_id=workflow_run_id)
-        
-        try:
-            email_kwargs = params.model_dump()
-            email_kwargs.pop('task_type', None)
-            email_kwargs['job_id'] = job_id
-            email_tasks.send_email_task(**email_kwargs)
-            result = {"stdout": "Email sent successfully.", "stderr": "", "exit_code": 0, "return_value": None}
-            _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-        except Exception as e:
-            logger.error(f"Email sending failed for job '{job_id}': {e}", exc_info=True)
-            result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
-            _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            params = schemas.ShellJobParams.model_validate(task_params)
+            log_entry = _log_job_start(db_session, job_id, params.command, workflow_run_id=workflow_run_id)
             
-        return result
-    except ValidationError as e:
-        logger.error(f"Invalid parameters for email job '{job_id}': {e}")
-        result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
-        if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-        return result
-    except Exception as e:
-        logger.error(f"Error in execute_email_job for job '{job_id}': {e}", exc_info=True)
-        result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
-        if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-        return result
+            command_list = shlex.split(params.command)
+
+            result = _execute_subprocess(
+                command_to_run=command_list,
+                cwd=params.cwd,
+                env=params.env
+            )
+            _log_job_end(log_entry, **result)
+            db_session.commit()
+            return result
+        except ValidationError as e:
+            logger.error(f"Invalid parameters for shell job '{job_id}': {e}")
+            result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
+            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+        except Exception as e:
+            logger.error(f"Error in execute_shell_job for job '{job_id}': {e}", exc_info=True)
+            result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
+            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+    finally:
+        if local_session:
+            db_session.close()
+
+def execute_python_job(job_id: str, task_params: dict, db: Optional[Session] = None, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
+    
+    db_session = db if db else next(database.get_db())
+    local_session = not db
+
+    try:
+        log_entry = None
+        try:
+            params = schemas.PythonJobParams.model_validate(task_params)
+            target_func_path = f"{params.module}:{params.function}"
+            log_entry = _log_job_start(db_session, job_id, target_func_path, workflow_run_id=workflow_run_id)
+
+            try:
+                payload = json.dumps({'args': params.args, 'kwargs': params.kwargs})
+                encoded_payload = base64.b64encode(payload.encode('utf-8')).decode('utf-8')
+            except (TypeError, OverflowError) as e:
+                err_msg = f"Failed to serialize arguments for Python job: {e}. Arguments must be JSON-serializable."
+                result = {"stdout": "", "stderr": err_msg, "exit_code": 1, "return_value": None}
+                if log_entry:
+                    _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+                db_session.commit()
+                return result
+
+            wrapper_path = Path(__file__).parent.joinpath("python_job_wrapper.py")
+            command_to_run = [
+                sys.executable, 
+                str(wrapper_path), 
+                target_func_path, 
+                encoded_payload
+            ]
+
+            result = _execute_subprocess(command_to_run=command_to_run)
+            
+            return_value = None
+            if result["exit_code"] == 0 and result["stdout"]:
+                try:
+                    output_data = json.loads(result["stdout"])
+                    return_value = output_data.get("return_value")
+                except json.JSONDecodeError:
+                    pass
+            
+            result["return_value"] = return_value
+            
+            _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+            
+        except ValidationError as e:
+            logger.error(f"Invalid parameters for python job '{job_id}': {e}")
+            result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
+            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+        except Exception as e:
+            logger.error(f"Error in execute_python_job for job '{job_id}': {e}", exc_info=True)
+            result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
+            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+    finally:
+        if local_session:
+            db_session.close()
+
+def execute_email_job(job_id: str, task_params: dict, db: Optional[Session] = None, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
+
+    db_session = db if db else next(database.get_db())
+    local_session = not db
+
+    try:
+        log_entry = None
+        try:
+            params = schemas.EmailJobParams.model_validate(task_params)
+            log_command = f"send_email to:{params.to_email} subject:{params.subject}"
+            log_entry = _log_job_start(db_session, job_id, log_command, workflow_run_id=workflow_run_id)
+            
+            try:
+                email_kwargs = params.model_dump()
+                email_kwargs.pop('task_type', None)
+                email_kwargs['job_id'] = job_id
+                email_tasks.send_email_task(**email_kwargs)
+                result = {"stdout": "Email sent successfully.", "stderr": "", "exit_code": 0, "return_value": None}
+                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            except Exception as e:
+                logger.error(f"Email sending failed for job '{job_id}': {e}", exc_info=True)
+                result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
+                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+                
+            db_session.commit()
+            return result
+        except ValidationError as e:
+            logger.error(f"Invalid parameters for email job '{job_id}': {e}")
+            result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
+            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+        except Exception as e:
+            logger.error(f"Error in execute_email_job for job '{job_id}': {e}", exc_info=True)
+            result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
+            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+    finally:
+        if local_session:
+            db_session.close()
 
 # --- Workflow Context and Templating ---
 
@@ -325,62 +357,68 @@ def run_workflow(workflow_id: int, job_id: str = None):
         db.close()
 
 
-def execute_python_job(job_id: str, task_params: dict, db: Session, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
-    log_entry = None
+def execute_python_job(job_id: str, task_params: dict, db: Optional[Session] = None, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
+    
+    db_session = db if db else next(database.get_db())
+    local_session = not db
+
     try:
-        params = schemas.PythonJobParams.model_validate(task_params)
-        target_func_path = f"{params.module}:{params.function}"
-        log_entry = _log_job_start(db, job_id, target_func_path, workflow_run_id=workflow_run_id)
-
+        log_entry = None
         try:
-            payload = json.dumps({'args': params.args, 'kwargs': params.kwargs})
-            encoded_payload = base64.b64encode(payload.encode('utf-8')).decode('utf-8')
-        except (TypeError, OverflowError) as e:
-            err_msg = f"Failed to serialize arguments for Python job: {e}. Arguments must be JSON-serializable."
-            result = {"stdout": "", "stderr": err_msg, "exit_code": 1}
-            _log_job_end(log_entry, **result)
-            db.commit()
-            return result
+            params = schemas.PythonJobParams.model_validate(task_params)
+            target_func_path = f"{params.module}:{params.function}"
+            log_entry = _log_job_start(db_session, job_id, target_func_path, workflow_run_id=workflow_run_id)
 
-        wrapper_path = Path(__file__).parent.joinpath("python_job_wrapper.py")
-        command_to_run = [
-            sys.executable, 
-            str(wrapper_path), 
-            target_func_path, 
-            encoded_payload
-        ]
-
-        result = _execute_subprocess(command_to_run=command_to_run)
-        
-        # Extract the actual return value from the wrapper's stdout
-        return_value = None
-        if result["exit_code"] == 0 and result["stdout"]:
             try:
-                output_data = json.loads(result["stdout"])
-                return_value = output_data.get("return_value")
-            except json.JSONDecodeError:
-                # If stdout is not valid JSON, treat it as plain stdout
-                pass
-        
-        result_with_return = result.copy()
-        result_with_return["return_value"] = return_value
-        
-        _log_job_end(log_entry, **result)
-        db.commit()
-        return result_with_return
-        
-    except ValidationError as e:
-        logger.error(f"Invalid parameters for python job '{job_id}': {e}")
-        result = {"stdout": "", "stderr": str(e), "exit_code": 1}
-        if log_entry: _log_job_end(log_entry, **result)
-        db.commit()
-        return result
-    except Exception as e:
-        logger.error(f"Error in execute_python_job for job '{job_id}': {e}", exc_info=True)
-        result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1}
-        if log_entry: _log_job_end(log_entry, **result)
-        db.commit()
-        return result
+                payload = json.dumps({'args': params.args, 'kwargs': params.kwargs})
+                encoded_payload = base64.b64encode(payload.encode('utf-8')).decode('utf-8')
+            except (TypeError, OverflowError) as e:
+                err_msg = f"Failed to serialize arguments for Python job: {e}. Arguments must be JSON-serializable."
+                result = {"stdout": "", "stderr": err_msg, "exit_code": 1, "return_value": None}
+                if log_entry:
+                    _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+                db_session.commit()
+                return result
+
+            wrapper_path = Path(__file__).parent.joinpath("python_job_wrapper.py")
+            command_to_run = [
+                sys.executable, 
+                str(wrapper_path), 
+                target_func_path, 
+                encoded_payload
+            ]
+
+            result = _execute_subprocess(command_to_run=command_to_run)
+            
+            return_value = None
+            if result["exit_code"] == 0 and result["stdout"]:
+                try:
+                    output_data = json.loads(result["stdout"])
+                    return_value = output_data.get("return_value")
+                except json.JSONDecodeError:
+                    pass
+            
+            result["return_value"] = return_value
+            
+            _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+            
+        except ValidationError as e:
+            logger.error(f"Invalid parameters for python job '{job_id}': {e}")
+            result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
+            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+        except Exception as e:
+            logger.error(f"Error in execute_python_job for job '{job_id}': {e}", exc_info=True)
+            result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
+            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            db_session.commit()
+            return result
+    finally:
+        if local_session:
+            db_session.close()
 
 def execute_email_job(job_id: str, task_params: dict, db: Session, workflow_run_id: Optional[int] = None) -> Dict[str, Any]:
     log_entry = None
