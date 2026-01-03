@@ -11,6 +11,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     const workflowForm = document.getElementById('workflow-form');
     const workflowFormTitle = document.getElementById('workflow-form-title');
     const workflowIdInput = document.getElementById('workflow-id-hidden');
+    
+    const paramsContainer = document.getElementById('params-container');
+    const addParamBtn = document.getElementById('add-param-btn');
+    const paramTemplate = document.getElementById('param-template');
+
     const stepsContainer = document.getElementById('steps-container');
     const addStepBtn = document.getElementById('add-step-btn');
     const stepTemplate = document.getElementById('step-template');
@@ -36,6 +41,17 @@ document.addEventListener('DOMContentLoaded', async function() {
             alert(`Parameter "${paramName}" has invalid JSON: ${e.message}`);
             throw e;
         }
+    }
+
+    // --- Dynamic Form Generation (for parameters) ---
+    function addParam(paramData = null) {
+        const newParam = paramTemplate.content.cloneNode(true);
+        const paramCard = newParam.querySelector('.param-card');
+        if (paramData) {
+            paramCard.querySelector('.param-name').value = paramData.name || '';
+            paramCard.querySelector('.param-label').value = paramData.label || '';
+        }
+        paramsContainer.appendChild(paramCard);
     }
 
     // --- Dynamic Form Generation (for steps) ---
@@ -187,6 +203,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         workflowForm.reset();
         workflowIdInput.value = '';
         stepsContainer.innerHTML = '';
+        paramsContainer.innerHTML = '';
         workflowFormTitle.textContent = '新規ワークフロー作成';
     }
 
@@ -238,6 +255,14 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // --- Event Listeners ---
 
+    addParamBtn.addEventListener('click', () => addParam());
+
+    paramsContainer.addEventListener('click', function(event) {
+        if (event.target.classList.contains('remove-param-btn')) {
+            event.target.closest('.param-card').remove();
+        }
+    });
+
     addStepBtn.addEventListener('click', () => addStep());
     clearFormBtn.addEventListener('click', clearWorkflowForm);
 
@@ -260,10 +285,19 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     workflowForm.addEventListener('submit', function(event) {
-        event.preventDefault();
+        eventpreventDefault();
         const isEdit = !!workflowIdInput.value;
         const method = isEdit ? 'PUT' : 'POST';
         const url = isEdit ? `${getApiBaseUrl()}/api/workflows/${workflowIdInput.value}` : `${getApiBaseUrl()}/api/workflows`;
+
+        const parameters = [];
+        paramsContainer.querySelectorAll('.param-card').forEach(paramCard => {
+            const name = paramCard.querySelector('.param-name').value.trim();
+            const label = paramCard.querySelector('.param-label').value.trim();
+            if (name && label) {
+                parameters.push({ name, label });
+            }
+        });
 
         const steps = [];
         try {
@@ -316,6 +350,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             description: document.getElementById('workflow-description').value,
             schedule: document.getElementById('workflow-schedule').value,
             is_enabled: document.getElementById('workflow-enabled').checked,
+            parameters: parameters,
             steps: steps,
         };
 
@@ -352,6 +387,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             document.getElementById('workflow-description').value = workflow.description;
             document.getElementById('workflow-schedule').value = workflow.schedule;
             document.getElementById('workflow-enabled').checked = workflow.is_enabled;
+
+            paramsContainer.innerHTML = '';
+            if (workflow.parameters && Array.isArray(workflow.parameters)) {
+                workflow.parameters.forEach(addParam);
+            }
 
             stepsContainer.innerHTML = '';
             workflow.steps.sort((a, b) => a.step_order - b.step_order).forEach(addStep);
