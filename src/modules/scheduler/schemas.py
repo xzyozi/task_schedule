@@ -34,8 +34,30 @@ class PythonJobParams(BaseModel):
     task_type: Literal["python"]
     module: str = Field(..., description="The Python module path, e.g., 'my_tasks.main'")
     function: str = Field(..., description="The function name to execute within the module")
-    args: Optional[List[Any]] = Field(default_factory=list, description="Positional arguments for the function")
-    kwargs: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Keyword arguments for the function")
+    args: List[Any] = Field(default_factory=list, description="Positional arguments for the function")
+    kwargs: Dict[str, Any] = Field(default_factory=dict, description="Keyword arguments for the function")
+
+    model_config = ConfigDict(extra='allow')
+
+    @model_validator(mode='before')
+    @classmethod
+    def _collect_extra_fields_to_kwargs(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        defined_fields = {field for field in cls.model_fields.keys()}
+        
+        # Use a copy of keys for safe iteration while popping
+        extra_keys = set(data.keys()) - defined_fields
+        
+        # Ensure kwargs exists
+        if 'kwargs' not in data:
+            data['kwargs'] = {}
+
+        for key in extra_keys:
+            data['kwargs'][key] = data.pop(key)
+        
+        return data
 
 class ShellJobParams(BaseModel):
     task_type: Literal["shell"]
@@ -126,6 +148,11 @@ class Job(JobBase):
     id: str
     next_run_time: Optional[datetime] = None
 
+# --- Schemas for Workflow Parameters ---
+class WorkflowParameter(BaseModel):
+    name: str
+    label: str
+
 # Schemas for WorkflowStep
 class WorkflowStepBase(BaseModel):
     name: str
@@ -150,6 +177,7 @@ class WorkflowBase(BaseModel):
     description: Optional[str] = None
     schedule: Optional[str] = None
     is_enabled: bool = True
+    params_def: Optional[List[WorkflowParameter]] = None
 
 class WorkflowCreate(WorkflowBase):
     steps: List[WorkflowStepCreate]
@@ -170,6 +198,7 @@ class WorkflowRun(BaseModel):
     current_step: int
     start_time: datetime
     end_time: Optional[datetime] = None
+    context: Dict[str, Any] = Field(default_factory=dict)
     model_config = ConfigDict(from_attributes=True)
 
 class TimelineItem(BaseModel):

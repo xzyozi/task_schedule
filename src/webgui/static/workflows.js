@@ -161,7 +161,20 @@ document.addEventListener('DOMContentLoaded', async function() {
             stepCard.querySelector('.step-on-failure').value = stepData.on_failure;
             stepCard.querySelector('.step-run-in-background').checked = stepData.run_in_background;
 
-            const taskParams = stepData.task_parameters;
+            let taskParams = stepData.task_parameters;
+            if (typeof taskParams === 'string') {
+                try {
+                    taskParams = JSON.parse(taskParams);
+                } catch (e) {
+                    console.error('Failed to parse task_parameters for step:', stepData, e);
+                    const title = stepCard.querySelector('.card-title');
+                    title.textContent += ' - ERROR: Could not load step data';
+                    stepCard.style.borderColor = 'red';
+                    return;
+                }
+            }
+            console.log('taskParams:', taskParams);
+
             let taskId;
             if (taskParams.task_type === 'python') {
                 taskId = `python:${taskParams.module}:${taskParams.function}`;
@@ -178,14 +191,37 @@ document.addEventListener('DOMContentLoaded', async function() {
                 selectedTask.parameters.forEach(param => {
                     const input = stepCard.querySelector(`[name="${param.name}"]`);
                     if (!input) return;
-                    const value = taskParams[param.name];
+                    
+                    // Find the value from taskParams, attempting a case-insensitive match for the key
+                    let value;
+                    const paramName = param.name;
+                    
+                    // For python jobs, parameters are nested in kwargs
+                    let sourceParams = taskParams;
+                    if (taskParams.task_type === 'python' && taskParams.kwargs) {
+                        sourceParams = taskParams.kwargs;
+                    }
+
+                    if (sourceParams.hasOwnProperty(paramName)) {
+                        value = sourceParams[paramName];
+                    } else {
+                        const lowerParamName = paramName.toLowerCase();
+                        const matchingKey = Object.keys(sourceParams).find(k => k.toLowerCase() === lowerParamName);
+                        if (matchingKey) {
+                            value = sourceParams[matchingKey];
+                        }
+                    }
 
                     if (input.type === 'checkbox') {
                         input.checked = !!value;
                     } else if (input.tagName === 'TEXTAREA') {
-                        input.value = JSON.stringify(value, null, 2);
+                        input.value = value != null ? JSON.stringify(value, null, 2) : '';
                     } else {
-                        input.value = value;
+                        if (typeof value === 'object' && value !== null) {
+                            input.value = JSON.stringify(value);
+                        } else {
+                            input.value = value ?? '';
+                        }
                     }
                 });
             }
@@ -285,17 +321,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
 
     workflowForm.addEventListener('submit', function(event) {
-        eventpreventDefault();
+        event.preventDefault();
         const isEdit = !!workflowIdInput.value;
         const method = isEdit ? 'PUT' : 'POST';
         const url = isEdit ? `${getApiBaseUrl()}/api/workflows/${workflowIdInput.value}` : `${getApiBaseUrl()}/api/workflows`;
 
-        const parameters = [];
+        const params_def = [];
         paramsContainer.querySelectorAll('.param-card').forEach(paramCard => {
             const name = paramCard.querySelector('.param-name').value.trim();
             const label = paramCard.querySelector('.param-label').value.trim();
             if (name && label) {
-                parameters.push({ name, label });
+                params_def.push({ name, label });
             }
         });
 
@@ -350,7 +386,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             description: document.getElementById('workflow-description').value,
             schedule: document.getElementById('workflow-schedule').value,
             is_enabled: document.getElementById('workflow-enabled').checked,
-            parameters: parameters,
+            params_def: params_def,
             steps: steps,
         };
 
@@ -389,8 +425,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             document.getElementById('workflow-enabled').checked = workflow.is_enabled;
 
             paramsContainer.innerHTML = '';
-            if (workflow.parameters && Array.isArray(workflow.parameters)) {
-                workflow.parameters.forEach(addParam);
+            if (workflow.params_def && Array.isArray(workflow.params_def)) {
+                workflow.params_def.forEach(addParam);
             }
 
             stepsContainer.innerHTML = '';
