@@ -238,7 +238,7 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     for run in recent_workflow_runs:
         timeline_items.append(schemas.TimelineItem(
             id=f"wf_run-{run.id}",
-            content=run.workflow.name,
+            content=run.workflow.name if run.workflow else f"Workflow {run.workflow_id} (deleted)",
             start=_make_aware(run.start_time),
             end=_make_aware(run.end_time) or (now if run.status == 'RUNNING' else None),
             status=run.status.lower(),
@@ -477,24 +477,33 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
     Scans for available tasks and returns a structured list with their parameters,
     controlled by decorators and application configuration.
     """
+    logger.info("--- Starting task discovery ---")
     tasks: List[schemas.AvailableTask] = []
     
     # Part 1: Discover Python tasks from the 'tasks' directory
     tasks_dir = Path(__file__).parent.joinpath('tasks')
-    for file_path in tasks_dir.glob('*.py'):
+    logger.info(f"Scanning for Python tasks in: {tasks_dir}")
+    
+    found_files = list(tasks_dir.glob('*.py'))
+    logger.info(f"Found {len(found_files)} Python files to inspect: {[f.name for f in found_files]}")
+
+    for file_path in found_files:
         if file_path.name.startswith('__'):
+            logger.info(f"Skipping file: {file_path.name}")
             continue
 
         module_name = f"modules.scheduler.tasks.{file_path.stem}"
+        logger.info(f"Inspecting module: {module_name}")
         try:
             module = importlib.import_module(module_name)
             for name, func in inspect.getmembers(module, inspect.isfunction):
-                # Only include functions that have the _task_meta attribute
                 if not hasattr(func, '_task_meta'):
                     continue
 
+                logger.info(f"Found potential task '{name}' in {module_name}")
                 meta = func._task_meta
                 if not meta.get('enabled', False):
+                    logger.warning(f"Task '{name}' is defined but not enabled. Skipping.")
                     continue
 
                 sig = inspect.signature(func)
@@ -505,7 +514,6 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
 
                 parameters = []
                 for param in sig.parameters.values():
-                    # Exclude injected parameters
                     if param.name in ('self', 'cls', 'db', 'db_session', 'job_id', 'workflow_run_id', 'kwargs'):
                         continue
                     
@@ -523,9 +531,10 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
                         required=param.default is inspect.Parameter.empty,
                         label=param.name.replace('_', ' ').title()
                     ))
-
+                
+                task_id = f"python:{module_name}:{name}"
                 tasks.append(schemas.AvailableTask(
-                    id=f"python:{module_name}:{name}",
+                    id=task_id,
                     name=display_name,
                     task_type='python',
                     module=module_name,
@@ -533,43 +542,32 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
                     description=description,
                     parameters=parameters
                 ))
+                logger.info(f"Successfully added task '{display_name}' with id '{task_id}'")
+
         except Exception as e:
             logger.error(f"Error inspecting module {module_name} for tasks: {e}", exc_info=True)
 
     # Part 2: Add built-in tasks based on UI configuration
+    logger.info("--- Discovering built-in tasks from config ---")
     ui_config = config.task_ui_config
+    logger.info(f"Loaded task_ui_config: {ui_config}")
     
     # Shell Task
     shell_config = ui_config.get('shell', {})
     if shell_config.get('enabled', False):
+        logger.info("Shell task is enabled. Adding to available tasks.")
         shell_params = [schemas.AvailableTaskParameter(**param) for param in shell_config.get('parameters', [])]
         
-        # Add multiple shell types that all map to the 'shell' task_type
-        tasks.append(schemas.AvailableTask(
-            id='shell',
-            name='Shell (Linux/macOS)',
-            task_type='shell',
-            description='Executes a shell command or script.',
-            parameters=shell_params
-        ))
-        tasks.append(schemas.AvailableTask(
-            id='cmd',
-            name='CMD (Windows)',
-            task_type='shell',
-            description='Executes a command using Windows CMD.',
-            parameters=shell_params
-        ))
-        tasks.append(schemas.AvailableTask(
-            id='powershell',
-            name='PowerShell (Windows)',
-            task_type='shell',
-            description='Executes a PowerShell command.',
-            parameters=shell_params
-        ))
+        tasks.append(schemas.AvailableTask(id='shell', name='Shell (Linux/macOS)', task_type='shell', description='Executes a shell command or script.', parameters=shell_params))
+        tasks.append(schemas.AvailableTask(id='cmd', name='CMD (Windows)', task_type='shell', description='Executes a command using Windows CMD.', parameters=shell_params))
+        tasks.append(schemas.AvailableTask(id='powershell', name='PowerShell (Windows)', task_type='shell', description='Executes a PowerShell command.', parameters=shell_params))
+    else:
+        logger.warning("Shell task is disabled in config.")
 
     # Email Task
     email_config = ui_config.get('email', {})
     if email_config.get('enabled', False):
+        logger.info("Email task is enabled. Adding to available tasks.")
         email_params = [schemas.AvailableTaskParameter(**param) for param in email_config.get('parameters', [])]
         tasks.append(schemas.AvailableTask(
             id='email',
@@ -578,5 +576,9 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
             description='Sends an email notification.',
             parameters=email_params
         ))
+    else:
+        logger.warning("Email task is disabled in config.")
 
+    logger.info(f"--- Task discovery finished. Total tasks found: {len(tasks)} ---")
+    logger.info(f"Final task list: {[t.name for t in tasks]}")
     return sorted(tasks, key=lambda t: t.name)
