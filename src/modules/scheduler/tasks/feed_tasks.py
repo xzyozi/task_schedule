@@ -1,5 +1,6 @@
 import feedparser
 import json
+import requests
 from typing import Literal, List
 from ..task_utils import task
 from util import logger_util
@@ -35,14 +36,32 @@ def read_rss_feed(
         raise ValueError("URL parameter cannot be empty.")
 
     try:
-        feed = feedparser.parse(url)
+        # Convert max_entries to an integer
+        try:
+            num_max_entries = int(max_entries)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid value for max_entries: '{max_entries}'. Using default value of 10.")
+            num_max_entries = 10
+
+        # Use requests to fetch the content, which can help with encoding issues
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()  # Raise an exception for bad status codes
+
+        # Pass the content to feedparser. It's often better at detecting encoding from raw bytes.
+        feed = feedparser.parse(response.content)
 
         if feed.bozo:
             bozo_exception = feed.get('bozo_exception', 'Unknown parsing error')
-            logger.warning(f"Feed at {url} is not well-formed. Reason: {bozo_exception}")
-            # Continue processing, as some data might still be available
+            # Downgrade log level for common, non-fatal encoding errors
+            if 'document declared as' in str(bozo_exception):
+                logger.info(f"Handled a non-fatal encoding issue in feed from {url}. Reason: {bozo_exception}")
+            else:
+                logger.warning(f"Feed at {url} may not be well-formed. Reason: {bozo_exception}")
 
-        entries = feed.entries[:max_entries]
+        entries = feed.entries[:num_max_entries]
 
         if not entries:
             logger.warning(f"No entries found in feed: {url}")
@@ -84,7 +103,10 @@ def read_rss_feed(
         else:
             raise ValueError(f"Unknown formatting_style: {formatting_style}")
 
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch URL {url}: {e}", exc_info=True)
+        raise
     except Exception as e:
-        logger.error(f"Failed to fetch or parse RSS feed from {url}: {e}", exc_info=True)
+        logger.error(f"Failed to process RSS feed from {url}: {e}", exc_info=True)
         # Re-raise the exception to make the job fail
         raise

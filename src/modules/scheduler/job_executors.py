@@ -80,8 +80,6 @@ def _execute_subprocess(
         
         if exit_code != 0:
             logger.error(f"Command '{log_command}' failed with exit code {exit_code}.\nCWD: {absolute_cwd}\nSTDOUT: {stdout}\nSTDERR: {stderr}")
-        else:
-            logger.info(f"Command '{log_command}' completed successfully.\nSTDOUT: {stdout}")
             
         return {"stdout": stdout, "stderr": stderr, "exit_code": exit_code}
 
@@ -113,6 +111,9 @@ def execute_shell_job(job_id: str, task_params: dict, db: Optional[Session] = No
                 cwd=params.cwd,
                 env=params.env
             )
+            if result['exit_code'] == 0:
+                logger.info(f"Shell job '{job_id}' completed successfully. Output:\n{result['stdout']}")
+
             _log_job_end(log_entry, **result)
             db_session.commit()
             return result
@@ -181,18 +182,27 @@ def execute_python_job(job_id: str, task_params: dict, db: Optional[Session] = N
             result = _execute_subprocess(command_to_run=command_to_run)
             
             return_value = None
+            final_stdout = result["stdout"]  # Default to raw stdout
+
             if result["exit_code"] == 0 and result["stdout"]:
                 try:
                     # The wrapper script outputs a JSON with 'return_value'
                     output_data = json.loads(result["stdout"])
                     return_value = output_data.get("return_value")
+                    # For logging and DB storage, use the cleaner, unescaped return value.
+                    # Coerce to string just in case the return value isn't a string itself.
+                    final_stdout = str(return_value) if return_value is not None else ""
                 except json.JSONDecodeError:
-                    # If output is not JSON, treat it as raw stdout, return_value remains None
+                    # Output wasn't JSON, so the raw stdout is the only thing we have.
                     pass
             
             result["return_value"] = return_value
+
+            # Log the "real" output for the user to see
+            if result["exit_code"] == 0:
+                logger.info(f"Python job '{job_id}' completed successfully. Output:\n{final_stdout}")
             
-            _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+            _log_job_end(log_entry, exit_code=result['exit_code'], stdout=final_stdout, stderr=result['stderr'])
             db_session.commit()
             return result
             
