@@ -159,6 +159,7 @@ class WorkflowStepBase(BaseModel):
     step_order: int
     task_parameters: Annotated[AnyJobParams, Field(discriminator="task_type")] # Unified task definition
     output_variable_name: Optional[str] = None
+    output_capture_source: Optional[str] = 'return_value'
     on_failure: str = "stop"
     timeout: Optional[int] = None
     run_in_background: bool = False

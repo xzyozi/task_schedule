@@ -140,18 +140,33 @@ def execute_python_job(job_id: str, task_params: dict, db: Optional[Session] = N
     try:
         log_entry = None
         try:
-            params = schemas.PythonJobParams.model_validate(task_params)
-            target_func_path = f"{params.module}:{params.function}"
+            module = task_params.get('module')
+            function = task_params.get('function')
+            
+            if not module or not function:
+                raise ValueError("'module' and 'function' are required for Python jobs.")
+
+            target_func_path = f"{module}:{function}"
             log_entry = _log_job_start(db_session, job_id, target_func_path, workflow_run_id=workflow_run_id)
 
+            # Collect all non-standard params to be passed to the task function.
+            func_kwargs = {k: v for k, v in task_params.items() if k not in ['task_type', 'module', 'function', 'args']}
+
+            # Defensively handle cases where params might be incorrectly nested under a 'kwargs' key from the UI/DB.
+            if len(func_kwargs) == 1 and 'kwargs' in func_kwargs and isinstance(func_kwargs.get('kwargs'), dict):
+                func_kwargs = func_kwargs['kwargs']
+
+            # For tasks decorated with @task, we expect all parameters to be passed
+            # in a single dictionary argument named 'params'.
+            payload_kwargs = {'params': func_kwargs}
+            
             try:
-                payload = json.dumps({'args': params.args, 'kwargs': params.kwargs})
+                payload = json.dumps({'args': task_params.get('args', []), 'kwargs': payload_kwargs})
                 encoded_payload = base64.b64encode(payload.encode('utf-8')).decode('utf-8')
             except (TypeError, OverflowError) as e:
                 err_msg = f"Failed to serialize arguments for Python job: {e}. Arguments must be JSON-serializable."
                 result = {"stdout": "", "stderr": err_msg, "exit_code": 1, "return_value": None}
-                if log_entry:
-                    _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
+                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
                 db_session.commit()
                 return result
 
@@ -168,9 +183,11 @@ def execute_python_job(job_id: str, task_params: dict, db: Optional[Session] = N
             return_value = None
             if result["exit_code"] == 0 and result["stdout"]:
                 try:
+                    # The wrapper script outputs a JSON with 'return_value'
                     output_data = json.loads(result["stdout"])
                     return_value = output_data.get("return_value")
                 except json.JSONDecodeError:
+                    # If output is not JSON, treat it as raw stdout, return_value remains None
                     pass
             
             result["return_value"] = return_value
@@ -179,12 +196,6 @@ def execute_python_job(job_id: str, task_params: dict, db: Optional[Session] = N
             db_session.commit()
             return result
             
-        except ValidationError as e:
-            logger.error(f"Invalid parameters for python job '{job_id}': {e}")
-            result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
-            if log_entry: _log_job_end(log_entry, **{k: v for k, v in result.items() if k != 'return_value'})
-            db_session.commit()
-            return result
         except Exception as e:
             logger.error(f"Error in execute_python_job for job '{job_id}': {e}", exc_info=True)
             result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
@@ -246,23 +257,26 @@ def _render_template(data: Any, context: Dict[str, Any]) -> Any:
     elif isinstance(data, list):
         return [_render_template(i, context) for i in data]
     elif isinstance(data, str):
-        # Find all {{ context.variable }} placeholders
-        placeholders = re.findall(r"\{\{\s*context\.(\w+)\s*\}\}", data)
+        # Find all {{ variables.variable_name }} placeholders
+        placeholders = re.findall(r"\{\{\s*variables\.(\w+)\s*\}\}", data)
         if not placeholders:
             return data
         
+        # The main context for variables is under the 'variables' key
+        variables = context.get("variables", {})
+        
         rendered_str = data
         for var_name in placeholders:
-            if var_name not in context:
+            if var_name not in variables:
                 raise KeyError(f"Variable '{var_name}' not found in workflow context.")
             
             # Simple replacement for now. If the string is ONLY the placeholder,
             # we can replace it with the raw type. Otherwise, we coerce to string.
-            placeholder_full = f"{{{{ context.{var_name} }}}}"
+            placeholder_full = f"{{{{ variables.{var_name} }}}}"
             if rendered_str == placeholder_full:
-                return context[var_name] # Replace with raw type
+                return variables[var_name] # Replace with raw type
             
-            rendered_str = rendered_str.replace(placeholder_full, str(context[var_name]))
+            rendered_str = rendered_str.replace(placeholder_full, str(variables[var_name]))
         return rendered_str
     else:
         return data
@@ -272,6 +286,9 @@ def _render_template(data: Any, context: Dict[str, Any]) -> Any:
 def run_workflow(workflow_id: int, job_id: str = None):
     db = next(database.get_db())
     workflow_run = None
+    workflow = None  # Initialize workflow to None
+    final_status = 'COMPLETED'  # Assume success initially
+
     try:
         workflow = db.query(models.Workflow).options(joinedload(models.Workflow.steps)).filter(models.Workflow.id == workflow_id).first()
         if not workflow:
@@ -291,7 +308,6 @@ def run_workflow(workflow_id: int, job_id: str = None):
         db.refresh(workflow_run)
         
         context = {}
-        final_status = 'COMPLETED'
         steps = sorted(workflow.steps, key=lambda s: s.step_order)
 
         for i, step in enumerate(steps):
@@ -299,7 +315,9 @@ def run_workflow(workflow_id: int, job_id: str = None):
             step_job_id = f"{workflow_name}_{step.step_order}_{step.name}"
             
             try:
-                rendered_params = _render_template(step.task_parameters, context)
+                # Pass the whole context under the 'variables' key for templating
+                render_context = {"variables": context}
+                rendered_params = _render_template(step.task_parameters, render_context)
                 task_type = rendered_params.get('task_type')
                 
                 step_result = None
@@ -316,13 +334,13 @@ def run_workflow(workflow_id: int, job_id: str = None):
                 
                 # Capture output if requested
                 if step.output_variable_name:
-                    output_value = None
-                    if task_type == 'python':
-                        output_value = step_result.get('return_value')
-                    elif task_type == 'shell':
-                        output_value = step_result.get('stdout')
+                    # Default source depends on task type if not specified
+                    default_source = 'stdout' if task_type == 'shell' else 'return_value'
+                    source = step.output_capture_source or default_source
+                    output_value = step_result.get(source)
                     
                     if output_value is not None:
+                        logger.info(f"Capturing output from source '{source}' to variable '{step.output_variable_name}'")
                         context[step.output_variable_name] = output_value
                         # Persist context after each step
                         workflow_run.context = context
@@ -344,7 +362,8 @@ def run_workflow(workflow_id: int, job_id: str = None):
                 break
     
     except Exception as e:
-        logger.error(f"A critical error occurred during workflow execution for '{workflow.name}': {e}", exc_info=True)
+        workflow_name = workflow.name if workflow else f"ID {workflow_id}"
+        logger.error(f"A critical error occurred during workflow execution for '{workflow_name}': {e}", exc_info=True)
         final_status = 'FAILED'
     
     finally:
@@ -352,6 +371,8 @@ def run_workflow(workflow_id: int, job_id: str = None):
             workflow_run.status = final_status
             workflow_run.end_time = time_util.get_current_utc_time()
             db.commit()
-            logger.info(f"Workflow '{workflow.name}' finished with status {final_status}.")
+        
+        workflow_name = workflow.name if workflow else f"ID {workflow_id}"
+        logger.info(f"Workflow '{workflow_name}' finished with status {final_status}.")
         
         db.close()

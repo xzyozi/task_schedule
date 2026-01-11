@@ -108,6 +108,27 @@
                 <!-- Dynamic parameters will be injected here by JS -->
             </div>
 
+            <div class="row pt-3">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">出力変数名</label>
+                        <input type="text" class="form-control step-output-variable-name" placeholder="例: my_variable">
+                        <div class="form-text">この結果を後続ステップで {% raw %}<code>{{ variables.my_variable }}</code>{% endraw %} として利用できます。</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label class="form-label">キャプチャ対象</label>
+                        <select class="form-select step-output-capture-source">
+                            <option value="return_value" selected>戻り値 (Pythonジョブ)</option>
+                            <option value="stdout">標準出力 (シェルジョブ)</option>
+                            <option value="stderr">標準エラー出力</option>
+                            <option value="exit_code">終了コード</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <div class="mb-3">
                 <label class="form-label">失敗時の挙動</label>
                 <select class="form-select step-on-failure">

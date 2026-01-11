@@ -160,6 +160,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             stepCard.querySelector('.step-name').value = stepData.name;
             stepCard.querySelector('.step-on-failure').value = stepData.on_failure;
             stepCard.querySelector('.step-run-in-background').checked = stepData.run_in_background;
+            stepCard.querySelector('.step-output-variable-name').value = stepData.output_variable_name || '';
+            stepCard.querySelector('.step-output-capture-source').value = stepData.output_capture_source || 'return_value';
 
             let taskParams = stepData.task_parameters;
             if (typeof taskParams === 'string') {
@@ -374,6 +376,8 @@ document.addEventListener('DOMContentLoaded', async function() {
                     task_parameters: task_parameters,
                     on_failure: stepCard.querySelector('.step-on-failure').value,
                     run_in_background: stepCard.querySelector('.step-run-in-background').checked,
+                    output_variable_name: stepCard.querySelector('.step-output-variable-name').value.trim() || null,
+                    output_capture_source: stepCard.querySelector('.step-output-capture-source').value,
                 });
             });
         } catch (e) {
