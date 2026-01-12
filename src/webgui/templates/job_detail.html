@@ -11,6 +11,7 @@
         <div class="card mb-4">
             <div class="card-header">
                 <h3>ジョブ定義</h3>
+                <button id="run-job-now-btn" class="btn btn-sm btn-success float-end">今すぐ実行</button>
             </div>
             <div class="card-body">
                 <form id="job-detail-form">
@@ -20,12 +21,16 @@
                         <input type="text" class="form-control" id="job-id" readonly>
                     </div>
                     <div class="mb-3">
-                        <label for="job-func" class="form-label">実行関数</label>
-                        <input type="text" class="form-control" id="job-func" readonly>
+                        <label for="job-task-type" class="form-label">タスクタイプ</label>
+                        <input type="text" class="form-control" id="job-task-type" readonly>
                     </div>
                     <div class="mb-3">
                         <label for="job-description" class="form-label">説明</label>
                         <input type="text" class="form-control" id="job-description" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="job-task-parameters" class="form-label">タスクパラメータ</label>
+                        <pre><code id="job-task-parameters" class="bg-light p-2 rounded d-block"></code></pre>
                     </div>
                     
                     <hr>

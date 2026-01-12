@@ -9,7 +9,7 @@ IF EXIST "venv\Scripts\activate.bat" (
     CALL "venv\Scripts\activate.bat"
 )
 
-set "PYTHONPATH=%CD%\src"
+set "PYTHONPATH=%CD%\src;%PYTHONPATH%"
 
 echo Starting Web GUI...
 start "Web GUI" cmd /k "python -B src/webgui/app.py"

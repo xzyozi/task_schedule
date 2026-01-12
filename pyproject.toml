@@ -26,6 +26,7 @@ dependencies = [
     "watchdog",
     "Flask", # Added for WebGUI
     "requests", # Added for WebGUI to API communication
+    "feedparser",
 ]
 
 [project.optional-dependencies]

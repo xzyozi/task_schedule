@@ -95,11 +95,27 @@ document.addEventListener('DOMContentLoaded', async function() {
         const inputId = `param-${param.name}`;
         const isJson = param.type.includes('Dict') || param.type.includes('List');
         const isBool = param.type.toLowerCase().includes('bool');
+        const isLiteral = param.type.startsWith('Literal');
 
         if (isBool) {
             input = document.createElement('input');
             input.type = 'checkbox';
             input.className = 'form-check-input';
+        } else if (isLiteral) {
+            input = document.createElement('select');
+            input.className = 'form-select';
+            
+            // Extract options from Literal['option1', 'option2']
+            const optionsMatch = param.type.match(/\[(.*)\]/);
+            if (optionsMatch && optionsMatch[1]) {
+                const options = optionsMatch[1].replace(/['"]/g, '').split(',').map(s => s.trim());
+                options.forEach(optionText => {
+                    const option = document.createElement('option');
+                    option.value = optionText;
+                    option.textContent = optionText;
+                    input.appendChild(option);
+                });
+            }
         } else if (isJson) {
             input = document.createElement('textarea');
             input.rows = 3;
