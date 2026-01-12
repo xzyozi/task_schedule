@@ -148,6 +148,55 @@ class Job(JobBase):
     id: str
     next_run_time: Optional[datetime] = None
 
+class JobOut(BaseModel):
+    """Schema for job output, which flattens task parameters for display."""
+    id: str
+    name: str
+    description: Optional[str] = None
+    is_enabled: bool = True
+    trigger: Union[CronTrigger, IntervalTrigger]
+    task_parameters: Dict[str, Any]
+    next_run_time: Optional[datetime] = None
+    
+    max_instances: int = 3
+    coalesce: bool = False
+    misfire_grace_time: Optional[int] = 3600
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode='before')
+    @classmethod
+    def assemble_and_flatten(cls, data: Any) -> Any:
+        """
+        Constructs the schema from a DB model and flattens the task_parameters 
+        for Python jobs to make it more UI-friendly.
+        """
+        if not isinstance(data, models.JobDefinition):
+            # If it's not a DB model, just return it as is.
+            return data
+        
+        # Convert the SQLAlchemy model instance to a dictionary
+        model_dict = {c.name: getattr(data, c.name) for c in data.__table__.columns}
+        
+        # Assemble the 'trigger' field from DB columns
+        model_dict['trigger'] = {
+            'type': model_dict.get('trigger_type'),
+            **(model_dict.get('trigger_config') or {})
+        }
+        
+        # Get the task parameters, which might be a JSON string or a dict
+        task_params = model_dict.get('task_parameters') or {}
+        if isinstance(task_params, dict):
+            # For Python jobs, the UI-input parameters are nested in 'kwargs'.
+            # We lift them to the top level for easier display in the UI.
+            if task_params.get('task_type') == 'python' and 'kwargs' in task_params:
+                kwargs = task_params.pop('kwargs', {})
+                task_params.update(kwargs)
+        
+        model_dict['task_parameters'] = task_params
+        
+        return model_dict
+
 # --- Schemas for Workflow Parameters ---
 class WorkflowParameter(BaseModel):
     name: str

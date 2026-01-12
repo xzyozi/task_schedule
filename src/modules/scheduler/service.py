@@ -389,19 +389,19 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
     jobs_in_db = db.query(models.JobDefinition).all()
     for job_def in jobs_in_db:
         job_id = job_def.id
+        status = "disabled" # Default to disabled
         next_run = None
-        status = "disabled"
-
+        
         if job_def.is_enabled:
+            # Only if the job is enabled in the DB can it have an active status
             if job_id in scheduled_jobs:
                 scheduled_job = scheduled_jobs[job_id]
                 next_run = scheduled_job.next_run_time
-                if scheduled_job.next_run_time is None:
-                    status = "paused" 
-                else:
-                    status = "enabled"
+                status = "paused" if scheduled_job.next_run_time is None else "enabled"
             else:
-                status = "enabled"
+                # If it's enabled in DB but not in scheduler, it's effectively disabled
+                # from a control perspective.
+                status = "disabled"
         
         trigger_str = f"{job_def.trigger_type}: "
         if job_def.trigger_type == 'cron':
@@ -433,22 +433,19 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
     workflows_in_db = db.query(models.Workflow).all()
     for workflow in workflows_in_db:
         job_id = f"workflow_{workflow.id}"
+        status = "disabled" # Default to disabled
         next_run = None
-        status = "disabled"
 
         if workflow.is_enabled:
+            # Only if the workflow is enabled in the DB can it have an active status
             if job_id in scheduled_jobs:
                 scheduled_job = scheduled_jobs[job_id]
                 next_run = scheduled_job.next_run_time
-                if scheduled_job.next_run_time is None:
-                    status = "paused"
-                else:
-                    status = "enabled"
+                status = "paused" if scheduled_job.next_run_time is None else "enabled"
             else:
-                # If it's enabled in DB but not in scheduler, it might not have a schedule
-                # or there's a sync issue. We'll consider it 'enabled' from a config standpoint.
-                status = "enabled"
-
+                # If enabled in DB but not scheduled (e.g. no cron string), it's effectively disabled.
+                status = "disabled"
+        
         unified_list.append(schemas.UnifiedJobItem(
             id=str(workflow.id),
             type='workflow',
@@ -481,104 +478,122 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
     tasks: List[schemas.AvailableTask] = []
     
     # Part 1: Discover Python tasks from the 'tasks' directory
-    tasks_dir = Path(__file__).parent.joinpath('tasks')
-    logger.info(f"Scanning for Python tasks in: {tasks_dir}")
-    
-    found_files = list(tasks_dir.glob('*.py'))
-    logger.info(f"Found {len(found_files)} Python files to inspect: {[f.name for f in found_files]}")
+    try:
+        tasks_dir = Path(__file__).parent.joinpath('tasks')
+        logger.info(f"Scanning for Python tasks in: {tasks_dir}")
+        
+        found_files = list(tasks_dir.glob('*.py'))
+        logger.info(f"Found {len(found_files)} Python files to inspect: {[f.name for f in found_files]}")
 
-    for file_path in found_files:
-        if file_path.name.startswith('__'):
-            logger.info(f"Skipping file: {file_path.name}")
-            continue
+        for file_path in found_files:
+            if file_path.name.startswith('__'):
+                logger.info(f"Skipping file: {file_path.name}")
+                continue
 
-        module_name = f"modules.scheduler.tasks.{file_path.stem}"
-        logger.info(f"Inspecting module: {module_name}")
-        try:
-            module = importlib.import_module(module_name)
-            for name, func in inspect.getmembers(module, inspect.isfunction):
-                if not hasattr(func, '_task_meta'):
-                    continue
-
-                logger.info(f"Found potential task '{name}' in {module_name}")
-                meta = func._task_meta
-                if not meta.get('enabled', False):
-                    logger.warning(f"Task '{name}' is defined but not enabled. Skipping.")
-                    continue
-
-                sig = inspect.signature(func)
-                docstring = inspect.getdoc(func) or ""
-                
-                description = meta.get('description') or (docstring.strip().splitlines()[0] if docstring else "")
-                display_name = meta.get('name') or name.replace('_', ' ').title()
-
-                parameters = []
-                for param in sig.parameters.values():
-                    if param.name in ('self', 'cls', 'db', 'db_session', 'job_id', 'workflow_run_id', 'kwargs'):
+            module_name = f"modules.scheduler.tasks.{file_path.stem}"
+            logger.info(f"Inspecting module: {module_name}")
+            try:
+                module = importlib.import_module(module_name)
+                for name, func in inspect.getmembers(module, inspect.isfunction):
+                    if not hasattr(func, '_task_meta'):
                         continue
-                    
-                    param_type = 'Any'
-                    if param.annotation is not inspect.Parameter.empty:
-                        param_type_str = str(param.annotation).replace('typing.', '')
-                        if 'Union[' in param_type_str and 'NoneType' in param_type_str:
-                            main_type = param_type_str.replace('Union[', '').replace(', NoneType]', '')
-                            param_type_str = f'Optional[{main_type}]'
-                        param_type = param_type_str
-                    
-                    parameters.append(schemas.AvailableTaskParameter(
-                        name=param.name,
-                        type=param_type,
-                        required=param.default is inspect.Parameter.empty,
-                        label=param.name.replace('_', ' ').title()
-                    ))
-                
-                task_id = f"python:{module_name}:{name}"
-                tasks.append(schemas.AvailableTask(
-                    id=task_id,
-                    name=display_name,
-                    task_type='python',
-                    module=module_name,
-                    function=name,
-                    description=description,
-                    parameters=parameters
-                ))
-                logger.info(f"Successfully added task '{display_name}' with id '{task_id}'")
 
-        except Exception as e:
-            logger.error(f"Error inspecting module {module_name} for tasks: {e}", exc_info=True)
+                    logger.info(f"Found potential task '{name}' in {module_name}")
+                    meta = func._task_meta
+                    if not meta.get('enabled', False):
+                        logger.warning(f"Task '{name}' is defined but not enabled. Skipping.")
+                        continue
+
+                    sig = inspect.signature(func)
+                    docstring = inspect.getdoc(func) or ""
+                    
+                    description = meta.get('description') or (docstring.strip().splitlines()[0] if docstring else "")
+                    display_name = meta.get('name') or name.replace('_', ' ').title()
+
+                    parameters = []
+                    for param in sig.parameters.values():
+                        if param.name in ('self', 'cls', 'db', 'db_session', 'job_id', 'workflow_run_id', 'kwargs'):
+                            continue
+                        
+                        param_type = 'Any'
+                        if param.annotation is not inspect.Parameter.empty:
+                            # Heuristic to differentiate between standard types (int, str) and typing types (List, Literal)
+                            if hasattr(param.annotation, '__origin__'): # Catches List, Dict, Literal, Union etc.
+                                param_type_str = str(param.annotation).replace('typing.', '')
+                                if 'Union[' in param_type_str and 'NoneType' in param_type_str:
+                                    main_type = param_type_str.replace('Union[', '').replace(', NoneType]', '')
+                                    param_type_str = f'Optional[{main_type}]'
+                                param_type = param_type_str
+                            else: # Likely a primitive type
+                                param_type = param.annotation.__name__
+                        
+                        parameters.append(schemas.AvailableTaskParameter(
+                            name=param.name,
+                            type=param_type,
+                            required=param.default is inspect.Parameter.empty,
+                            label=param.name.replace('_', ' ').title()
+                        ))
+                    
+                    task_id = f"python:{module_name}:{name}"
+                    tasks.append(schemas.AvailableTask(
+                        id=task_id,
+                        name=display_name,
+                        task_type='python',
+                        module=module_name,
+                        function=name,
+                        description=description,
+                        parameters=parameters
+                    ))
+                    logger.info(f"Successfully added task '{display_name}' with id '{task_id}'")
+
+            except Exception as e:
+                logger.error(f"Error inspecting module {module_name} for tasks: {e}", exc_info=True)
+        logger.info("--- Finished Python task discovery ---")
+    except Exception as e:
+        logger.critical(f"A critical error occurred during Python task discovery phase: {e}", exc_info=True)
+
 
     # Part 2: Add built-in tasks based on UI configuration
-    logger.info("--- Discovering built-in tasks from config ---")
-    ui_config = config.task_ui_config
-    logger.info(f"Loaded task_ui_config: {ui_config}")
-    
-    # Shell Task
-    shell_config = ui_config.get('shell', {})
-    if shell_config.get('enabled', False):
-        logger.info("Shell task is enabled. Adding to available tasks.")
-        shell_params = [schemas.AvailableTaskParameter(**param) for param in shell_config.get('parameters', [])]
+    try:
+        logger.info("--- Discovering built-in tasks from config ---")
+        ui_config = config.task_ui_config
         
-        tasks.append(schemas.AvailableTask(id='shell', name='Shell (Linux/macOS)', task_type='shell', description='Executes a shell command or script.', parameters=shell_params))
-        tasks.append(schemas.AvailableTask(id='cmd', name='CMD (Windows)', task_type='shell', description='Executes a command using Windows CMD.', parameters=shell_params))
-        tasks.append(schemas.AvailableTask(id='powershell', name='PowerShell (Windows)', task_type='shell', description='Executes a PowerShell command.', parameters=shell_params))
-    else:
-        logger.warning("Shell task is disabled in config.")
+        # Shell Task
+        logger.info("Processing Shell task from config...")
+        shell_config = ui_config.get('shell', {})
+        if shell_config.get('enabled', False):
+            shell_params = [schemas.AvailableTaskParameter(**param) for param in shell_config.get('parameters', [])]
+            tasks.append(schemas.AvailableTask(id='shell', name='Shell Command', task_type='shell', description='Executes a shell command or script.', parameters=shell_params))
+            logger.info("Successfully added Shell task.")
+        else:
+            logger.warning("Shell task is disabled in config.")
 
-    # Email Task
-    email_config = ui_config.get('email', {})
-    if email_config.get('enabled', False):
-        logger.info("Email task is enabled. Adding to available tasks.")
-        email_params = [schemas.AvailableTaskParameter(**param) for param in email_config.get('parameters', [])]
-        tasks.append(schemas.AvailableTask(
-            id='email',
-            name='Send Email',
-            task_type='email',
-            description='Sends an email notification.',
-            parameters=email_params
-        ))
-    else:
-        logger.warning("Email task is disabled in config.")
+        # Email Task
+        logger.info("Processing Email task from config...")
+        email_config = ui_config.get('email', {})
+        if email_config.get('enabled', False):
+            email_params = [schemas.AvailableTaskParameter(**param) for param in email_config.get('parameters', [])]
+            tasks.append(schemas.AvailableTask(
+                id='email',
+                name='Send Email',
+                task_type='email',
+                description='Sends an email notification.',
+                parameters=email_params
+            ))
+            logger.info("Successfully added Email task.")
+        else:
+            logger.warning("Email task is disabled in config.")
+        logger.info("--- Finished built-in task discovery ---")
+    except Exception as e:
+        logger.critical(f"A critical error occurred during built-in task discovery phase: {e}", exc_info=True)
 
     logger.info(f"--- Task discovery finished. Total tasks found: {len(tasks)} ---")
-    logger.info(f"Final task list: {[t.name for t in tasks]}")
-    return sorted(tasks, key=lambda t: t.name)
+    
+    try:
+        sorted_tasks = sorted(tasks, key=lambda t: t.name)
+        logger.info(f"Final task list: {[t.name for t in sorted_tasks]}")
+        return sorted_tasks
+    except Exception as e:
+        logger.critical(f"A critical error occurred during final task sorting: {e}", exc_info=True)
+        # Return unsorted if sorting fails, to still provide tasks to the user
+        return tasks
