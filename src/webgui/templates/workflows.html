@@ -41,7 +41,7 @@
             <div class="card-body">
                 <form id="workflow-form">
                     <input type="hidden" id="workflow-id-hidden">
-                    
+
                     <h4>基本情報</h4>
                     <div class="mb-3">
                         <label for="workflow-name" class="form-label">ワークフロー名</label>
@@ -76,7 +76,7 @@
                     </div>
 
                     <button type="button" id="add-step-btn" class="btn btn-secondary mt-2">ステップを追加</button>
-                    
+
                     <hr>
 
                     <button type="submit" class="btn btn-primary">保存</button>
@@ -106,27 +106,6 @@
             <!-- Dynamic Parameters Container -->
             <div class="dynamic-step-params-container border p-3" style="display: none;">
                 <!-- Dynamic parameters will be injected here by JS -->
-            </div>
-
-            <div class="row pt-3">
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">出力変数名</label>
-                        <input type="text" class="form-control step-output-variable-name" placeholder="例: my_variable">
-                        <div class="form-text">この結果を後続ステップで {% raw %}<code>{{ variables.my_variable }}</code>{% endraw %} として利用できます。</div>
-                    </div>
-                </div>
-                <div class="col-md-6">
-                    <div class="mb-3">
-                        <label class="form-label">キャプチャ対象</label>
-                        <select class="form-select step-output-capture-source">
-                            <option value="return_value" selected>戻り値 (Pythonジョブ)</option>
-                            <option value="stdout">標準出力 (シェルジョブ)</option>
-                            <option value="stderr">標準エラー出力</option>
-                            <option value="exit_code">終了コード</option>
-                        </select>
-                    </div>
-                </div>
             </div>
 
             <div class="mb-3">

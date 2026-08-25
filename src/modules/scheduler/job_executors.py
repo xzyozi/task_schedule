@@ -258,40 +258,10 @@ def execute_email_job(job_id: str, task_params: dict, db: Optional[Session] = No
         if local_session:
             db_session.close()
 
-# --- Workflow Context and Templating ---
-
-def _render_template(data: Any, context: Dict[str, Any]) -> Any:
-    """Recursively renders templates in a nested data structure."""
-    if isinstance(data, dict):
-        return {k: _render_template(v, context) for k, v in data.items()}
-    elif isinstance(data, list):
-        return [_render_template(i, context) for i in data]
-    elif isinstance(data, str):
-        # Find all {{ variables.variable_name }} placeholders
-        placeholders = re.findall(r"\{\{\s*variables\.(\w+)\s*\}\}", data)
-        if not placeholders:
-            return data
-        
-        # The main context for variables is under the 'variables' key
-        variables = context.get("variables", {})
-        
-        rendered_str = data
-        for var_name in placeholders:
-            if var_name not in variables:
-                raise KeyError(f"Variable '{var_name}' not found in workflow context.")
-            
-            # Simple replacement for now. If the string is ONLY the placeholder,
-            # we can replace it with the raw type. Otherwise, we coerce to string.
-            placeholder_full = f"{{{{ variables.{var_name} }}}}"
-            if rendered_str == placeholder_full:
-                return variables[var_name] # Replace with raw type
-            
-            rendered_str = rendered_str.replace(placeholder_full, str(variables[var_name]))
-        return rendered_str
-    else:
-        return data
-
-# --- Workflow Executor (Updated) ---
+# --- Workflow Executor ---
+# Note: ステップ間の動的な変数受け渡し・テンプレート機能はスコープ外としている。
+# ワークフローは「登録されたジョブ(shell/python/email)を順番に実行し、失敗したら止まる」
+# という単純な直列実行のみを提供する。
 
 def run_workflow(workflow_id: int, job_id: str = None):
     db = next(database.get_db())
@@ -311,13 +281,11 @@ def run_workflow(workflow_id: int, job_id: str = None):
         workflow_run = models.WorkflowRun(
             workflow_id=workflow.id,
             status='RUNNING',
-            context={} # Start with an empty context
         )
         db.add(workflow_run)
         db.commit()
         db.refresh(workflow_run)
         
-        context = {}
         steps = sorted(workflow.steps, key=lambda s: s.step_order)
 
         for i, step in enumerate(steps):
@@ -325,36 +293,19 @@ def run_workflow(workflow_id: int, job_id: str = None):
             step_job_id = f"{workflow_name}_{step.step_order}_{step.name}"
             
             try:
-                # Pass the whole context under the 'variables' key for templating
-                render_context = {"variables": context}
-                rendered_params = _render_template(step.task_parameters, render_context)
-                task_type = rendered_params.get('task_type')
+                task_type = step.task_parameters.get('task_type')
                 
                 step_result = None
                 if task_type == 'python':
-                    step_result = execute_python_job(job_id=step_job_id, task_params=rendered_params, db=db, workflow_run_id=workflow_run.id)
+                    step_result = execute_python_job(job_id=step_job_id, task_params=step.task_parameters, db=db, workflow_run_id=workflow_run.id)
                 elif task_type == 'shell':
-                    step_result = execute_shell_job(job_id=step_job_id, task_params=rendered_params, db=db, workflow_run_id=workflow_run.id)
+                    step_result = execute_shell_job(job_id=step_job_id, task_params=step.task_parameters, db=db, workflow_run_id=workflow_run.id)
                 elif task_type == 'email':
-                    step_result = execute_email_job(job_id=step_job_id, task_params=rendered_params, db=db, workflow_run_id=workflow_run.id)
+                    step_result = execute_email_job(job_id=step_job_id, task_params=step.task_parameters, db=db, workflow_run_id=workflow_run.id)
                 else:
                     logger.error(f"Unknown step task_type: {task_type} for step '{step.name}'")
                     final_status = 'FAILED'
                     break
-                
-                # Capture output if requested
-                if step.output_variable_name:
-                    # Default source depends on task type if not specified
-                    default_source = 'stdout' if task_type == 'shell' else 'return_value'
-                    source = step.output_capture_source or default_source
-                    output_value = step_result.get(source)
-                    
-                    if output_value is not None:
-                        logger.info(f"Capturing output from source '{source}' to variable '{step.output_variable_name}'")
-                        context[step.output_variable_name] = output_value
-                        # Persist context after each step
-                        workflow_run.context = context
-                        db.commit()
 
                 if step_result.get('exit_code', 1) != 0:
                     if step.on_failure == 'stop':

@@ -207,8 +207,6 @@ class WorkflowStepBase(BaseModel):
     name: str
     step_order: int
     task_parameters: Annotated[AnyJobParams, Field(discriminator="task_type")] # Unified task definition
-    output_variable_name: Optional[str] = None
-    output_capture_source: Optional[str] = 'return_value'
     on_failure: str = "stop"
     timeout: Optional[int] = None
     run_in_background: bool = False
@@ -248,7 +246,6 @@ class WorkflowRun(BaseModel):
     current_step: int
     start_time: datetime
     end_time: Optional[datetime] = None
-    context: Dict[str, Any] = Field(default_factory=dict)
     model_config = ConfigDict(from_attributes=True)
 
 class TimelineItem(BaseModel):

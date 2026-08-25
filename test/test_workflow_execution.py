@@ -3,7 +3,6 @@ import sys
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from pathlib import Path
-import shutil
 
 # Add src to path to allow imports
 sys.path.insert(0, str(Path(__file__).parent.parent.joinpath("src")))
@@ -35,16 +34,20 @@ def db_session(SessionLocal):
 def test_tasks_module(tmp_path):
     """Create a temporary Python module with task functions."""
     tasks_content = """
-def produce_string():
-    return "hello from workflow"
+def step_one():
+    print("step one executed")
+    return "ok"
 
-def consume_string(data: str):
-    print(f"Consumed: {data}")
-    return f"Consumed: {data}"
+def step_two():
+    print("step two executed")
+    return "ok"
+
+def failing_step():
+    raise RuntimeError("intentional failure")
 """
     tasks_file = tmp_path / "temp_workflow_tasks.py"
     tasks_file.write_text(tasks_content)
-    
+
     # Add the temp directory to sys.path so it can be imported
     sys.path.insert(0, str(tmp_path))
     yield "temp_workflow_tasks"
@@ -53,65 +56,102 @@ def consume_string(data: str):
 
 # --- Tests ---
 
-def test_workflow_with_variable_passing(db_session, test_tasks_module):
+def test_workflow_sequential_execution(db_session, test_tasks_module):
     """
-    Tests a complete workflow where one step produces a variable and a subsequent
-    step consumes it.
+    ワークフローが登録されたステップ(shell/python)を順番に実行することを確認する。
+    ステップ間の変数受け渡し・テンプレート機能はスコープ外。
     """
-    # 1. Create the Workflow in the database
     workflow_in = schemas.WorkflowCreate(
-        name="Variable Passing Test Workflow",
-        description="A test for passing variables between steps.",
+        name="Sequential Execution Test Workflow",
+        description="複数ステップを順番に実行するだけの単純なワークフロー",
         is_enabled=True,
         steps=[
             schemas.WorkflowStepCreate(
-                name="Producer Step",
+                name="Step One",
                 step_order=1,
                 task_parameters=schemas.PythonJobParams(
                     task_type="python",
                     module=test_tasks_module,
-                    function="produce_string",
+                    function="step_one",
                 ),
-                output_variable_name="produced_data"
             ),
             schemas.WorkflowStepCreate(
-                name="Consumer Step",
+                name="Step Two",
                 step_order=2,
                 task_parameters=schemas.PythonJobParams(
                     task_type="python",
                     module=test_tasks_module,
-                    function="consume_string",
-                    kwargs={"data": "{{ context.produced_data }}"}
+                    function="step_two",
                 ),
             ),
         ]
     )
-    
+
     created_workflow = service.workflow_service.create_with_steps(db=db_session, obj_in=workflow_in)
     assert created_workflow is not None
     assert len(created_workflow.steps) == 2
 
-    # 2. Execute the workflow
     run_workflow(workflow_id=created_workflow.id)
 
-    # 3. Verify the results
-    db_session.commit() # Commit to make sure the run_workflow changes are visible
+    db_session.commit()
     workflow_run = db_session.query(models.WorkflowRun).filter_by(workflow_id=created_workflow.id).one()
 
     assert workflow_run is not None
     assert workflow_run.status == "COMPLETED"
-    
-    # Check the final context
-    assert "produced_data" in workflow_run.context
-    assert workflow_run.context["produced_data"] == "hello from workflow"
 
-    # Check the logs for the consumer step
-    consumer_step_log = db_session.query(models.ProcessExecutionLog).filter(
-        models.ProcessExecutionLog.workflow_run_id == workflow_run.id,
-        models.ProcessExecutionLog.job_id.like(f"%_2_Consumer Step")
-    ).one()
+    logs = db_session.query(models.ProcessExecutionLog).filter(
+        models.ProcessExecutionLog.workflow_run_id == workflow_run.id
+    ).order_by(models.ProcessExecutionLog.start_time).all()
 
-    assert consumer_step_log is not None
-    assert consumer_step_log.status == "COMPLETED"
-    # The return value of the wrapper is what we check
-    assert "'return_value': 'Consumed: hello from workflow'" in consumer_step_log.stdout
+    assert len(logs) == 2
+    assert all(log.status == "COMPLETED" for log in logs)
+
+
+def test_workflow_stops_on_failure(db_session, test_tasks_module):
+    """
+    on_failure='stop'(デフォルト)の場合、あるステップが失敗すると
+    後続のステップは実行されずワークフローがFAILEDになることを確認する。
+    """
+    workflow_in = schemas.WorkflowCreate(
+        name="Stop On Failure Test Workflow",
+        description="失敗したら止まることを確認するワークフロー",
+        is_enabled=True,
+        steps=[
+            schemas.WorkflowStepCreate(
+                name="Failing Step",
+                step_order=1,
+                task_parameters=schemas.PythonJobParams(
+                    task_type="python",
+                    module=test_tasks_module,
+                    function="failing_step",
+                ),
+                on_failure="stop",
+            ),
+            schemas.WorkflowStepCreate(
+                name="Should Not Run Step",
+                step_order=2,
+                task_parameters=schemas.PythonJobParams(
+                    task_type="python",
+                    module=test_tasks_module,
+                    function="step_two",
+                ),
+            ),
+        ]
+    )
+
+    created_workflow = service.workflow_service.create_with_steps(db=db_session, obj_in=workflow_in)
+
+    run_workflow(workflow_id=created_workflow.id)
+
+    db_session.commit()
+    workflow_run = db_session.query(models.WorkflowRun).filter_by(workflow_id=created_workflow.id).one()
+
+    assert workflow_run.status == "FAILED"
+
+    logs = db_session.query(models.ProcessExecutionLog).filter(
+        models.ProcessExecutionLog.workflow_run_id == workflow_run.id
+    ).all()
+
+    # 失敗したステップのみ実行され、後続のステップは実行されていないこと
+    assert len(logs) == 1
+    assert logs[0].status == "FAILED"

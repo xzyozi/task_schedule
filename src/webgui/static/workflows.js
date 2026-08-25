@@ -1,6 +1,6 @@
 import { fetchConfig, getApiBaseUrl } from './api_config.js';
 
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
     await fetchConfig();
 
     // --- Global State ---
@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     const workflowForm = document.getElementById('workflow-form');
     const workflowFormTitle = document.getElementById('workflow-form-title');
     const workflowIdInput = document.getElementById('workflow-id-hidden');
-    
+
     const paramsContainer = document.getElementById('params-container');
     const addParamBtn = document.getElementById('add-param-btn');
     const paramTemplate = document.getElementById('param-template');
@@ -125,7 +125,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             const input = field.querySelector('input, textarea');
             const label = field.querySelector('label');
             const stepId = `step-${Date.now()}`;
-            if(input) {
+            if (input) {
                 input.id = `${stepId}-${input.id}`;
                 label.htmlFor = input.id;
             }
@@ -160,8 +160,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             stepCard.querySelector('.step-name').value = stepData.name;
             stepCard.querySelector('.step-on-failure').value = stepData.on_failure;
             stepCard.querySelector('.step-run-in-background').checked = stepData.run_in_background;
-            stepCard.querySelector('.step-output-variable-name').value = stepData.output_variable_name || '';
-            stepCard.querySelector('.step-output-capture-source').value = stepData.output_capture_source || 'return_value';
 
             let taskParams = stepData.task_parameters;
             if (typeof taskParams === 'string') {
@@ -193,11 +191,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                 selectedTask.parameters.forEach(param => {
                     const input = stepCard.querySelector(`[name="${param.name}"]`);
                     if (!input) return;
-                    
+
                     // Find the value from taskParams, attempting a case-insensitive match for the key
                     let value;
                     const paramName = param.name;
-                    
+
                     // For python jobs, parameters are nested in kwargs
                     let sourceParams = taskParams;
                     if (taskParams.task_type === 'python' && taskParams.kwargs) {
@@ -236,7 +234,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             step.querySelector('.card-title').textContent = `ステップ ${index + 1}`;
         });
     }
-    
+
     function clearWorkflowForm() {
         workflowForm.reset();
         workflowIdInput.value = '';
@@ -295,7 +293,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     addParamBtn.addEventListener('click', () => addParam());
 
-    paramsContainer.addEventListener('click', function(event) {
+    paramsContainer.addEventListener('click', function (event) {
         if (event.target.classList.contains('remove-param-btn')) {
             event.target.closest('.param-card').remove();
         }
@@ -304,14 +302,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     addStepBtn.addEventListener('click', () => addStep());
     clearFormBtn.addEventListener('click', clearWorkflowForm);
 
-    stepsContainer.addEventListener('click', function(event) {
+    stepsContainer.addEventListener('click', function (event) {
         if (event.target.classList.contains('remove-step-btn')) {
             event.target.closest('.step-card').remove();
             updateStepTitles();
         }
     });
 
-    confirmRunWorkflowBtn.addEventListener('click', function() {
+    confirmRunWorkflowBtn.addEventListener('click', function () {
         const workflowId = modalRunWorkflowIdInput.value;
         fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}/run`, { method: 'POST' })
             .then(response => response.ok ? response.json() : Promise.reject('Failed to run workflow'))
@@ -322,7 +320,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             .catch(error => alert(error));
     });
 
-    workflowForm.addEventListener('submit', function(event) {
+    workflowForm.addEventListener('submit', function (event) {
         event.preventDefault();
         const isEdit = !!workflowIdInput.value;
         const method = isEdit ? 'PUT' : 'POST';
@@ -342,7 +340,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             stepsContainer.querySelectorAll('.step-card').forEach((stepCard, index) => {
                 const selectedTaskId = stepCard.querySelector('.step-job-type').value;
                 if (!selectedTaskId) throw new Error(`ステップ ${index + 1} のジョブタイプを選択してください。`);
-                
+
                 const selectedTask = availableTasks.find(t => t.id === selectedTaskId);
                 let task_parameters = { task_type: selectedTask.task_type };
 
@@ -376,8 +374,6 @@ document.addEventListener('DOMContentLoaded', async function() {
                     task_parameters: task_parameters,
                     on_failure: stepCard.querySelector('.step-on-failure').value,
                     run_in_background: stepCard.querySelector('.step-run-in-background').checked,
-                    output_variable_name: stepCard.querySelector('.step-output-variable-name').value.trim() || null,
-                    output_capture_source: stepCard.querySelector('.step-output-capture-source').value,
                 });
             });
         } catch (e) {
@@ -399,19 +395,19 @@ document.addEventListener('DOMContentLoaded', async function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(workflowData)
         })
-        .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
-        .then(data => {
-            alert(`ワークフロー '${data.name}' が${isEdit ? '更新' : '作成'}されました。`);
-            clearWorkflowForm();
-            fetchAndDisplayWorkflows();
-        })
-        .catch(error => {
-            const errorMessage = error.detail ? JSON.stringify(error.detail) : (error.message || 'Unknown error');
-            alert(`ワークフローの保存に失敗しました:\n${errorMessage}`);
-        });
+            .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
+            .then(data => {
+                alert(`ワークフロー '${data.name}' が${isEdit ? '更新' : '作成'}されました。`);
+                clearWorkflowForm();
+                fetchAndDisplayWorkflows();
+            })
+            .catch(error => {
+                const errorMessage = error.detail ? JSON.stringify(error.detail) : (error.message || 'Unknown error');
+                alert(`ワークフローの保存に失敗しました:\n${errorMessage}`);
+            });
     });
 
-    workflowsListBody.addEventListener('click', async function(event) {
+    workflowsListBody.addEventListener('click', async function (event) {
         const target = event.target;
         const workflowId = target.dataset.workflowId;
         if (!workflowId) return;
@@ -419,7 +415,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (target.classList.contains('btn-edit-workflow')) {
             const response = await fetch(`${getApiBaseUrl()}/api/workflows/${workflowId}`);
             const workflow = await response.json();
-            
+
             clearWorkflowForm();
             workflowFormTitle.textContent = `ワークフロー編集: ${workflow.name}`;
             workflowIdInput.value = workflow.id;
@@ -456,8 +452,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
         }
     });
-    
-    workflowsListBody.addEventListener('change', function(event) {
+
+    workflowsListBody.addEventListener('change', function (event) {
         const target = event.target;
         const workflowId = target.dataset.workflowId;
         if (!workflowId || !target.classList.contains('workflow-status-toggle')) return;
