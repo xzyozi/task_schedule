@@ -10,6 +10,13 @@ from util.config_util import config
 API_BASE_URL = config.api_base_url
 API_BACKEND_URL = config.api_base_url
 
+
+def _backend_headers() -> dict:
+    """バックエンドAPI呼び出し用の共通ヘッダー(認証キーを含む)を返す。"""
+    if config.internal_api_key:
+        return {'X-API-Key': config.internal_api_key}
+    return {}
+
 @app.route('/webgui-config')
 def webgui_config():
     return jsonify({"API_BASE_URL": API_BASE_URL})
@@ -23,7 +30,7 @@ def index():
         "failed_runs": 0
     }
     try:
-        response = requests.get(f"{API_BASE_URL}/api/dashboard/summary")
+        response = requests.get(f"{API_BASE_URL}/api/dashboard/summary", headers=_backend_headers())
         response.raise_for_status()  # Raise an exception for bad status codes
         summary_data = response.json()
     except requests.exceptions.RequestException as e:
@@ -57,7 +64,7 @@ def job_detail(job_id):
 @app.route('/api/timeline-data')
 def timeline_data():
     try:
-        response = requests.get(f"{API_BASE_URL}/api/timeline/data")
+        response = requests.get(f"{API_BASE_URL}/api/timeline/data", headers=_backend_headers())
         response.raise_for_status()
         return jsonify(response.json())
     except requests.exceptions.RequestException as e:
@@ -71,11 +78,17 @@ def api_proxy(path):
         # Construct the full API URL
         url = f"{API_BACKEND_URL}/api/{path}"
         
+        # Forward the request, injecting the internal API key so the
+        # backend's authentication (core.auth.verify_api_key) succeeds
+        # even when the browser client doesn't know the key itself.
+        proxied_headers = {key: value for (key, value) in request.headers if key != 'Host'}
+        proxied_headers.update(_backend_headers())
+
         # Forward the request
         resp = requests.request(
             method=request.method,
             url=url,
-            headers={key: value for (key, value) in request.headers if key != 'Host'},
+            headers=proxied_headers,
             data=request.get_data(),
             cookies=request.cookies,
             allow_redirects=False,

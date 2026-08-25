@@ -2,9 +2,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from core import database
+from core.auth import verify_api_key
 from util import logger_util
 from util.config_util import config
 from modules.scheduler.router import router as scheduler_router
@@ -41,7 +42,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(scheduler_router)
+app.include_router(scheduler_router, dependencies=[Depends(verify_api_key)])
 
 @app.get("/")
 def read_root():

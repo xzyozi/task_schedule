@@ -12,6 +12,11 @@ api:
   host: 127.0.0.1
   # The port number for the API server.
   port: 8000
+  # API key required to access the API (sent via the X-API-Key header).
+  # Set via the API_KEY environment variable. If unset, authentication is
+  # disabled and a warning is logged at startup (acceptable only when
+  # api.host is bound to 127.0.0.1 for local-only access).
+  api_key: "${API_KEY}"
 
 # --------------------------------------------------------------------------- #
 # Web GUI Configuration

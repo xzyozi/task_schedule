@@ -3,7 +3,7 @@ from pathlib import Path
 import json
 import os
 import re
-from typing import Any
+from typing import Any, Optional
 from util import logger_util
 
 logger = logger_util.get_logger(__name__)
@@ -72,6 +72,15 @@ class AppConfig:
         return f"{self.api_scheme}://{self.api_host}:{self.api_port}"
 
     @property
+    def api_key(self) -> Optional[str]:
+        """
+        APIアクセス用のキー。未設定(空文字)の場合は None を返し、
+        呼び出し側で認証を無効化(かつ警告)する判断に使う。
+        """
+        value = self.get('api.api_key', '')
+        return value if value else None
+
+    @property
     def webgui_scheme(self) -> str:
         return self.get('webgui.scheme', 'http')
 
@@ -86,6 +95,14 @@ class AppConfig:
     @property
     def webgui_base_url(self) -> str:
         return f"{self.webgui_scheme}://{self.webgui_host}:{self.webgui_port}"
+
+    @property
+    def internal_api_key(self) -> Optional[str]:
+        """
+        WebGUI(Flask)がバックエンドAPI(FastAPI)へのプロキシ時に使う内部用APIキー。
+        api.api_key と同じ値を共有する。
+        """
+        return self.api_key
 
     @property
     def database_url(self) -> str:
@@ -107,6 +124,25 @@ class AppConfig:
         resolved_path.mkdir(parents=True, exist_ok=True)
         
         return resolved_path
+
+    def resolve_sandboxed_path(self, relative_path: str) -> Optional[Path]:
+        """
+        scheduler_work_dir を起点に relative_path を解決し、サンドボックス外に
+        出ないことを検証したうえで絶対パスを返す。サンドボックス外に解決される
+        場合は None を返す。
+
+        単純な '..' や os.path.isabs() のチェックだけでは、Windowsの
+        ドライブ相対パス（例: 'D:temp'）のようにチェックを回避しつつ
+        別ドライブへ解決されるケースを防げないため、必ず resolve() 後の
+        パスが work_dir 配下であることを確認する。
+        """
+        work_dir = self.scheduler_work_dir
+        candidate = work_dir.joinpath(relative_path).resolve()
+
+        if candidate != work_dir and work_dir not in candidate.parents:
+            return None
+
+        return candidate
 
     @property
     def delete_orphaned_jobs_on_sync(self) -> bool:
