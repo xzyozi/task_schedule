@@ -285,14 +285,15 @@ def execute_email_job(job_id: str, task_params: dict, db: Optional[Session] = No
 # ワークフローは「登録されたジョブ(shell/python/email)を順番に実行し、失敗したら止まる」
 # という単純な直列実行のみを提供する。
 
-def run_workflow(workflow_id: int, job_id: str = None):
-    db = next(database.get_db())
+def run_workflow(workflow_id: int, job_id: str = None, db: Optional[Session] = None):
+    db_session = db if db else next(database.get_db())
+    local_session = not db
     workflow_run = None
     workflow = None  # Initialize workflow to None
     final_status = 'COMPLETED'  # Assume success initially
 
     try:
-        workflow = db.query(models.Workflow).options(joinedload(models.Workflow.steps)).filter(models.Workflow.id == workflow_id).first()
+        workflow = db_session.query(models.Workflow).options(joinedload(models.Workflow.steps)).filter(models.Workflow.id == workflow_id).first()
         if not workflow:
             logger.error(f"Workflow with id {workflow_id} not found.")
             return
@@ -304,9 +305,9 @@ def run_workflow(workflow_id: int, job_id: str = None):
             workflow_id=workflow.id,
             status='RUNNING',
         )
-        db.add(workflow_run)
-        db.commit()
-        db.refresh(workflow_run)
+        db_session.add(workflow_run)
+        db_session.commit()
+        db_session.refresh(workflow_run)
         
         steps = sorted(workflow.steps, key=lambda s: s.step_order)
 
@@ -319,11 +320,11 @@ def run_workflow(workflow_id: int, job_id: str = None):
                 
                 step_result = None
                 if task_type == 'python':
-                    step_result = execute_python_job(job_id=step_job_id, task_params=step.task_parameters, db=db, workflow_run_id=workflow_run.id)
+                    step_result = execute_python_job(job_id=step_job_id, task_params=step.task_parameters, db=db_session, workflow_run_id=workflow_run.id)
                 elif task_type == 'shell':
-                    step_result = execute_shell_job(job_id=step_job_id, task_params=step.task_parameters, db=db, workflow_run_id=workflow_run.id)
+                    step_result = execute_shell_job(job_id=step_job_id, task_params=step.task_parameters, db=db_session, workflow_run_id=workflow_run.id)
                 elif task_type == 'email':
-                    step_result = execute_email_job(job_id=step_job_id, task_params=step.task_parameters, db=db, workflow_run_id=workflow_run.id)
+                    step_result = execute_email_job(job_id=step_job_id, task_params=step.task_parameters, db=db_session, workflow_run_id=workflow_run.id)
                 else:
                     logger.error(f"Unknown step task_type: {task_type} for step '{step.name}'")
                     final_status = 'FAILED'
@@ -339,9 +340,9 @@ def run_workflow(workflow_id: int, job_id: str = None):
                 logger.error(f"An unhandled error occurred during step '{step.name}': {e}", exc_info=True)
                 final_status = 'FAILED'
                 # Log this as a failed step execution
-                fail_log = _log_job_start(db, step_job_id, "Workflow Step Execution", workflow_run.id)
+                fail_log = _log_job_start(db_session, step_job_id, "Workflow Step Execution", workflow_run.id)
                 _log_job_end(fail_log, exit_code=1, stderr=traceback.format_exc())
-                db.commit()
+                db_session.commit()
                 break
     
     except Exception as e:
@@ -353,9 +354,10 @@ def run_workflow(workflow_id: int, job_id: str = None):
         if workflow_run:
             workflow_run.status = final_status
             workflow_run.end_time = time_util.get_current_utc_time()
-            db.commit()
+            db_session.commit()
         
         workflow_name = workflow.name if workflow else f"ID {workflow_id}"
         logger.info(f"Workflow '{workflow_name}' finished with status {final_status}.")
         
-        db.close()
+        if local_session:
+            db_session.close()

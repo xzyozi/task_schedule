@@ -30,26 +30,31 @@ def db_session(SessionLocal):
         session.rollback()
         session.close()
 
+import os
+
 @pytest.fixture(scope="function")
-def test_tasks_module(tmp_path):
+def test_tasks_module(tmp_path, monkeypatch):
     """Create a temporary Python module with task functions."""
     tasks_content = """
-def step_one():
+def step_one(*args, **kwargs):
     print("step one executed")
     return "ok"
 
-def step_two():
+def step_two(*args, **kwargs):
     print("step two executed")
     return "ok"
 
-def failing_step():
+def failing_step(*args, **kwargs):
     raise RuntimeError("intentional failure")
 """
     tasks_file = tmp_path / "temp_workflow_tasks.py"
     tasks_file.write_text(tasks_content)
 
-    # Add the temp directory to sys.path so it can be imported
+    # Add the temp directory to sys.path and PYTHONPATH so child processes can import it
     sys.path.insert(0, str(tmp_path))
+    current_pythonpath = os.environ.get("PYTHONPATH", "")
+    new_pythonpath = str(tmp_path) + os.path.pathsep + current_pythonpath if current_pythonpath else str(tmp_path)
+    monkeypatch.setenv("PYTHONPATH", new_pythonpath)
     yield "temp_workflow_tasks"
     sys.path.pop(0)
 
@@ -91,7 +96,7 @@ def test_workflow_sequential_execution(db_session, test_tasks_module):
     assert created_workflow is not None
     assert len(created_workflow.steps) == 2
 
-    run_workflow(workflow_id=created_workflow.id)
+    run_workflow(workflow_id=created_workflow.id, db=db_session)
 
     db_session.commit()
     workflow_run = db_session.query(models.WorkflowRun).filter_by(workflow_id=created_workflow.id).one()
@@ -141,7 +146,7 @@ def test_workflow_stops_on_failure(db_session, test_tasks_module):
 
     created_workflow = service.workflow_service.create_with_steps(db=db_session, obj_in=workflow_in)
 
-    run_workflow(workflow_id=created_workflow.id)
+    run_workflow(workflow_id=created_workflow.id, db=db_session)
 
     db_session.commit()
     workflow_run = db_session.query(models.WorkflowRun).filter_by(workflow_id=created_workflow.id).one()

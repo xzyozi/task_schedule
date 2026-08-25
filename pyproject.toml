@@ -46,3 +46,6 @@ task-scheduler = "scheduler.cli:main"
 package-dir = {"" = "src"}
 # Find packages automatically within the 'src' directory
 packages = {"find" = {where = ["src"]}}
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
