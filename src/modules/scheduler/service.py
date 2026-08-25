@@ -356,16 +356,12 @@ def list_subdirectories(relative_path: str = "") -> List[str]:
     """
     Lists subdirectories within the scheduler's work_dir for autocompletion.
     """
-    work_dir = config.scheduler_work_dir
-    
-    # Prevent directory traversal attacks
-    if ".." in relative_path:
-        return []
+    # config.resolve_sandboxed_path が resolve() 後に work_dir 配下であることを
+    # 検証するため、'..' の文字列チェックだけでなく Windows のドライブ相対パス
+    # (例: 'D:temp') によるサンドボックス回避も防げる。
+    scan_path = config.resolve_sandboxed_path(relative_path)
 
-    scan_path = work_dir.joinpath(relative_path).resolve()
-
-    # Security check: ensure the path to scan is within the work_dir sandbox
-    if work_dir not in scan_path.parents and scan_path != work_dir:
+    if scan_path is None:
         return []
 
     if not scan_path.is_dir():

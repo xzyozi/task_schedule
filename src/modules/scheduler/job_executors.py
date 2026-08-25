@@ -23,6 +23,25 @@ logger = logger_util.get_logger(__name__)
 
 # --- Utility Functions ---
 
+def _split_shell_command(command: str) -> list:
+    """
+    シェルコマンド文字列をトークンに分割する。
+
+    標準の shlex.split() (posix=True) は POSIX シェル文法でパースするため、
+    Windows パスの区切り文字 '\\' をエスケープ文字として解釈し、パスを破壊してしまう
+    (例: 'C:\\Users\\test' -> 'C:Userstest')。
+    このプロジェクトはWindows専用のため、posix=False で分割してバックスラッシュを
+    保持し、その後に残る引用符(") のみを手動で除去する。
+    """
+    parts = shlex.split(command, posix=False)
+    cleaned = []
+    for part in parts:
+        if len(part) >= 2 and part[0] == part[-1] and part[0] in ('"', "'"):
+            cleaned.append(part[1:-1])
+        else:
+            cleaned.append(part)
+    return cleaned
+
 def _log_job_start(db: Session, job_id: str, command: str, workflow_run_id: Optional[int] = None) -> models.ProcessExecutionLog:
     """Creates and returns a new log entry for a job start."""
     log_entry = models.ProcessExecutionLog(
@@ -56,7 +75,10 @@ def _execute_subprocess(
     
     absolute_cwd = None
     if cwd:
-        absolute_cwd = config.scheduler_work_dir.joinpath(cwd).resolve()
+        absolute_cwd = config.resolve_sandboxed_path(cwd)
+        if absolute_cwd is None:
+            logger.error(f"Rejected CWD outside of sandbox (work_dir): '{cwd}'")
+            return {"stdout": "", "stderr": f"Invalid cwd: '{cwd}' resolves outside of the sandboxed work directory.", "exit_code": 1}
         absolute_cwd.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Executing: {log_command}" + (f" in {absolute_cwd}" if absolute_cwd else ""))
@@ -104,7 +126,7 @@ def execute_shell_job(job_id: str, task_params: dict, db: Optional[Session] = No
             params = schemas.ShellJobParams.model_validate(task_params)
             log_entry = _log_job_start(db_session, job_id, params.command, workflow_run_id=workflow_run_id)
             
-            command_list = shlex.split(params.command)
+            command_list = _split_shell_command(params.command)
 
             result = _execute_subprocess(
                 command_to_run=command_list,

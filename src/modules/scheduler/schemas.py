@@ -67,6 +67,11 @@ class ShellJobParams(BaseModel):
 
     @field_validator('cwd')
     def validate_cwd(cls, v):
+        # ここでの isabs / '..' チェックは、明らかに不正な入力を早期に拒否するための
+        # 一次チェックにすぎない。Windowsのドライブ相対パス（例: 'D:temp'）は
+        # isabs() が False を返すためこのチェックを通過してしまうが、実行時に
+        # config.resolve_sandboxed_path() が resolve() 後のパスが
+        # work_dir 配下であることを必ず再検証するため、そちらが最終的な防御となる。
         if v is None:
             return v
         if os.path.isabs(v) or '..' in v:
