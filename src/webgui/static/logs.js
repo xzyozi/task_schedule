@@ -1,10 +1,10 @@
-import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
+import { fetchConfig, getApiBaseUrl, escapeHtml } from './api_config.js'; // Add this import
 
-document.addEventListener('DOMContentLoaded', async function() { 
+document.addEventListener('DOMContentLoaded', async function () {
     // Remove: const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
 
     await fetchConfig(); // Fetch config first
-    
+
     const logListBody = document.getElementById('log-list-body');
 
     /**
@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 logs.forEach(log => {
                     const startTime = new Date(log.start_time).toLocaleString();
                     const endTime = log.end_time ? new Date(log.end_time).toLocaleString() : '-';
-                    
+
                     let statusBadge;
                     switch (log.status) {
                         case 'COMPLETED':
@@ -38,13 +38,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                             statusBadge = '<span class="badge bg-info">Running</span>';
                             break;
                         default:
-                            statusBadge = `<span class="badge bg-secondary">${log.status}</span>`;
+                            statusBadge = `<span class="badge bg-secondary">${escapeHtml(log.status)}</span>`;
                     }
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${log.id.substring(0, 8)}...</td>
-                        <td>${log.job_id}</td>
+                        <td>${escapeHtml(log.id.substring(0, 8))}...</td>
+                        <td>${escapeHtml(log.job_id)}</td>
                         <td>${statusBadge}</td>
                         <td>${startTime}</td>
                         <td>${endTime}</td>

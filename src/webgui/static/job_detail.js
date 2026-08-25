@@ -1,7 +1,7 @@
-import { fetchConfig, getApiBaseUrl } from './api_config.js';
+import { fetchConfig, getApiBaseUrl, escapeHtml } from './api_config.js';
 
-document.addEventListener('DOMContentLoaded', async function() {
-    await fetchConfig(); 
+document.addEventListener('DOMContentLoaded', async function () {
+    await fetchConfig();
 
     const jobId = document.getElementById('job-id-hidden').value;
 
@@ -127,18 +127,22 @@ document.addEventListener('DOMContentLoaded', async function() {
                 history.forEach(log => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${log.id}</td>
-                        <td><span class="badge bg-${log.status === 'COMPLETED' ? 'success' : log.status === 'FAILED' ? 'danger' : 'info'}">${log.status}</span></td>
+                        <td>${escapeHtml(log.id)}</td>
+                        <td><span class="badge bg-${log.status === 'COMPLETED' ? 'success' : log.status === 'FAILED' ? 'danger' : 'info'}">${escapeHtml(log.status)}</span></td>
                         <td>${formatDateTime(log.start_time)}</td>
                         <td>${formatDateTime(log.end_time)}</td>
                         <td>${formatDuration(log.start_time, log.end_time)}</td>
                         <td>
-                            <button class="btn btn-sm btn-secondary btn-view-log" data-log-id="${log.id}" 
-                                data-stdout="${log.stdout || ''}" data-stderr="${log.stderr || ''}">
+                            <button class="btn btn-sm btn-secondary btn-view-log" data-log-id="${escapeHtml(log.id)}">
                                 ログ表示
                             </button>
                         </td>
                     `;
+                    // Use dataset assignment (not template interpolation) to avoid
+                    // attribute-breaking injection when log output contains quotes.
+                    const viewLogBtn = row.querySelector('.btn-view-log');
+                    viewLogBtn.dataset.stdout = log.stdout || '';
+                    viewLogBtn.dataset.stderr = log.stderr || '';
                     executionHistoryBody.appendChild(row);
                 });
             })
@@ -150,7 +154,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     // --- Event Listeners ---
 
-    runJobNowBtn.addEventListener('click', function() {
+    runJobNowBtn.addEventListener('click', function () {
         if (!jobId) return;
 
         if (!confirm(`ジョブ '${jobId}' を今すぐ実行しますか？`)) {
@@ -160,25 +164,25 @@ document.addEventListener('DOMContentLoaded', async function() {
         fetch(`${getApiBaseUrl()}/api/scheduler/jobs/${jobId}/run`, {
             method: 'POST'
         })
-        .then(response => {
-            if (!response.ok) {
-                return response.json().then(err => Promise.reject(err));
-            }
-            return response.json();
-        })
-        .then(data => {
-            showToast(data.message || `ジョブ '${jobId}' の即時実行を要求しました。`);
-            // Optionally, refresh history after a delay
-            setTimeout(fetchExecutionHistory, 2000);
-        })
-        .catch(error => {
-            console.error('Error running job immediately:', error);
-            const errorMessage = error.detail || 'ジョブの実行に失敗しました。';
-            showToast(errorMessage, 'danger');
-        });
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => Promise.reject(err));
+                }
+                return response.json();
+            })
+            .then(data => {
+                showToast(data.message || `ジョブ '${jobId}' の即時実行を要求しました。`);
+                // Optionally, refresh history after a delay
+                setTimeout(fetchExecutionHistory, 2000);
+            })
+            .catch(error => {
+                console.error('Error running job immediately:', error);
+                const errorMessage = error.detail || 'ジョブの実行に失敗しました。';
+                showToast(errorMessage, 'danger');
+            });
     });
 
-    executionHistoryBody.addEventListener('click', function(event) {
+    executionHistoryBody.addEventListener('click', function (event) {
         const target = event.target;
         if (target.classList.contains('btn-view-log')) {
             const logId = target.dataset.logId;
@@ -195,7 +199,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 
-    copyLogBtn.addEventListener('click', function() {
+    copyLogBtn.addEventListener('click', function () {
         const activeTabContent = document.querySelector('#logTabs .nav-link.active').getAttribute('aria-controls');
         let textToCopy = '';
         if (activeTabContent === 'stdout-content') {
@@ -205,9 +209,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
 
         if (navigator.clipboard) {
-            navigator.clipboard.writeText(textToCopy).then(function() {
+            navigator.clipboard.writeText(textToCopy).then(function () {
                 alert('ログがクリップボードにコピーされました。');
-            }, function(err) {
+            }, function (err) {
                 console.error('ログのコピーに失敗しました: ', err);
                 alert('ログのコピーに失敗しました。');
             });

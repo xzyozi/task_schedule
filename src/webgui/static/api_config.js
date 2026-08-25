@@ -25,3 +25,21 @@ export async function fetchConfig() {
 export function getApiBaseUrl() {
     return API_BASE_URL;
 }
+
+/**
+ * Escapes HTML special characters to prevent XSS when inserting
+ * user-controlled strings via innerHTML.
+ * @param {*} value - Value to escape. Non-string values are coerced to string.
+ * @returns {string} Escaped string safe for innerHTML interpolation.
+ */
+export function escapeHtml(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}

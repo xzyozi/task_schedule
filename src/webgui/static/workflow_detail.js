@@ -1,10 +1,10 @@
-import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
+import { fetchConfig, getApiBaseUrl, escapeHtml } from './api_config.js'; // Add this import
 
-document.addEventListener('DOMContentLoaded', async function() { 
+document.addEventListener('DOMContentLoaded', async function () {
     // Remove: const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
 
     await fetchConfig(); // Fetch config first
-    
+
     const workflowId = document.getElementById('workflow-id-hidden').value;
 
     // Log Display Elements
@@ -29,9 +29,9 @@ document.addEventListener('DOMContentLoaded', async function() {
                     const row = document.createElement('tr');
                     row.innerHTML = `
                         <td>${step.step_order}</td>
-                        <td>${step.name}</td>
-                        <td><span class="badge bg-info">${step.job_type}</span></td>
-                        <td><code>${step.target}</code></td>
+                        <td>${escapeHtml(step.name)}</td>
+                        <td><span class="badge bg-info">${escapeHtml(step.job_type)}</span></td>
+                        <td><code>${escapeHtml(step.target)}</code></td>
                     `;
                     stepsBody.appendChild(row);
                 });
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 
     // Event listener for "ログ表示" buttons
-    document.getElementById('workflow-runs-body').addEventListener('click', function(event) {
+    document.getElementById('workflow-runs-body').addEventListener('click', function (event) {
         if (event.target.classList.contains('btn-view-run-logs')) {
             const runId = event.target.dataset.runId;
             fetch(`${getApiBaseUrl()}/api/workflow-runs/${runId}/logs`) // Use getApiBaseUrl()
@@ -91,16 +91,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     });
 
-    copyLogBtn.addEventListener('click', function() {
+    copyLogBtn.addEventListener('click', function () {
         const activeTabPane = document.querySelector('.tab-pane.fade.show.active pre code');
         if (!activeTabPane) return;
-        
+
         const textToCopy = activeTabPane.textContent;
 
         if (navigator.clipboard) {
-            navigator.clipboard.writeText(textToCopy).then(function() {
+            navigator.clipboard.writeText(textToCopy).then(function () {
                 alert('ログがクリップボードにコピーされました。');
-            }, function(err) {
+            }, function (err) {
                 console.error('ログのコピーに失敗しました: ', err);
                 alert('ログのコピーに失敗しました。');
             });

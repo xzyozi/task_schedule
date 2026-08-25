@@ -1,6 +1,6 @@
-import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
+import { fetchConfig, getApiBaseUrl, escapeHtml } from './api_config.js'; // Add this import
 
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
     // Remove: let API_BASE_URL = ''; // Will be fetched dynamically
 
     // Remove: Function to fetch configuration
@@ -30,18 +30,18 @@ document.addEventListener('DOMContentLoaded', async function() {
                 return response.json();
             })
             .then(data => {
-                if(totalJobsElement) totalJobsElement.textContent = data.total_jobs;
-                if(runningJobsElement) runningJobsElement.textContent = data.running_jobs;
-                if(successfulRunsElement) successfulRunsElement.textContent = data.successful_runs;
-                if(failedRunsElement) failedRunsElement.textContent = data.failed_runs;
+                if (totalJobsElement) totalJobsElement.textContent = data.total_jobs;
+                if (runningJobsElement) runningJobsElement.textContent = data.running_jobs;
+                if (successfulRunsElement) successfulRunsElement.textContent = data.successful_runs;
+                if (failedRunsElement) failedRunsElement.textContent = data.failed_runs;
             })
             .catch(error => {
                 console.error('Error fetching dashboard summary:', error);
                 // Display a static error message
-                if(totalJobsElement) totalJobsElement.textContent = 'N/A';
-                if(runningJobsElement) runningJobsElement.textContent = 'N/A';
-                if(successfulRunsElement) successfulRunsElement.textContent = 'N/A';
-                if(failedRunsElement) failedRunsElement.textContent = 'N/A';
+                if (totalJobsElement) totalJobsElement.textContent = 'N/A';
+                if (runningJobsElement) runningJobsElement.textContent = 'N/A';
+                if (successfulRunsElement) successfulRunsElement.textContent = 'N/A';
+                if (failedRunsElement) failedRunsElement.textContent = 'N/A';
             });
     }
 
@@ -62,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 jobListBody.innerHTML = ''; // Clear existing rows
                 items.forEach(item => {
                     const nextRun = item.next_run_time ? new Date(item.next_run_time).toLocaleString() : '-';
-                    
+
                     let statusBadge;
                     switch (item.status) {
                         case 'enabled':
@@ -75,16 +75,16 @@ document.addEventListener('DOMContentLoaded', async function() {
                             statusBadge = '<span class="badge bg-warning">一時停止</span>';
                             break;
                         default:
-                            statusBadge = `<span class="badge bg-dark">${item.status}</span>`;
+                            statusBadge = `<span class="badge bg-dark">${escapeHtml(item.status)}</span>`;
                     }
 
-                    const idForScheduler = item.type === 'workflow' ? `workflow_${item.id}` : item.id;
-                    const detailUrl = item.type === 'workflow' ? `/workflows/${item.id}` : `/jobs/${item.id}`;
+                    const idForScheduler = escapeHtml(item.type === 'workflow' ? `workflow_${item.id}` : item.id);
+                    const detailUrl = item.type === 'workflow' ? `/workflows/${encodeURIComponent(item.id)}` : `/jobs/${encodeURIComponent(item.id)}`;
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td><a href="${detailUrl}">${item.name}</a></td>
-                        <td>${item.schedule}</td>
+                        <td><a href="${detailUrl}">${escapeHtml(item.name)}</a></td>
+                        <td>${escapeHtml(item.schedule)}</td>
                         <td>${nextRun}</td>
                         <td>${statusBadge}</td>
                         <td>
@@ -127,24 +127,24 @@ document.addEventListener('DOMContentLoaded', async function() {
             fetch(`${getApiBaseUrl()}/scheduler/jobs/${schedulerId}/${action}`, { // Use getApiBaseUrl()
                 method: 'POST'
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`Action failed! status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log(`Action '${action}' for '${schedulerId}' successful:`, data.message);
-                // Refresh the list to show the updated status
-                setTimeout(() => {
-                    updateJobList();
-                    updateDashboard(); // Also refresh summary
-                }, 500); // Add a small delay
-            })
-            .catch(error => {
-                console.error(`Error performing action ${action} on job ${schedulerId}:`, error);
-                alert(`Action failed for ${schedulerId}. See console for details.`);
-            });
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Action failed! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(`Action '${action}' for '${schedulerId}' successful:`, data.message);
+                    // Refresh the list to show the updated status
+                    setTimeout(() => {
+                        updateJobList();
+                        updateDashboard(); // Also refresh summary
+                    }, 500); // Add a small delay
+                })
+                .catch(error => {
+                    console.error(`Error performing action ${action} on job ${schedulerId}:`, error);
+                    alert(`Action failed for ${schedulerId}. See console for details.`);
+                });
         }
     }
 

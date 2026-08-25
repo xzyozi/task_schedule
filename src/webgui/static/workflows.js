@@ -1,4 +1,4 @@
-import { fetchConfig, getApiBaseUrl } from './api_config.js';
+import { fetchConfig, getApiBaseUrl, escapeHtml } from './api_config.js';
 
 document.addEventListener('DOMContentLoaded', async function () {
     await fetchConfig();
@@ -264,23 +264,24 @@ document.addEventListener('DOMContentLoaded', async function () {
                 workflows.forEach(wf => {
                     const row = document.createElement('tr');
                     const isEnabled = wf.is_enabled;
+                    const safeId = escapeHtml(wf.id);
                     row.innerHTML = `
                         <td>
                             <div class="form-check form-switch">
                                 <input class="form-check-input workflow-status-toggle" type="checkbox" role="switch"
-                                       data-workflow-id="${wf.id}" ${isEnabled ? 'checked' : ''}>
+                                       data-workflow-id="${safeId}" ${isEnabled ? 'checked' : ''}>
                                 <label class="form-check-label">
                                     ${isEnabled ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>'}
                                 </label>
                             </div>
                         </td>
-                        <td><a href="/workflows/${wf.id}">${wf.name}</a></td>
-                        <td>${wf.description || ''}</td>
-                        <td>${wf.schedule || 'N/A'}</td>
+                        <td><a href="/workflows/${safeId}">${escapeHtml(wf.name)}</a></td>
+                        <td>${escapeHtml(wf.description || '')}</td>
+                        <td>${escapeHtml(wf.schedule || 'N/A')}</td>
                         <td>
-                            <button class="btn btn-sm btn-info btn-edit-workflow" data-workflow-id="${wf.id}">編集</button>
-                            <button class="btn btn-sm btn-success btn-run-workflow" data-workflow-id="${wf.id}" data-workflow-name="${wf.name}">実行</button>
-                            <button class="btn btn-sm btn-danger btn-delete-workflow" data-workflow-id="${wf.id}">削除</button>
+                            <button class="btn btn-sm btn-info btn-edit-workflow" data-workflow-id="${safeId}">編集</button>
+                            <button class="btn btn-sm btn-success btn-run-workflow" data-workflow-id="${safeId}" data-workflow-name="${escapeHtml(wf.name)}">実行</button>
+                            <button class="btn btn-sm btn-danger btn-delete-workflow" data-workflow-id="${safeId}">削除</button>
                         </td>
                     `;
                     workflowsListBody.appendChild(row);

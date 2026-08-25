@@ -1,6 +1,6 @@
-import { fetchConfig, getApiBaseUrl } from './api_config.js';
+import { fetchConfig, getApiBaseUrl, escapeHtml } from './api_config.js';
 
-document.addEventListener('DOMContentLoaded', async function() {
+document.addEventListener('DOMContentLoaded', async function () {
     // Remove: let API_BASE_URL = ''; // Will be fetched dynamically
 
     // Fetch config first
@@ -104,7 +104,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         } else if (isLiteral) {
             input = document.createElement('select');
             input.className = 'form-select';
-            
+
             // Extract options from Literal['option1', 'option2']
             const optionsMatch = param.type.match(/\[(.*)\]/);
             if (optionsMatch && optionsMatch[1]) {
@@ -171,7 +171,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         jobForm.reset();
         jobIdHidden.value = '';
         jobFormTitle.textContent = '新規ジョブ作成';
-        
+
         taskSelect.value = '';
         taskSelect.disabled = false;
         dynamicParamsContainer.innerHTML = '';
@@ -253,7 +253,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             const response = await fetch(`${getApiBaseUrl()}/api/available-tasks`); // Use getApiBaseUrl()
             if (!response.ok) throw new Error('Failed to fetch tasks');
             availableTasks = await response.json();
-            
+
             taskSelect.innerHTML = '<option value="" selected disabled>タスクを選択...</option>';
             availableTasks.forEach(task => {
                 const option = document.createElement('option');
@@ -273,11 +273,11 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!taskParams) return 'N/A';
         switch (taskParams.task_type) {
             case 'python':
-                return `<span class="badge bg-primary">Py</span> ${taskParams.module}:${taskParams.function}`;
+                return `<span class="badge bg-primary">Py</span> ${escapeHtml(taskParams.module)}:${escapeHtml(taskParams.function)}`;
             case 'shell':
-                return `<span class="badge bg-secondary">Sh</span> ${taskParams.command.substring(0, 50)}...`;
+                return `<span class="badge bg-secondary">Sh</span> ${escapeHtml(taskParams.command.substring(0, 50))}...`;
             case 'email':
-                return `<span class="badge bg-info">Mail</span> To: ${taskParams.to_email}`;
+                return `<span class="badge bg-info">Mail</span> To: ${escapeHtml(taskParams.to_email)}`;
             default:
                 return 'Unknown Task';
         }
@@ -322,16 +322,17 @@ document.addEventListener('DOMContentLoaded', async function() {
                 jobs.forEach(job => {
                     const row = document.createElement('tr');
                     const status = job.is_enabled ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>';
+                    const safeId = escapeHtml(job.id);
                     row.innerHTML = `
-                        <td><input type="checkbox" class="form-check-input job-checkbox" data-job-id="${job.id}"></td>
+                        <td><input type="checkbox" class="form-check-input job-checkbox" data-job-id="${safeId}"></td>
                         <td>${status}</td>
-                        <td><a href="#" class="job-name-link" data-job-id="${job.id}">${job.name}</a><br><small class="text-muted">${job.id}</small></td>
+                        <td><a href="#" class="job-name-link" data-job-id="${safeId}">${escapeHtml(job.name)}</a><br><small class="text-muted">${safeId}</small></td>
                         <td>${formatTrigger(job.trigger)}</td>
                         <td>${formatDateTime(job.next_run_time)}</td>
                         <td class="text-break">${formatTask(job.task_parameters)}</td>
                         <td>
-                            <button class="btn btn-sm btn-info btn-edit" data-job-id="${job.id}" title="編集">編集</button>
-                            <button class="btn btn-sm btn-danger btn-delete" data-job-id="${job.id}" title="削除">削除</button>
+                            <button class="btn btn-sm btn-info btn-edit" data-job-id="${safeId}" title="編集">編集</button>
+                            <button class="btn btn-sm btn-danger btn-delete" data-job-id="${safeId}" title="削除">削除</button>
                         </td>
                     `;
                     jobsListBody.appendChild(row);
@@ -350,7 +351,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     newJobBtn.addEventListener('click', clearForm);
     clearFormBtn.addEventListener('click', clearForm);
 
-    jobForm.addEventListener('submit', function(event) {
+    jobForm.addEventListener('submit', function (event) {
         event.preventDefault();
         const selectedTaskId = taskSelect.value;
         if (!selectedTaskId) {
@@ -392,7 +393,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } else {
                     value = input.value;
                 }
-                
+
                 if (input.required && !value && input.type !== 'checkbox') {
                     throw new Error(`必須パラメータ "${param.label}" が空です。`);
                 }
@@ -414,10 +415,10 @@ document.addEventListener('DOMContentLoaded', async function() {
             trigger: { type: triggerTypeSelect.value },
             task_parameters: task_parameters,
         };
-        
+
         if (!isEdit) {
             jobData.id = jobNameInput.value.trim().replace(/\s+/g, '_');
-             if (!jobData.id) {
+            if (!jobData.id) {
                 alert('ジョブ名は必須です。');
                 return;
             }
@@ -439,19 +440,19 @@ document.addEventListener('DOMContentLoaded', async function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(jobData),
         })
-        .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
-        .then(data => {
-            showToast(`ジョブ '${data.name}' が${isEdit ? '更新' : '作成'}されました。`);
-            clearForm();
-            fetchAndDisplayJobs();
-        })
-        .catch(error => {
-            const errorMessage = error.detail ? JSON.stringify(error.detail) : error.message;
-            alert(`ジョブの保存に失敗しました:\n${errorMessage}`);
-        });
+            .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
+            .then(data => {
+                showToast(`ジョブ '${data.name}' が${isEdit ? '更新' : '作成'}されました。`);
+                clearForm();
+                fetchAndDisplayJobs();
+            })
+            .catch(error => {
+                const errorMessage = error.detail ? JSON.stringify(error.detail) : error.message;
+                alert(`ジョブの保存に失敗しました:\n${errorMessage}`);
+            });
     });
 
-    jobsListBody.addEventListener('click', function(event) {
+    jobsListBody.addEventListener('click', function (event) {
         const target = event.target;
         const jobId = target.dataset.jobId;
         if (!jobId) return;
