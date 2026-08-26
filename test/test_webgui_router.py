@@ -51,6 +51,7 @@ def test_webgui_job_detail_page(test_client):
 def test_webgui_workflow_detail_page(test_client):
     response = test_client.get("/workflows/1")
     assert response.status_code == 200
+    assert "ワークフロー" in response.text or "Workflow" in response.text
 
 
 def test_webgui_logs_page(test_client):
