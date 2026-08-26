@@ -56,25 +56,25 @@ def test_webgui_workflow_detail_page(test_client):
 def test_webgui_logs_page(test_client):
     response = test_client.get("/logs")
     assert response.status_code == 200
-    assert "実行ログ" in response.text or "logs" in response.text.lower()
+    assert "実行ログ" in response.text
 
 
 def test_webgui_jobs_page(test_client):
     response = test_client.get("/jobs")
     assert response.status_code == 200
-    assert "ジョブ管理" in response.text or "job" in response.text.lower()
+    assert "ジョブ管理" in response.text
 
 
 def test_webgui_workflows_page(test_client):
     response = test_client.get("/workflows")
     assert response.status_code == 200
-    assert "ワークフロー" in response.text or "workflow" in response.text.lower()
+    assert "ワークフロー" in response.text
 
 
 def test_webgui_settings_page(test_client):
     response = test_client.get("/settings")
     assert response.status_code == 200
-    assert "設定" in response.text or "settings" in response.text.lower()
+    assert "設定" in response.text
 
 
 def test_webgui_config_endpoint(test_client):

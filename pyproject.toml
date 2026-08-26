@@ -120,3 +120,6 @@ pythonpath = ["src"]
 testpaths = ["test"]
 python_files = ["test_*.py"]
 addopts = "-v --tb=short"
+markers = [
+    "playwright: marks tests as E2E browser tests",
+]
