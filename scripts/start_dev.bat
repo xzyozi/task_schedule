@@ -11,11 +11,8 @@ IF EXIST "venv\Scripts\activate.bat" (
 
 set "PYTHONPATH=%CD%\src;%PYTHONPATH%"
 
-echo Starting Web GUI...
-start "Web GUI" cmd /k "python -B src/webgui/app.py"
-
-echo Starting FastAPI scheduler...
-start "Scheduler" cmd /k "python -B src/main.py"
+echo Starting Task Scheduler Application (FastAPI)...
+python -B src/main.py
 
 popd
 

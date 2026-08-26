@@ -40,7 +40,7 @@ def test_client_with_db():
 def test_read_root(test_client_with_db):
     response = test_client_with_db.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Welcome to the Task Scheduler API"}
+    assert "Task Scheduler Dashboard" in response.text
 
 def test_read_job_not_found(test_client_with_db):
     response = test_client_with_db.get("/api/jobs/non_existent_job_id")
