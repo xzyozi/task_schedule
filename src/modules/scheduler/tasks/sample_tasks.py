@@ -1,9 +1,11 @@
 import logging
-import datetime
+
 from util import time_util
+
 from ..task_utils import task
 
 logger = logging.getLogger(__name__)
+
 
 @task(name="Print Current Time", description="Logs the current UTC time.")
 def print_current_time(**kwargs):
@@ -12,11 +14,13 @@ def print_current_time(**kwargs):
     logger.info(f"Sample job executed at: {now}")
     print(f"Sample job executed at: {now}")
 
+
 @task(name="Simple Echo", description="Prints the provided message to the log.")
 def echo(message: str = "No message provided"):
     """Prints a message."""
     logger.info(f"Echo: {message}")
     print(f"Echo: {message}")
+
 
 @task(enabled=False, name="Disabled Task Example")
 def disabled_task():

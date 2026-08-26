@@ -1,23 +1,29 @@
-import os
-import inspect
-import importlib
-import uuid
-from pathlib import Path
-from sqlalchemy.orm import Session, joinedload
-from core.crud import CRUDBase
-from . import models, schemas, scheduler_instance
-from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta, timezone
+import importlib
+import inspect
+import os
+from pathlib import Path
+from typing import Dict, List, Optional
+import uuid
+
+from apscheduler.jobstores.base import JobLookupError
+from sqlalchemy.orm import Session, joinedload
+
+from core.crud import CRUDBase
 from util import logger_util
 from util.config_util import config
-from apscheduler.jobstores.base import JobLookupError
+
+from . import models, scheduler_instance, schemas
 
 logger = logger_util.get_logger(__name__)
+
 
 class JobDefinitionCRUD(CRUDBase[models.JobDefinition, schemas.JobCreate, schemas.JobUpdate]):
     pass
 
+
 job_definition_service = JobDefinitionCRUD(models.JobDefinition)
+
 
 class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Workflow]):
     def get_by_name(self, db: Session, *, name: str) -> Optional[models.Workflow]:
@@ -27,7 +33,7 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
         """
         Create a new workflow and its associated steps.
         """
-        workflow_data = obj_in.model_dump(exclude={'steps'})
+        workflow_data = obj_in.model_dump(exclude={"steps"})
         db_workflow = self.model(**workflow_data)
         db.add(db_workflow)
         db.commit()
@@ -36,77 +42,83 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
         for step_in in obj_in.steps:
             # Extract task_parameters from the Pydantic schema
             task_parameters_data = step_in.task_parameters.model_dump()
-            
-            step_data = step_in.model_dump(exclude={'task_parameters'})
+
+            step_data = step_in.model_dump(exclude={"task_parameters"})
             # Add the task_parameters dictionary to the step_data
-            step_data['task_parameters'] = task_parameters_data
-            
+            step_data["task_parameters"] = task_parameters_data
+
             db_step = models.WorkflowStep(**step_data, workflow_id=db_workflow.id)
             db.add(db_step)
-        
+
         db.commit()
         db.refresh(db_workflow)
         return db_workflow
 
-    def update_with_steps(self, db: Session, *, db_obj: models.Workflow, obj_in: schemas.WorkflowCreate) -> models.Workflow:
+    def update_with_steps(
+        self, db: Session, *, db_obj: models.Workflow, obj_in: schemas.WorkflowCreate
+    ) -> models.Workflow:
         """
         Update a workflow and its steps.
         """
         # Update workflow fields
-        update_data = obj_in.model_dump(exclude={'steps', 'name'}) # name is not updatable
+        update_data = obj_in.model_dump(exclude={"steps", "name"})  # name is not updatable
         for field, value in update_data.items():
             setattr(db_obj, field, value)
 
         # Delete old steps
         for step in db_obj.steps:
             db.delete(step)
-        
+
         # Create new steps
         for step_in in obj_in.steps:
             # Extract task_parameters from the Pydantic schema
             task_parameters_data = step_in.task_parameters.model_dump()
-            
-            step_data = step_in.model_dump(exclude={'task_parameters'})
+
+            step_data = step_in.model_dump(exclude={"task_parameters"})
             # Add the task_parameters dictionary to the step_data
-            step_data['task_parameters'] = task_parameters_data
-            
+            step_data["task_parameters"] = task_parameters_data
+
             db_step = models.WorkflowStep(**step_data, workflow_id=db_obj.id)
             db.add(db_step)
-            
+
         db.commit()
         db.refresh(db_obj)
         return db_obj
-    
+
     def get(self, db: Session, id: int) -> Optional[models.Workflow]:
         """
         Get a workflow by ID, including its steps.
         """
         # steps と runs を結合ロードするように修正
-        return db.query(self.model).options(
-            joinedload(self.model.steps),
-            joinedload(self.model.runs)
-        ).filter(self.model.id == id).first()
+        return (
+            db.query(self.model)
+            .options(joinedload(self.model.steps), joinedload(self.model.runs))
+            .filter(self.model.id == id)
+            .first()
+        )
+
 
 workflow_service = WorkflowCRUD(models.Workflow)
+
 
 def create_job_from_schema(db: Session, *, job_in: schemas.JobCreate) -> models.JobDefinition:
     """
     Creates a JobDefinition in the database from the new JobCreate Pydantic schema.
     """
     # Check for ID conflict if an ID is provided
-    if hasattr(job_in, 'id') and job_in.id and job_definition_service.get(db, id=job_in.id):
+    if hasattr(job_in, "id") and job_in.id and job_definition_service.get(db, id=job_in.id):
         logger.warning(f"Job with ID '{job_in.id}' already exists.")
         return None
 
     # Separate trigger and task parameter models
     trigger_dict = job_in.trigger.model_dump()
-    trigger_type = trigger_dict.pop('type')
-    
+    trigger_type = trigger_dict.pop("type")
+
     task_params_dict = job_in.task_parameters.model_dump()
-    task_type = task_params_dict.pop('task_type')
+    task_type = task_params_dict.pop("task_type")
 
     # Generate a unique ID for the job if not provided
-    job_id = getattr(job_in, 'id', None) or uuid.uuid4().hex[:12]
+    job_id = getattr(job_in, "id", None) or uuid.uuid4().hex[:12]
 
     db_obj = models.JobDefinition(
         id=job_id,
@@ -126,31 +138,35 @@ def create_job_from_schema(db: Session, *, job_in: schemas.JobCreate) -> models.
     db.refresh(db_obj)
     return db_obj
 
-def update_job_from_schema(db: Session, *, db_obj: models.JobDefinition, job_in: schemas.JobUpdate) -> models.JobDefinition:
+
+def update_job_from_schema(
+    db: Session, *, db_obj: models.JobDefinition, job_in: schemas.JobUpdate
+) -> models.JobDefinition:
     """
     Updates a JobDefinition in the database from the new JobUpdate Pydantic schema.
     """
     update_data = job_in.model_dump(exclude_unset=True)
 
-    if 'trigger' in update_data and update_data['trigger'] is not None:
-        trigger_dict = update_data.pop('trigger')
-        db_obj.trigger_type = trigger_dict.get('type')
-        trigger_dict.pop('type', None)
+    if "trigger" in update_data and update_data["trigger"] is not None:
+        trigger_dict = update_data.pop("trigger")
+        db_obj.trigger_type = trigger_dict.get("type")
+        trigger_dict.pop("type", None)
         db_obj.trigger_config = trigger_dict
-    
-    if 'task_parameters' in update_data and update_data['task_parameters'] is not None:
-        task_params_dict = update_data.pop('task_parameters')
-        db_obj.task_type = task_params_dict.get('task_type')
-        task_params_dict.pop('task_type', None)
+
+    if "task_parameters" in update_data and update_data["task_parameters"] is not None:
+        task_params_dict = update_data.pop("task_parameters")
+        db_obj.task_type = task_params_dict.get("task_type")
+        task_params_dict.pop("task_type", None)
         db_obj.task_parameters = task_params_dict
 
     for field, value in update_data.items():
         setattr(db_obj, field, value)
-    
+
     db.add(db_obj)
     db.commit()
     db.refresh(db_obj)
     return db_obj
+
 
 def update_workflow_enabled_status(db: Session, workflow_id: int, is_enabled: bool) -> Optional[models.Workflow]:
     """
@@ -172,16 +188,16 @@ def get_dashboard_summary(db: Session) -> schemas.DashboardSummary:
     total_job_defs = db.query(models.JobDefinition).count()
     total_workflows = db.query(models.Workflow).count()
     total_jobs = total_job_defs + total_workflows
-    
-    running_jobs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'RUNNING').count()
-    successful_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'COMPLETED').count()
-    failed_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == 'FAILED').count()
-    return schemas.DashboardSummary(
-        total_jobs=total_jobs,
-        running_jobs=running_jobs,
-        successful_runs=successful_runs,
-        failed_runs=failed_runs
+
+    running_jobs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == "RUNNING").count()
+    successful_runs = (
+        db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == "COMPLETED").count()
     )
+    failed_runs = db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.status == "FAILED").count()
+    return schemas.DashboardSummary(
+        total_jobs=total_jobs, running_jobs=running_jobs, successful_runs=successful_runs, failed_runs=failed_runs
+    )
+
 
 def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     """
@@ -191,7 +207,7 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     - Executed regular jobs (not part of a workflow) are shown as ranges.
     - Individual workflow steps are NOT shown.
     """
-    
+
     def _make_aware(dt: Optional[datetime]) -> Optional[datetime]:
         if dt and dt.tzinfo is None:
             return dt.replace(tzinfo=timezone.utc)
@@ -211,74 +227,98 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
             group = job.id
             item_id = f"scheduled-{job.id}"
 
-            if job.id.startswith('workflow_'):
+            if job.id.startswith("workflow_"):
                 try:
-                    workflow_id = int(job.id.split('_')[1])
+                    workflow_id = int(job.id.split("_")[1])
                     workflow = workflows_by_id.get(workflow_id)
                     if workflow:
                         content = workflow.name
                         group = f"workflow_{workflow.id}"
                 except (IndexError, ValueError):
-                    pass 
-            
-            timeline_items.append(schemas.TimelineItem(
-                id=f"{item_id}-{start_time_aware.isoformat()}",
-                content=f"{content} (Scheduled)",
-                start=start_time_aware,
-                status="scheduled",
-                group=group
-            ))
+                    pass
+
+            timeline_items.append(
+                schemas.TimelineItem(
+                    id=f"{item_id}-{start_time_aware.isoformat()}",
+                    content=f"{content} (Scheduled)",
+                    start=start_time_aware,
+                    status="scheduled",
+                    group=group,
+                )
+            )
 
     # Part 2: Executed Workflow Runs
-    recent_workflow_runs = (db.query(models.WorkflowRun)
+    recent_workflow_runs = (
+        db.query(models.WorkflowRun)
         .options(joinedload(models.WorkflowRun.workflow))
         .filter(models.WorkflowRun.start_time >= seven_days_ago)
-        .all())
+        .all()
+    )
 
     for run in recent_workflow_runs:
-        timeline_items.append(schemas.TimelineItem(
-            id=f"wf_run-{run.id}",
-            content=run.workflow.name if run.workflow else f"Workflow {run.workflow_id} (deleted)",
-            start=_make_aware(run.start_time),
-            end=_make_aware(run.end_time) or (now if run.status == 'RUNNING' else None),
-            status=run.status.lower(),
-            group=f"workflow_{run.workflow_id}"
-        ))
+        timeline_items.append(
+            schemas.TimelineItem(
+                id=f"wf_run-{run.id}",
+                content=run.workflow.name if run.workflow else f"Workflow {run.workflow_id} (deleted)",
+                start=_make_aware(run.start_time),
+                end=_make_aware(run.end_time) or (now if run.status == "RUNNING" else None),
+                status=run.status.lower(),
+                group=f"workflow_{run.workflow_id}",
+            )
+        )
 
     # Part 3: Executed Regular Jobs (non-workflow)
-    recent_job_logs = (db.query(models.ProcessExecutionLog)
+    recent_job_logs = (
+        db.query(models.ProcessExecutionLog)
         .filter(
-            models.ProcessExecutionLog.workflow_run_id == None,
-            models.ProcessExecutionLog.start_time >= seven_days_ago
-        ).all())
+            models.ProcessExecutionLog.workflow_run_id == None, models.ProcessExecutionLog.start_time >= seven_days_ago
+        )
+        .all()
+    )
 
     for log in recent_job_logs:
         # Redundant check to ensure steps are not shown, in case of data inconsistency
-        if log.job_id and '_step_' in log.job_id:
+        if log.job_id and "_step_" in log.job_id:
             continue
-        timeline_items.append(schemas.TimelineItem(
-            id=f"log-{log.id}",
-            content=log.job_id,
-            start=_make_aware(log.start_time),
-            end=_make_aware(log.end_time) or (now if log.status == 'RUNNING' else None),
-            status=log.status.lower(),
-            group=log.job_id
-        ))
+        timeline_items.append(
+            schemas.TimelineItem(
+                id=f"log-{log.id}",
+                content=log.job_id,
+                start=_make_aware(log.start_time),
+                end=_make_aware(log.end_time) or (now if log.status == "RUNNING" else None),
+                status=log.status.lower(),
+                group=log.job_id,
+            )
+        )
 
     timeline_items.sort(key=lambda item: item.start)
     return timeline_items
+
 
 def get_execution_logs(db: Session, skip: int = 0, limit: int = 100) -> List[models.ProcessExecutionLog]:
     """
     Retrieves a paginated list of job execution logs.
     """
-    return db.query(models.ProcessExecutionLog).order_by(models.ProcessExecutionLog.start_time.desc()).offset(skip).limit(limit).all()
+    return (
+        db.query(models.ProcessExecutionLog)
+        .order_by(models.ProcessExecutionLog.start_time.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
 
 def get_job_execution_history(db: Session, job_id: str) -> List[models.ProcessExecutionLog]:
     """
     Retrieves the execution history for a specific job.
     """
-    return db.query(models.ProcessExecutionLog).filter(models.ProcessExecutionLog.job_id == job_id).order_by(models.ProcessExecutionLog.start_time.desc()).all()
+    return (
+        db.query(models.ProcessExecutionLog)
+        .filter(models.ProcessExecutionLog.job_id == job_id)
+        .order_by(models.ProcessExecutionLog.start_time.desc())
+        .all()
+    )
+
 
 def get_scheduled_jobs_info(db: Session) -> List[schemas.Job]:
     """
@@ -286,8 +326,8 @@ def get_scheduled_jobs_info(db: Session) -> List[schemas.Job]:
     with database definitions to return the full `schemas.Job` model.
     """
     scheduled_jobs = scheduler_instance.scheduler.get_jobs()
-    job_ids = [job.id for job in scheduled_jobs if not job.id.startswith('workflow_')]
-    
+    job_ids = [job.id for job in scheduled_jobs if not job.id.startswith("workflow_")]
+
     if not job_ids:
         return []
 
@@ -299,17 +339,18 @@ def get_scheduled_jobs_info(db: Session) -> List[schemas.Job]:
     for job in scheduled_jobs:
         if job.id in job_defs_map:
             db_job = job_defs_map[job.id]
-            
+
             # Use the Pydantic model's validator to construct the base object
             # The validator `assemble_from_db_model` in `schemas.py` handles the transformation
             job_model = schemas.Job.model_validate(db_job)
-            
+
             # Add the dynamic next_run_time from the scheduler
             job_model.next_run_time = job.next_run_time
-            
+
             job_infos.append(job_model)
-            
+
     return job_infos
+
 
 def delete_bulk_jobs(db: Session, job_ids: List[str]) -> int:
     """
@@ -321,6 +362,7 @@ def delete_bulk_jobs(db: Session, job_ids: List[str]) -> int:
         if job_definition_service.remove(db, id=job_id):
             deleted_count += 1
     return deleted_count
+
 
 def pause_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
     """
@@ -337,6 +379,7 @@ def pause_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
             failed_ids[job_id] = "Not Found"
     return {"paused": paused_ids, "failed": failed_ids}
 
+
 def resume_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
     """
     Resumes a list of scheduled jobs.
@@ -351,6 +394,7 @@ def resume_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
         except JobLookupError:
             failed_ids[job_id] = "Not Found"
     return {"resumed": resumed_ids, "failed": failed_ids}
+
 
 def list_subdirectories(relative_path: str = "") -> List[str]:
     """
@@ -372,22 +416,23 @@ def list_subdirectories(relative_path: str = "") -> List[str]:
     except OSError:
         return []
 
+
 def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
     """
     Retrieves a unified list of all jobs and workflows for dashboard display.
     """
     unified_list = []
-    
+
     # Get all scheduled jobs from APScheduler
     scheduled_jobs = {job.id: job for job in scheduler_instance.scheduler.get_jobs()}
-    
+
     # 1. Process Job Definitions
     jobs_in_db = db.query(models.JobDefinition).all()
     for job_def in jobs_in_db:
         job_id = job_def.id
-        status = "disabled" # Default to disabled
+        status = "disabled"  # Default to disabled
         next_run = None
-        
+
         if job_def.is_enabled:
             # Only if the job is enabled in the DB can it have an active status
             if job_id in scheduled_jobs:
@@ -398,38 +443,40 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
                 # If it's enabled in DB but not in scheduler, it's effectively disabled
                 # from a control perspective.
                 status = "disabled"
-        
+
         trigger_str = f"{job_def.trigger_type}: "
-        if job_def.trigger_type == 'cron':
-            cron_fields = ['minute', 'hour', 'day', 'month', 'day_of_week']
+        if job_def.trigger_type == "cron":
+            cron_fields = ["minute", "hour", "day", "month", "day_of_week"]
             parts = []
             for field in cron_fields:
                 value = job_def.trigger_config.get(field)
-                parts.append(str(value) if value is not None else '*')
-            trigger_str += ' '.join(parts)
-        elif job_def.trigger_type == 'interval':
+                parts.append(str(value) if value is not None else "*")
+            trigger_str += " ".join(parts)
+        elif job_def.trigger_type == "interval":
             parts = []
-            for unit in ['weeks', 'days', 'hours', 'minutes', 'seconds']:
+            for unit in ["weeks", "days", "hours", "minutes", "seconds"]:
                 if job_def.trigger_config.get(unit, 0) > 0:
                     parts.append(f"{job_def.trigger_config[unit]}{unit[0]}")
-            trigger_str += ' '.join(parts)
+            trigger_str += " ".join(parts)
 
-        unified_list.append(schemas.UnifiedJobItem(
-            id=job_id,
-            type='job',
-            name=job_def.name or job_def.id,
-            description=job_def.description,
-            is_enabled=job_def.is_enabled,
-            schedule=trigger_str,
-            next_run_time=next_run,
-            status=status
-        ))
+        unified_list.append(
+            schemas.UnifiedJobItem(
+                id=job_id,
+                type="job",
+                name=job_def.name or job_def.id,
+                description=job_def.description,
+                is_enabled=job_def.is_enabled,
+                schedule=trigger_str,
+                next_run_time=next_run,
+                status=status,
+            )
+        )
 
     # 2. Process Workflows
     workflows_in_db = db.query(models.Workflow).all()
     for workflow in workflows_in_db:
         job_id = f"workflow_{workflow.id}"
-        status = "disabled" # Default to disabled
+        status = "disabled"  # Default to disabled
         next_run = None
 
         if workflow.is_enabled:
@@ -441,29 +488,32 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
             else:
                 # If enabled in DB but not scheduled (e.g. no cron string), it's effectively disabled.
                 status = "disabled"
-        
-        unified_list.append(schemas.UnifiedJobItem(
-            id=str(workflow.id),
-            type='workflow',
-            name=workflow.name,
-            description=workflow.description,
-            is_enabled=workflow.is_enabled,
-            schedule=workflow.schedule or "Not Scheduled",
-            next_run_time=next_run,
-            status=status
-        ))
-        
+
+        unified_list.append(
+            schemas.UnifiedJobItem(
+                id=str(workflow.id),
+                type="workflow",
+                name=workflow.name,
+                description=workflow.description,
+                is_enabled=workflow.is_enabled,
+                schedule=workflow.schedule or "Not Scheduled",
+                next_run_time=next_run,
+                status=status,
+            )
+        )
+
     return unified_list
+
 
 def run_workflow_immediately(db: Session, workflow_id: int):
     """
     Schedules a one-off, immediate execution of a workflow.
     """
     scheduler_instance.scheduler.add_job(
-        'modules.scheduler.job_executors:run_workflow',
-        kwargs={'workflow_id': workflow_id}
+        "modules.scheduler.job_executors:run_workflow", kwargs={"workflow_id": workflow_id}
     )
     return {"message": "Workflow scheduled for immediate execution."}
+
 
 def get_available_tasks() -> List[schemas.AvailableTask]:
     """
@@ -472,17 +522,17 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
     """
     logger.info("--- Starting task discovery ---")
     tasks: List[schemas.AvailableTask] = []
-    
+
     # Part 1: Discover Python tasks from the 'tasks' directory
     try:
-        tasks_dir = Path(__file__).parent.joinpath('tasks')
+        tasks_dir = Path(__file__).parent.joinpath("tasks")
         logger.info(f"Scanning for Python tasks in: {tasks_dir}")
-        
-        found_files = list(tasks_dir.glob('*.py'))
+
+        found_files = list(tasks_dir.glob("*.py"))
         logger.info(f"Found {len(found_files)} Python files to inspect: {[f.name for f in found_files]}")
 
         for file_path in found_files:
-            if file_path.name.startswith('__'):
+            if file_path.name.startswith("__"):
                 logger.info(f"Skipping file: {file_path.name}")
                 continue
 
@@ -491,55 +541,59 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
             try:
                 module = importlib.import_module(module_name)
                 for name, func in inspect.getmembers(module, inspect.isfunction):
-                    if not hasattr(func, '_task_meta'):
+                    if not hasattr(func, "_task_meta"):
                         continue
 
                     logger.info(f"Found potential task '{name}' in {module_name}")
                     meta = func._task_meta
-                    if not meta.get('enabled', False):
+                    if not meta.get("enabled", False):
                         logger.warning(f"Task '{name}' is defined but not enabled. Skipping.")
                         continue
 
                     sig = inspect.signature(func)
                     docstring = inspect.getdoc(func) or ""
-                    
-                    description = meta.get('description') or (docstring.strip().splitlines()[0] if docstring else "")
-                    display_name = meta.get('name') or name.replace('_', ' ').title()
+
+                    description = meta.get("description") or (docstring.strip().splitlines()[0] if docstring else "")
+                    display_name = meta.get("name") or name.replace("_", " ").title()
 
                     parameters = []
                     for param in sig.parameters.values():
-                        if param.name in ('self', 'cls', 'db', 'db_session', 'job_id', 'workflow_run_id', 'kwargs'):
+                        if param.name in ("self", "cls", "db", "db_session", "job_id", "workflow_run_id", "kwargs"):
                             continue
-                        
-                        param_type = 'Any'
+
+                        param_type = "Any"
                         if param.annotation is not inspect.Parameter.empty:
                             # Heuristic to differentiate between standard types (int, str) and typing types (List, Literal)
-                            if hasattr(param.annotation, '__origin__'): # Catches List, Dict, Literal, Union etc.
-                                param_type_str = str(param.annotation).replace('typing.', '')
-                                if 'Union[' in param_type_str and 'NoneType' in param_type_str:
-                                    main_type = param_type_str.replace('Union[', '').replace(', NoneType]', '')
-                                    param_type_str = f'Optional[{main_type}]'
+                            if hasattr(param.annotation, "__origin__"):  # Catches List, Dict, Literal, Union etc.
+                                param_type_str = str(param.annotation).replace("typing.", "")
+                                if "Union[" in param_type_str and "NoneType" in param_type_str:
+                                    main_type = param_type_str.replace("Union[", "").replace(", NoneType]", "")
+                                    param_type_str = f"Optional[{main_type}]"
                                 param_type = param_type_str
-                            else: # Likely a primitive type
+                            else:  # Likely a primitive type
                                 param_type = param.annotation.__name__
-                        
-                        parameters.append(schemas.AvailableTaskParameter(
-                            name=param.name,
-                            type=param_type,
-                            required=param.default is inspect.Parameter.empty,
-                            label=param.name.replace('_', ' ').title()
-                        ))
-                    
+
+                        parameters.append(
+                            schemas.AvailableTaskParameter(
+                                name=param.name,
+                                type=param_type,
+                                required=param.default is inspect.Parameter.empty,
+                                label=param.name.replace("_", " ").title(),
+                            )
+                        )
+
                     task_id = f"python:{module_name}:{name}"
-                    tasks.append(schemas.AvailableTask(
-                        id=task_id,
-                        name=display_name,
-                        task_type='python',
-                        module=module_name,
-                        function=name,
-                        description=description,
-                        parameters=parameters
-                    ))
+                    tasks.append(
+                        schemas.AvailableTask(
+                            id=task_id,
+                            name=display_name,
+                            task_type="python",
+                            module=module_name,
+                            function=name,
+                            description=description,
+                            parameters=parameters,
+                        )
+                    )
                     logger.info(f"Successfully added task '{display_name}' with id '{task_id}'")
 
             except Exception as e:
@@ -548,34 +602,43 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
     except Exception as e:
         logger.critical(f"A critical error occurred during Python task discovery phase: {e}", exc_info=True)
 
-
     # Part 2: Add built-in tasks based on UI configuration
     try:
         logger.info("--- Discovering built-in tasks from config ---")
         ui_config = config.task_ui_config
-        
+
         # Shell Task
         logger.info("Processing Shell task from config...")
-        shell_config = ui_config.get('shell', {})
-        if shell_config.get('enabled', False):
-            shell_params = [schemas.AvailableTaskParameter(**param) for param in shell_config.get('parameters', [])]
-            tasks.append(schemas.AvailableTask(id='shell', name='Shell Command', task_type='shell', description='Executes a shell command or script.', parameters=shell_params))
+        shell_config = ui_config.get("shell", {})
+        if shell_config.get("enabled", False):
+            shell_params = [schemas.AvailableTaskParameter(**param) for param in shell_config.get("parameters", [])]
+            tasks.append(
+                schemas.AvailableTask(
+                    id="shell",
+                    name="Shell Command",
+                    task_type="shell",
+                    description="Executes a shell command or script.",
+                    parameters=shell_params,
+                )
+            )
             logger.info("Successfully added Shell task.")
         else:
             logger.warning("Shell task is disabled in config.")
 
         # Email Task
         logger.info("Processing Email task from config...")
-        email_config = ui_config.get('email', {})
-        if email_config.get('enabled', False):
-            email_params = [schemas.AvailableTaskParameter(**param) for param in email_config.get('parameters', [])]
-            tasks.append(schemas.AvailableTask(
-                id='email',
-                name='Send Email',
-                task_type='email',
-                description='Sends an email notification.',
-                parameters=email_params
-            ))
+        email_config = ui_config.get("email", {})
+        if email_config.get("enabled", False):
+            email_params = [schemas.AvailableTaskParameter(**param) for param in email_config.get("parameters", [])]
+            tasks.append(
+                schemas.AvailableTask(
+                    id="email",
+                    name="Send Email",
+                    task_type="email",
+                    description="Sends an email notification.",
+                    parameters=email_params,
+                )
+            )
             logger.info("Successfully added Email task.")
         else:
             logger.warning("Email task is disabled in config.")
@@ -584,7 +647,7 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
         logger.critical(f"A critical error occurred during built-in task discovery phase: {e}", exc_info=True)
 
     logger.info(f"--- Task discovery finished. Total tasks found: {len(tasks)} ---")
-    
+
     try:
         sorted_tasks = sorted(tasks, key=lambda t: t.name)
         logger.info(f"Final task list: {[t.name for t in sorted_tasks]}")

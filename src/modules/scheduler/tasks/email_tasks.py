@@ -1,17 +1,20 @@
+from email.mime.image import MIMEImage
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 import os
 import smtplib
 import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.mime.image import MIMEImage
-from typing import List, Optional, Dict, Any
-# from pathlib import Path # No longer needed for PROJECT_ROOT calculation
+from typing import Any, Dict, List, Optional
 
+# from pathlib import Path # No longer needed for PROJECT_ROOT calculation
 from jinja2 import Environment, FileSystemLoader
 
-from util import logger_util
-from util.config_util import PROJECT_ROOT, config # Import config as well
-from util import time_util # For send_task_failure_notification
+from util import (
+    logger_util,
+    time_util,  # For send_task_failure_notification
+)
+from util.config_util import PROJECT_ROOT, config  # Import config as well
+
 from ..task_utils import task
 
 logger = logger_util.get_logger(__name__)
@@ -19,7 +22,8 @@ logger = logger_util.get_logger(__name__)
 # Configure Jinja2 environment
 # TEMPLATE_DIR now uses the imported PROJECT_ROOT
 TEMPLATE_DIR = PROJECT_ROOT / "src" / "templates" / "emails"
-env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=True) # autoescape for security
+env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=True)  # autoescape for security
+
 
 def send_email_task(
     to_email: str,
@@ -30,7 +34,7 @@ def send_email_task(
     body_type: str = "plain",
     image_paths: Optional[List[str]] = None,
     job_id: Optional[str] = None,
-    workflow_run_id: Optional[str] = None
+    workflow_run_id: Optional[str] = None,
 ):
     """
     汎用的なメール送信タスク。Jinja2テンプレートまたは直接指定された本文を使用します。
@@ -49,14 +53,16 @@ def send_email_task(
     # --- End Parameter Validation ---
 
     email_conf = config.email_config
-    sender_account = email_conf.get('smtp_user')
-    smtp_server = email_conf.get('smtp_server')
-    smtp_port = email_conf.get('smtp_port')
-    sender_password = email_conf.get('smtp_password')
+    sender_account = email_conf.get("smtp_user")
+    smtp_server = email_conf.get("smtp_server")
+    smtp_port = email_conf.get("smtp_port")
+    sender_password = email_conf.get("smtp_password")
 
     # --- Configuration Validation ---
     if not sender_account:
-        logger.error("メール送信元アカウントが設定されていません。config.yamlのemail.smtp_userまたは対応する環境変数を確認してください。")
+        logger.error(
+            "メール送信元アカウントが設定されていません。config.yamlのemail.smtp_userまたは対応する環境変数を確認してください。"
+        )
         raise ValueError("Email sender user (smtp_user) is not configured.")
     if not smtp_server:
         logger.error("SMTPサーバーが設定されていません。config.yamlのemail.smtp_serverを確認してください。")
@@ -72,7 +78,7 @@ def send_email_task(
     if template_name:
         try:
             template = env.get_template(template_name)
-            body_type = "html" # Ensure body_type is html if a template is used
+            body_type = "html"  # Ensure body_type is html if a template is used
             rendered_body = template.render(template_context or {})
         except Exception as e:
             logger.error(f"Jinja2テンプレートのレンダリング中にエラーが発生しました ({template_name}): {e}")
@@ -98,7 +104,7 @@ def send_email_task(
                 file_ext = os.path.splitext(image_path)[1].lower()
                 ext = file_ext[1:]
                 with open(image_path, "rb") as img_file:
-                    img = MIMEImage(img_file.read(), _subtype=f'{ext}')
+                    img = MIMEImage(img_file.read(), _subtype=f"{ext}")
                     img.add_header("Content-ID", f"<image_{i}>")
                     message.attach(img)
             except FileNotFoundError:
@@ -127,15 +133,16 @@ def send_email_task(
         logger.error(f"メール送信中に予期せぬエラーが発生しました: {e}")
         raise
 
+
 # Helper function for task failure notification
 def send_task_failure_notification(
     task_id: str,
     error_message: str,
     error_details: Optional[str] = None,
-    recipient_email: str = "admin@example.com", # Default recipient
+    recipient_email: str = "admin@example.com",  # Default recipient
     log_url: Optional[str] = None,
     job_id: Optional[str] = None,
-    workflow_run_id: Optional[str] = None
+    workflow_run_id: Optional[str] = None,
 ):
     """
     タスク失敗時に管理者へ通知メールを送信するヘルパー関数。
@@ -155,13 +162,13 @@ def send_task_failure_notification(
         "details": {
             "タスクID": task_id,
             "実行時刻": time_util.get_current_utc_time().strftime("%Y-%m-%d %H:%M:%S UTC"),
-            "ステータス": "FAILED"
+            "ステータス": "FAILED",
         },
         "error_message": error_message,
         "error_details": error_details,
         "call_to_action_url": log_url,
         "call_to_action_text": "ログを確認" if log_url else None,
-        "recipient_name": "管理者" # テンプレート内の挨拶用
+        "recipient_name": "管理者",  # テンプレート内の挨拶用
     }
 
     send_email_task(
@@ -170,22 +177,23 @@ def send_task_failure_notification(
         template_name="notification_email.html",
         template_context=template_context,
         job_id=job_id,
-        workflow_run_id=workflow_run_id
+        workflow_run_id=workflow_run_id,
     )
+
 
 @task(name="Send Notification Email", description="Sends a formatted notification email using a template.")
 def send_notification_email(
     subject: str,
     main_message: str,
-    to_email: str = "admin@example.com", # Default recipient
+    to_email: str = "admin@example.com",  # Default recipient
     details: Optional[Dict[str, str]] = None,
     error_message: Optional[str] = None,
     error_details: Optional[str] = None,
     call_to_action_url: Optional[str] = None,
     call_to_action_text: Optional[str] = None,
-    recipient_name: Optional[str] = None, # For template greeting
+    recipient_name: Optional[str] = None,  # For template greeting
     image_paths: Optional[List[str]] = None,
-    **kwargs # Catch any extra arguments passed by the scheduler (e.g., job_id, workflow_run_id)
+    **kwargs,  # Catch any extra arguments passed by the scheduler (e.g., job_id, workflow_run_id)
 ):
     """
     汎用的な通知メールを送信するヘルパー関数。
@@ -208,6 +216,6 @@ def send_notification_email(
         template_name="notification_email.html",
         template_context=template_context,
         image_paths=image_paths,
-        job_id=kwargs.get('job_id'),
-        workflow_run_id=kwargs.get('workflow_run_id')
+        job_id=kwargs.get("job_id"),
+        workflow_run_id=kwargs.get("workflow_run_id"),
     )

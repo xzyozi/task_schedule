@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from modules.scheduler.routers import system, dashboard, filesystem, jobs, workflows, scheduler, config
+from modules.scheduler.routers import config, dashboard, filesystem, jobs, scheduler, system, workflows
 
 router = APIRouter(prefix="/api")
 

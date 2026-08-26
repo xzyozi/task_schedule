@@ -1,16 +1,19 @@
-import os
-from typing import Any, Dict, List, Optional, Literal, Union, Annotated
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, model_validator, field_validator, EmailStr, HttpUrl
+import os
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator, model_validator
 
 from modules.scheduler import models
 
+
 class BaseTrigger(BaseModel):
     type: str
-    timezone: Optional[str] = 'UTC'
+    timezone: Optional[str] = "UTC"
+
 
 class CronTrigger(BaseTrigger):
-    type: str = 'cron'
+    type: str = "cron"
     year: Optional[str] = None
     month: Optional[str] = None
     day: Optional[str] = None
@@ -20,15 +23,18 @@ class CronTrigger(BaseTrigger):
     minute: Optional[str] = None
     second: Optional[str] = None
 
+
 class IntervalTrigger(BaseTrigger):
-    type: str = 'interval'
+    type: str = "interval"
     weeks: int = 0
     days: int = 0
     hours: int = 0
     minutes: int = 0
     seconds: int = 0
 
+
 # --- Task-specific Parameter Schemas ---
+
 
 class PythonJobParams(BaseModel):
     task_type: Literal["python"]
@@ -37,35 +43,38 @@ class PythonJobParams(BaseModel):
     args: List[Any] = Field(default_factory=list, description="Positional arguments for the function")
     kwargs: Dict[str, Any] = Field(default_factory=dict, description="Keyword arguments for the function")
 
-    model_config = ConfigDict(extra='allow')
+    model_config = ConfigDict(extra="allow")
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def _collect_extra_fields_to_kwargs(cls, data: Any) -> Any:
         if not isinstance(data, dict):
             return data
 
         defined_fields = {field for field in cls.model_fields.keys()}
-        
+
         # Use a copy of keys for safe iteration while popping
         extra_keys = set(data.keys()) - defined_fields
-        
+
         # Ensure kwargs exists
-        if 'kwargs' not in data:
-            data['kwargs'] = {}
+        if "kwargs" not in data:
+            data["kwargs"] = {}
 
         for key in extra_keys:
-            data['kwargs'][key] = data.pop(key)
-        
+            data["kwargs"][key] = data.pop(key)
+
         return data
+
 
 class ShellJobParams(BaseModel):
     task_type: Literal["shell"]
     command: str = Field(..., description="The shell command to execute")
-    cwd: Optional[str] = Field(None, description="Working directory for the command. Must be a relative path within the project's work dir.")
+    cwd: Optional[str] = Field(
+        None, description="Working directory for the command. Must be a relative path within the project's work dir."
+    )
     env: Optional[Dict[str, str]] = Field(None, description="Environment variables for the command.")
 
-    @field_validator('cwd')
+    @field_validator("cwd")
     def validate_cwd(cls, v):
         # ここでの isabs / '..' チェックは、明らかに不正な入力を早期に拒否するための
         # 一次チェックにすぎない。Windowsのドライブ相対パス（例: 'D:temp'）は
@@ -74,25 +83,29 @@ class ShellJobParams(BaseModel):
         # work_dir 配下であることを必ず再検証するため、そちらが最終的な防御となる。
         if v is None:
             return v
-        if os.path.isabs(v) or '..' in v:
+        if os.path.isabs(v) or ".." in v:
             raise ValueError('CWD must be a relative path and cannot contain "..".')
         return v
+
 
 class EmailJobParams(BaseModel):
     task_type: Literal["email"]
     to_email: EmailStr = Field(..., description="Recipient's email address")
     subject: str = Field(..., min_length=1, description="Email subject")
     template_name: Optional[str] = Field(None, description="Name of the Jinja2 template file")
-    template_context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Context data for the template")
+    template_context: Optional[Dict[str, Any]] = Field(
+        default_factory=dict, description="Context data for the template"
+    )
     body: Optional[str] = Field(None, description="Direct email body (used if no template_name)")
     body_type: str = Field("plain", description="Type of email body (plain or html)")
     image_paths: Optional[List[str]] = Field(default_factory=list, description="List of image file paths to attach")
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def check_body_or_template(self):
         if not self.template_name and not self.body:
             raise ValueError("Either 'template_name' or 'body' must be provided.")
         return self
+
 
 # Discriminated union for all possible task parameters
 AnyJobParams = Union[PythonJobParams, ShellJobParams, EmailJobParams]
@@ -100,44 +113,44 @@ AnyJobParams = Union[PythonJobParams, ShellJobParams, EmailJobParams]
 
 # --- Core Job Schemas ---
 
+
 class JobBase(BaseModel):
     name: str
     description: Optional[str] = None
     is_enabled: bool = True
     trigger: CronTrigger | IntervalTrigger
     task_parameters: Annotated[AnyJobParams, Field(discriminator="task_type")]
-    
+
     max_instances: int = 3
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
-    
+
     model_config = ConfigDict(from_attributes=True)
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def assemble_from_db_model(cls, data: Any) -> Any:
         if not isinstance(data, models.JobDefinition):
             return data
-        
+
         # Convert SQLAlchemy model to a dictionary
         model_dict = {c.name: getattr(data, c.name) for c in data.__table__.columns}
-        
+
         # Assemble the 'trigger' field
-        model_dict['trigger'] = {
-            'type': model_dict.get('trigger_type'),
-            **(model_dict.get('trigger_config') or {})
-        }
-        
+        model_dict["trigger"] = {"type": model_dict.get("trigger_type"), **(model_dict.get("trigger_config") or {})}
+
         # Assemble the 'task_parameters' field for the discriminated union
-        task_params = model_dict.get('task_parameters', {})
+        task_params = model_dict.get("task_parameters", {})
         if isinstance(task_params, dict):
-            task_params['task_type'] = model_dict.get('task_type')
-            model_dict['task_parameters'] = task_params
-        
+            task_params["task_type"] = model_dict.get("task_type")
+            model_dict["task_parameters"] = task_params
+
         return model_dict
+
 
 class JobCreate(JobBase):
     id: Optional[str] = None
+
 
 class JobUpdate(BaseModel):
     name: Optional[str] = None
@@ -149,12 +162,15 @@ class JobUpdate(BaseModel):
     coalesce: Optional[bool] = None
     misfire_grace_time: Optional[int] = None
 
+
 class Job(JobBase):
     id: str
     next_run_time: Optional[datetime] = None
 
+
 class JobOut(BaseModel):
     """Schema for job output, which flattens task parameters for display."""
+
     id: str
     name: str
     description: Optional[str] = None
@@ -162,67 +178,69 @@ class JobOut(BaseModel):
     trigger: Union[CronTrigger, IntervalTrigger]
     task_parameters: Dict[str, Any]
     next_run_time: Optional[datetime] = None
-    
+
     max_instances: int = 3
     coalesce: bool = False
     misfire_grace_time: Optional[int] = 3600
 
     model_config = ConfigDict(from_attributes=True)
 
-    @model_validator(mode='before')
+    @model_validator(mode="before")
     @classmethod
     def assemble_and_flatten(cls, data: Any) -> Any:
         """
-        Constructs the schema from a DB model and flattens the task_parameters 
+        Constructs the schema from a DB model and flattens the task_parameters
         for Python jobs to make it more UI-friendly.
         """
         if not isinstance(data, models.JobDefinition):
             # If it's not a DB model, just return it as is.
             return data
-        
+
         # Convert the SQLAlchemy model instance to a dictionary
         model_dict = {c.name: getattr(data, c.name) for c in data.__table__.columns}
-        
+
         # Assemble the 'trigger' field from DB columns
-        model_dict['trigger'] = {
-            'type': model_dict.get('trigger_type'),
-            **(model_dict.get('trigger_config') or {})
-        }
-        
+        model_dict["trigger"] = {"type": model_dict.get("trigger_type"), **(model_dict.get("trigger_config") or {})}
+
         # Get the task parameters, which might be a JSON string or a dict
-        task_params = model_dict.get('task_parameters') or {}
+        task_params = model_dict.get("task_parameters") or {}
         if isinstance(task_params, dict):
             # For Python jobs, the UI-input parameters are nested in 'kwargs'.
             # We lift them to the top level for easier display in the UI.
-            if task_params.get('task_type') == 'python' and 'kwargs' in task_params:
-                kwargs = task_params.pop('kwargs', {})
+            if task_params.get("task_type") == "python" and "kwargs" in task_params:
+                kwargs = task_params.pop("kwargs", {})
                 task_params.update(kwargs)
-        
-        model_dict['task_parameters'] = task_params
-        
+
+        model_dict["task_parameters"] = task_params
+
         return model_dict
+
 
 # --- Schemas for Workflow Parameters ---
 class WorkflowParameter(BaseModel):
     name: str
     label: str
 
+
 # Schemas for WorkflowStep
 class WorkflowStepBase(BaseModel):
     name: str
     step_order: int
-    task_parameters: Annotated[AnyJobParams, Field(discriminator="task_type")] # Unified task definition
+    task_parameters: Annotated[AnyJobParams, Field(discriminator="task_type")]  # Unified task definition
     on_failure: str = "stop"
     timeout: Optional[int] = None
     run_in_background: bool = False
 
+
 class WorkflowStepCreate(WorkflowStepBase):
     pass
+
 
 class WorkflowStep(WorkflowStepBase):
     id: int
     workflow_id: int
     model_config = ConfigDict(from_attributes=True)
+
 
 # Schemas for Workflow
 class WorkflowBase(BaseModel):
@@ -232,17 +250,21 @@ class WorkflowBase(BaseModel):
     is_enabled: bool = True
     params_def: Optional[List[WorkflowParameter]] = None
 
+
 class WorkflowCreate(WorkflowBase):
     steps: List[WorkflowStepCreate]
+
 
 class Workflow(WorkflowBase):
     id: int
     steps: List[WorkflowStep] = []
-    runs: List['WorkflowRun'] = []
+    runs: List["WorkflowRun"] = []
     model_config = ConfigDict(from_attributes=True)
+
 
 class WorkflowRunCreate(BaseModel):
     pass
+
 
 class WorkflowRun(BaseModel):
     id: int
@@ -253,6 +275,7 @@ class WorkflowRun(BaseModel):
     end_time: Optional[datetime] = None
     model_config = ConfigDict(from_attributes=True)
 
+
 class TimelineItem(BaseModel):
     id: str
     content: str
@@ -261,14 +284,17 @@ class TimelineItem(BaseModel):
     status: str
     group: Optional[str] = None
 
+
 class BulkJobUpdate(BaseModel):
     job_ids: List[str]
+
 
 class DashboardSummary(BaseModel):
     total_jobs: int
     running_jobs: int
     successful_runs: int
     failed_runs: int
+
 
 class ProcessExecutionLogInfo(BaseModel):
     id: str
@@ -283,8 +309,10 @@ class ProcessExecutionLogInfo(BaseModel):
     status: str
     model_config = ConfigDict(from_attributes=True)
 
+
 class ErrorResponse(BaseModel):
     detail: str
+
 
 class UnifiedJobItem(BaseModel):
     id: str
@@ -294,11 +322,13 @@ class UnifiedJobItem(BaseModel):
     is_enabled: bool
     schedule: Optional[str]
     next_run_time: Optional[datetime] = None
-    status: str # 'enabled', 'disabled', 'paused'
+    status: str  # 'enabled', 'disabled', 'paused'
+
 
 # --- Schemas for Email Tasks ---
 # Note: EmailJobParams is now the primary schema for creating email jobs.
 # These schemas below are for specific, structured notification types.
+
 
 class NotificationEmailParams(BaseModel):
     subject: str = Field(..., min_length=1, description="Email subject")
@@ -312,6 +342,7 @@ class NotificationEmailParams(BaseModel):
     recipient_name: Optional[str] = Field(None, description="Name for the email greeting (e.g., 'Dear [Name]')")
     image_paths: Optional[List[str]] = Field(None, description="List of image file paths to attach")
 
+
 class TaskFailureNotificationParams(BaseModel):
     task_id: str = Field(..., min_length=1, description="ID of the failed task")
     error_message: str = Field(..., min_length=1, description="Concise error message for the failure")
@@ -322,6 +353,7 @@ class TaskFailureNotificationParams(BaseModel):
 
 # --- Schemas for Discoverable Tasks ---
 
+
 class AvailableTaskParameter(BaseModel):
     name: str
     type: str
@@ -329,11 +361,12 @@ class AvailableTaskParameter(BaseModel):
     label: str
     description: Optional[str] = None
 
+
 class AvailableTask(BaseModel):
     id: str
     name: str
     task_type: str
     description: str
-    parameters: List['AvailableTaskParameter']
+    parameters: List["AvailableTaskParameter"]
     module: Optional[str] = None
     function: Optional[str] = None

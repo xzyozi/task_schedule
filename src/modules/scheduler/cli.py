@@ -1,5 +1,7 @@
 import argparse
+
 import uvicorn
+
 
 def main():
     parser = argparse.ArgumentParser(description="Scheduler CLI.")
