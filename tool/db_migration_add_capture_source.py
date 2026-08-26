@@ -1,5 +1,5 @@
-import sqlite3
 import os
+import sqlite3
 import sys
 
 # Add project root to sys.path to allow finding config.yaml
@@ -10,6 +10,7 @@ from util.config_util import config
 
 TABLE_NAME = "workflow_steps"
 COLUMN_NAME = "output_capture_source"
+
 
 def migrate():
     """
@@ -24,7 +25,7 @@ def migrate():
     # In "sqlite:///jobs.sqlite", the path is "jobs.sqlite"
     db_filename = db_url.split("sqlite:///", 1)[1]
     db_path = os.path.join(project_root, db_filename)
-    
+
     if not os.path.exists(db_path):
         print(f"Database file not found at {db_path}. A new one will be created on next run. No migration needed.")
         return
@@ -51,8 +52,9 @@ def migrate():
     except sqlite3.Error as e:
         print(f"An error occurred during migration: {e}")
     finally:
-        if 'conn' in locals() and conn:
+        if "conn" in locals() and conn:
             conn.close()
+
 
 if __name__ == "__main__":
     print("Running database migration for 'output_capture_source'...")
