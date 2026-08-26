@@ -1,0 +1,36 @@
+name: Auto Delete Merged Branch
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main, develop]
+
+jobs:
+  delete-merged-branch:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+    steps:
+      - name: Delete Head Branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const headRef = context.payload.pull_request.head.ref;
+            const protectedBranches = ['main', 'master', 'develop'];
+            if (protectedBranches.includes(headRef)) {
+              console.log(`Branch '${headRef}' is protected. Skipping deletion.`);
+              return;
+            }
+            const ref = `heads/${headRef}`;
+            console.log(`Deleting head branch ref: ${ref}`);
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: ref,
+              });
+              console.log(`Successfully deleted branch '${headRef}'.`);
+            } catch (error) {
+              console.log(`Branch deletion skipped or already deleted: ${error.message}`);
+            }
