@@ -291,7 +291,7 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
         timeline_items.append(
             schemas.TimelineItem(
                 id=f"log-{log.id}",
-                content=log.job_id,
+                content=log.job_id or f"log-{log.id}",
                 start=_make_aware_required(log.start_time),
                 end=_make_aware(log.end_time) or (now if log.status == "RUNNING" else None),
                 status=log.status.lower(),

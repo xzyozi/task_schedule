@@ -5,6 +5,7 @@ from apscheduler.schedulers.base import BaseScheduler
 from pydantic import ValidationError
 from watchdog.events import PatternMatchingEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.api import BaseObserver
 import yaml
 
 from core import database
@@ -177,7 +178,7 @@ class ConfigChangeHandler(PatternMatchingEventHandler):
         sync_jobs_from_db()
 
 
-def start_config_watcher(scheduler: BaseScheduler, path: str) -> Observer:
+def start_config_watcher(scheduler: BaseScheduler, path: str) -> BaseObserver:
     observer = Observer()
     observer.schedule(ConfigChangeHandler(scheduler, path), ".", recursive=False)
     observer.start()
