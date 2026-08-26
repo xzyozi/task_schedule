@@ -1,5 +1,5 @@
 from datetime import datetime
-import os
+import ntpath
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator, model_validator
@@ -83,7 +83,10 @@ class ShellJobParams(BaseModel):
         # work_dir 配下であることを必ず再検証するため、そちらが最終的な防御となる。
         if v is None:
             return v
-        if os.path.isabs(v) or ".." in v:
+        # このプロジェクトはWindows専用のため、実行環境のOS(os.path)に依存せず
+        # 常にWindowsのパス規則で絶対パス判定を行う(ntpath は Linux上でも
+        # 'C:\...' や 'C:/...' を絶対パスとして正しく判定できる)。
+        if ntpath.isabs(v) or ".." in v:
             raise ValueError('CWD must be a relative path and cannot contain "..".')
         return v
 
