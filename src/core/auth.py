@@ -7,10 +7,11 @@ Shellジョブ(任意コマンド実行)を登録できるAPIが認証なしで�
 config.yaml の api.api_key (環境変数 API_KEY) が未設定の場合は認証を
 無効化し、起動時に警告を出す（ローカル専用運用を前提とした緩和策）。
 """
+
 from fastapi import Header, HTTPException, status
 
-from util.config_util import config
 from util import logger_util
+from util.config_util import config
 
 logger = logger_util.get_logger(__name__)
 

@@ -1,11 +1,14 @@
 from typing import Any, Generic, List, Optional, Type, TypeVar
+
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
 from core.database import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
 CreateSchemaType = TypeVar("CreateSchemaType", bound=BaseModel)
 UpdateSchemaType = TypeVar("UpdateSchemaType", bound=BaseModel)
+
 
 class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     def __init__(self, model: Type[ModelType]):
@@ -25,9 +28,7 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db.refresh(db_obj)
         return db_obj
 
-    def update(
-        self, db: Session, *, db_obj: ModelType, obj_in: UpdateSchemaType
-    ) -> ModelType:
+    def update(self, db: Session, *, db_obj: ModelType, obj_in: UpdateSchemaType) -> ModelType:
         obj_data = db_obj.__dict__
         update_data = obj_in.dict(exclude_unset=True)
         for field in obj_data:
