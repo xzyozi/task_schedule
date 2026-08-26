@@ -1,5 +1,5 @@
 from datetime import datetime
-import ntpath
+import re
 from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl, field_validator, model_validator
@@ -66,6 +66,17 @@ class PythonJobParams(BaseModel):
         return data
 
 
+# POSIX/Windowsいずれの絶対パス表記も検出するための正規表現。
+# 標準ライブラリの os.path.isabs / ntpath.isabs は実行環境のOSや
+# Pythonバージョンによって挙動が異なる(例: Python 3.13でntpath.isabsの
+# 仕様が変更され、ドライブ文字なしの'/foo'を絶対パスと判定しなくなった)ため、
+# CI(Linux)でもローカル(Windows)でも一貫した判定になるよう自前で定義する。
+# - POSIXスタイル: '/foo' のように先頭がスラッシュ
+# - Windowsドライブ表記: 'C:\foo' や 'C:/foo'
+# - Windows UNC/ルート相対: '\\server\share' や '\foo'
+_ABSOLUTE_PATH_PATTERN = re.compile(r"^(/|\\|[a-zA-Z]:[\\/])")
+
+
 class ShellJobParams(BaseModel):
     task_type: Literal["shell"]
     command: str = Field(..., description="The shell command to execute")
@@ -76,17 +87,14 @@ class ShellJobParams(BaseModel):
 
     @field_validator("cwd")
     def validate_cwd(cls, v: Optional[str]) -> Optional[str]:
-        # ここでの isabs / '..' チェックは、明らかに不正な入力を早期に拒否するための
+        # ここでの絶対パス / '..' チェックは、明らかに不正な入力を早期に拒否するための
         # 一次チェックにすぎない。Windowsのドライブ相対パス（例: 'D:temp'）は
-        # isabs() が False を返すためこのチェックを通過してしまうが、実行時に
-        # config.resolve_sandboxed_path() が resolve() 後のパスが
-        # work_dir 配下であることを必ず再検証するため、そちらが最終的な防御となる。
+        # このチェックを通過してしまうが、実行時に config.resolve_sandboxed_path()
+        # が resolve() 後のパスが work_dir 配下であることを必ず再検証するため、
+        # そちらが最終的な防御となる。
         if v is None:
             return v
-        # このプロジェクトはWindows専用のため、実行環境のOS(os.path)に依存せず
-        # 常にWindowsのパス規則で絶対パス判定を行う(ntpath は Linux上でも
-        # 'C:\...' や 'C:/...' を絶対パスとして正しく判定できる)。
-        if ntpath.isabs(v) or ".." in v:
+        if _ABSOLUTE_PATH_PATTERN.match(v) or ".." in v:
             raise ValueError('CWD must be a relative path and cannot contain "..".')
         return v
 
