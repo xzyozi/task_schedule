@@ -271,7 +271,8 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     recent_job_logs = (
         db.query(models.ProcessExecutionLog)
         .filter(
-            models.ProcessExecutionLog.workflow_run_id == None, models.ProcessExecutionLog.start_time >= seven_days_ago
+            models.ProcessExecutionLog.workflow_run_id.is_(None),
+            models.ProcessExecutionLog.start_time >= seven_days_ago,
         )
         .all()
     )
@@ -563,7 +564,8 @@ def get_available_tasks() -> List[schemas.AvailableTask]:
 
                         param_type = "Any"
                         if param.annotation is not inspect.Parameter.empty:
-                            # Heuristic to differentiate between standard types (int, str) and typing types (List, Literal)
+                            # Heuristic to differentiate between standard types (int, str) and
+                            # typing types (List, Literal)
                             if hasattr(param.annotation, "__origin__"):  # Catches List, Dict, Literal, Union etc.
                                 param_type_str = str(param.annotation).replace("typing.", "")
                                 if "Union[" in param_type_str and "NoneType" in param_type_str:

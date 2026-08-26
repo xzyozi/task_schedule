@@ -45,7 +45,10 @@ def read_rss_feed(url: str, formatting_style: FormattingStyle = "summary", max_e
 
         # Use requests to fetch the content, which can help with encoding issues
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
+            )
         }
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()  # Raise an exception for bad status codes

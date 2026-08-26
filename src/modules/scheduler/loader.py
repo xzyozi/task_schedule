@@ -239,7 +239,7 @@ def sync_workflows_from_db():
     logger.info("Syncing workflows from database...")
     db = next(database.get_db())
     try:
-        workflows = db.query(models.Workflow).filter(models.Workflow.is_enabled == True).all()
+        workflows = db.query(models.Workflow).filter(models.Workflow.is_enabled.is_(True)).all()
         for wf in workflows:
             schedule_workflow(wf)
     finally:

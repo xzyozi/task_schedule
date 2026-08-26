@@ -113,7 +113,8 @@ def _execute_subprocess(
 
         if exit_code != 0:
             logger.error(
-                f"Command '{log_command}' failed with exit code {exit_code}.\nCWD: {absolute_cwd}\nSTDOUT: {stdout}\nSTDERR: {stderr}"
+                f"Command '{log_command}' failed with exit code {exit_code}.\n"
+                f"CWD: {absolute_cwd}\nSTDOUT: {stdout}\nSTDERR: {stderr}"
             )
 
         return {"stdout": stdout, "stderr": stderr, "exit_code": exit_code}
