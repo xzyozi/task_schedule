@@ -1,13 +1,15 @@
-import logging
-import os
 import copy
-import sys
+import logging
 from logging.handlers import RotatingFileHandler
+import os
+import sys
 
 _logger_initialized = False
 
+
 class ColoredFormatter(logging.Formatter):
     """ANSIカラー対応のフォーマッター"""
+
     COLORS = {
         "DEBUG": "\033[0;36m",  # CYAN
         # "NOTICE": "\033[1;34m",  # LIGHT BLUE
@@ -19,17 +21,20 @@ class ColoredFormatter(logging.Formatter):
         "RESET": "\033[0m",  # RESET COLOR
     }
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         colored_record = copy.copy(record)
         levelname = colored_record.levelname
         seq = self.COLORS.get(levelname, self.COLORS["RESET"])
         colored_record.levelname = f"{seq}{levelname}{self.COLORS['RESET']}"
         return super().format(colored_record)
 
-def setup_logging(log_file_path="app.log", 
-                  use_colors=True, 
-                  console_level=logging.INFO, 
-                  file_level=logging.DEBUG):
+
+def setup_logging(
+    log_file_path: str = "app.log",
+    use_colors: bool = True,
+    console_level: int = logging.INFO,
+    file_level: int = logging.DEBUG,
+) -> None:
     """
     Configures a logger that outputs to both console and a rotating file.
     This function should ideally be called once at the application's entry point.
@@ -52,7 +57,11 @@ def setup_logging(log_file_path="app.log",
 
     # 標準出力のハンドラー
     stream_handler = logging.StreamHandler(sys.stdout)
-    formatter = ColoredFormatter(log_format, datefmt=date_format) if use_colors else logging.Formatter(log_format, datefmt=date_format)
+    formatter = (
+        ColoredFormatter(log_format, datefmt=date_format)
+        if use_colors
+        else logging.Formatter(log_format, datefmt=date_format)
+    )
     stream_handler.setFormatter(formatter)
 
     root_logger.addHandler(stream_handler)
@@ -68,32 +77,32 @@ def setup_logging(log_file_path="app.log",
     file_handler = RotatingFileHandler(
         log_file_path,
         maxBytes=1024 * 1024 * 5,  # 5 MB
-        backupCount=5
+        backupCount=5,
     )
     file_handler.setLevel(file_level)
-    file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s'
-    )
+    file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s")
     file_handler.setFormatter(file_formatter)
     # root_logger.addHandler(file_handler)
 
     # Set specific loggers for libraries that might be too verbose
-    logging.getLogger('apscheduler').setLevel(logging.WARNING)
-    logging.getLogger('sqlalchemy').setLevel(logging.WARNING)
-    logging.getLogger('watchdog').setLevel(logging.WARNING)
+    logging.getLogger("apscheduler").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.getLogger("watchdog").setLevel(logging.WARNING)
 
     _logger_initialized = True
 
     # Now that logging is set up, get a logger for logger_util itself
     logger = get_logger(__name__)
-    
+
     logger.info("Logging initialized.")
 
-def get_logger(name):
+
+def get_logger(name: str) -> logging.Logger:
     """
     Returns a named logger. Assumes setup_logging has been called.
     """
     return logging.getLogger(name)
+
 
 # Example usage (can be removed if only used via import)
 if __name__ == "__main__":

@@ -1,20 +1,20 @@
-import feedparser
 import json
+from typing import Literal
+
+import feedparser
 import requests
-from typing import Literal, List
-from ..task_utils import task
+
 from util import logger_util
+
+from ..task_utils import task
 
 logger = logger_util.get_logger(__name__)
 
-FormattingStyle = Literal['summary', 'full_content', 'json_summary', 'json_full']
+FormattingStyle = Literal["summary", "full_content", "json_summary", "json_full"]
+
 
 @task(enabled=True, name="Read RSS Feed", description="Fetches and parses an RSS or Atom feed from a URL.")
-def read_rss_feed(
-    url: str,
-    formatting_style: FormattingStyle = 'summary',
-    max_entries: int = 10
-) -> str:
+def read_rss_feed(url: str, formatting_style: FormattingStyle = "summary", max_entries: int = 10) -> str:
     """
     Reads an RSS feed and returns the content in a specified format.
 
@@ -31,7 +31,7 @@ def read_rss_feed(
         A string containing the formatted feed content.
     """
     logger.info(f"Fetching RSS feed from URL: {url}")
-    
+
     if not url:
         raise ValueError("URL parameter cannot be empty.")
 
@@ -45,7 +45,10 @@ def read_rss_feed(
 
         # Use requests to fetch the content, which can help with encoding issues
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
+            )
         }
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()  # Raise an exception for bad status codes
@@ -54,9 +57,9 @@ def read_rss_feed(
         feed = feedparser.parse(response.content)
 
         if feed.bozo:
-            bozo_exception = feed.get('bozo_exception', 'Unknown parsing error')
+            bozo_exception = feed.get("bozo_exception", "Unknown parsing error")
             # Downgrade log level for common, non-fatal encoding errors
-            if 'document declared as' in str(bozo_exception):
+            if "document declared as" in str(bozo_exception):
                 logger.info(f"Handled a non-fatal encoding issue in feed from {url}. Reason: {bozo_exception}")
             else:
                 logger.warning(f"Feed at {url} may not be well-formed. Reason: {bozo_exception}")
@@ -69,37 +72,35 @@ def read_rss_feed(
 
         logger.info(f"Found {len(entries)} entries in feed.")
 
-        if formatting_style == 'summary':
+        if formatting_style == "summary":
             output_lines = [f"Feed: {feed.feed.get('title', 'Untitled')}\n"]
             for entry in entries:
                 output_lines.append(f"- {entry.get('title', 'No Title')}")
                 output_lines.append(f"  Link: {entry.get('link', 'No Link')}")
             return "\n".join(output_lines)
 
-        elif formatting_style == 'full_content':
+        elif formatting_style == "full_content":
             output_lines = [f"Feed: {feed.feed.get('title', 'Untitled')}\n"]
             for entry in entries:
-                output_lines.append(f"---")
+                output_lines.append("---")
                 output_lines.append(f"Title: {entry.get('title', 'No Title')}")
                 output_lines.append(f"Link: {entry.get('link', 'No Link')}")
                 output_lines.append(f"Published: {entry.get('published', 'N/A')}")
                 output_lines.append(f"Summary: {entry.get('summary', 'N/A')}")
             return "\n".join(output_lines)
-        
-        elif formatting_style == 'json_summary':
+
+        elif formatting_style == "json_summary":
             summary_list = []
             for entry in entries:
-                summary_list.append({
-                    "title": entry.get('title'),
-                    "link": entry.get('link'),
-                    "published": entry.get('published')
-                })
+                summary_list.append(
+                    {"title": entry.get("title"), "link": entry.get("link"), "published": entry.get("published")}
+                )
             return json.dumps(summary_list, indent=2)
 
-        elif formatting_style == 'json_full':
+        elif formatting_style == "json_full":
             # feedparser entry objects are already dict-like
             return json.dumps(entries, indent=2)
-            
+
         else:
             raise ValueError(f"Unknown formatting_style: {formatting_style}")
 

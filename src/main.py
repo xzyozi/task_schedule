@@ -1,21 +1,26 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from core import database
 from core.auth import verify_api_key
+from modules.scheduler import loader, scheduler_instance
+from modules.scheduler.router import router as scheduler_router
 from util import logger_util
 from util.config_util import config
-from modules.scheduler.router import router as scheduler_router
-from modules.scheduler import scheduler_instance, loader
 
 logger_util.setup_logging(log_file_path="log/app.log")
 logger = logger_util.get_logger(__name__)
 
+
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Application startup...")
     database.init_db()
     database.Base.metadata.create_all(bind=database.engine)
@@ -25,12 +30,15 @@ async def lifespan(app: FastAPI):
     loader.sync_workflows_from_db()
     watcher = loader.start_config_watcher(scheduler_instance.scheduler, "jobs.yaml")
     if config.enable_db_sync:
-        scheduler_instance.scheduler.add_job(loader.sync_jobs_from_db, "interval", seconds=60, id="db_sync", replace_existing=True)
+        scheduler_instance.scheduler.add_job(
+            loader.sync_jobs_from_db, "interval", seconds=60, id="db_sync", replace_existing=True
+        )
     yield
     logger.info("Application shutdown...")
     watcher.stop()
     watcher.join()
     scheduler_instance.shutdown_scheduler()
+
 
 app = FastAPI(title="Task Scheduler API", lifespan=lifespan)
 
@@ -44,9 +52,11 @@ app.add_middleware(
 
 app.include_router(scheduler_router, dependencies=[Depends(verify_api_key)])
 
+
 @app.get("/")
-def read_root():
+def read_root() -> dict:
     return {"message": "Welcome to the Task Scheduler API"}
+
 
 if __name__ == "__main__":
     import uvicorn

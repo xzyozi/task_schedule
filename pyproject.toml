@@ -7,7 +7,7 @@ name = "resilient-task-scheduler"
 version = "0.1.0"
 description = "A resilient, persistent, and manageable task scheduling service."
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
@@ -18,11 +18,12 @@ dependencies = [
     "sqlalchemy",
     "psycopg2-binary", # for PostgreSQL
     "pyyaml",
-    "pydantic",
+    "pydantic[email]",
     "pydantic-settings",
     "fastapi",
     "uvicorn[standard]",
     "tenacity",
+    "tzdata", # zoneinfo用。CI/コンテナ等、OS側にtzdataが無い環境でのタイムゾーン解決に必要
     "watchdog",
     "Flask", # Added for WebGUI
     "requests", # Added for WebGUI to API communication
@@ -31,9 +32,9 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "pytest",
-    "black",
-    "ruff",
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+    "mypy>=1.0.0",
     "httpx",
 ]
 
@@ -47,5 +48,74 @@ package-dir = {"" = "src"}
 # Find packages automatically within the 'src' directory
 packages = {"find" = {where = ["src"]}}
 
+# ==========================================
+# Linter & Formatter (Ruff)
+# ==========================================
+[tool.ruff]
+line-length = 120
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "old",
+    "venv",
+    ".venv",
+    "test", # Exclude test folder from linting for now, as it might have specific test patterns
+    "doc", # ドキュメント内のコード例はスタイル整形の対象外とする(ruff>=0.16でMarkdown内コードブロックも整形対象になるため)
+]
+
+[tool.ruff.lint]
+# E: pycodestyle errors, F: Pyflakes, W: pycodestyle warnings, I: isort
+select = ["E", "F", "W", "I"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"src/core/__init__.py" = ["F401"]
+"src/main.py" = ["E402"]
+"src/webgui/app.py" = ["E402"]
+"tool/add_jobs.py" = ["E402"]
+"tool/db_migration_add_capture_source.py" = ["E402"]
+
+[tool.ruff.lint.isort]
+# 自分のプロジェクトのパッケージ名を指定（自動ソート時にローカルパッケージとして認識させるため）
+known-first-party = ["core", "modules", "util", "webgui"]
+force-sort-within-sections = true
+
+# ==========================================
+# Type Checker (Mypy)
+# ==========================================
+[tool.mypy]
+python_version = "3.10"
+# 基本的に厳しめの設定（Strict）にしておくのがモダンな手法
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+# サードパーティ製ライブラリの型定義が見つからない際のエラーを抑制
+ignore_missing_imports = true
+exclude = [
+    "build/",
+    "venv/",
+    "\\.venv/",
+    "old/",
+    "test/",
+]
+
+[[tool.mypy.overrides]]
+module = "modules.scheduler.*"
+ignore_missing_imports = true
+
+# ==========================================
+# Testing (Pytest)
+# ==========================================
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+testpaths = ["test"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"

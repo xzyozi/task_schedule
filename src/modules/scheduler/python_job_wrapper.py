@@ -1,18 +1,21 @@
+import base64
 import importlib
 import json
-import base64
 import sys
 import traceback
+from typing import Any, Callable
 
-def _resolve_func(path):
+
+def _resolve_func(path: str) -> Callable[..., Any]:
     """Resolves a function from a string path."""
-    if ':' not in path:
+    if ":" not in path:
         raise ValueError("Invalid function path format. Expected 'module.path:function_name'")
-    module_path, func_name = path.rsplit(':', 1)
+    module_path, func_name = path.rsplit(":", 1)
     module = importlib.import_module(module_path)
     return getattr(module, func_name)
 
-def main():
+
+def main() -> None:
     """
     Wrapper to execute a Python function with serialized arguments.
     Expects two command-line arguments:
@@ -27,23 +30,24 @@ def main():
     payload_b64 = sys.argv[2]
 
     try:
-        payload_json = base64.b64decode(payload_b64).decode('utf-8')
+        payload_json = base64.b64decode(payload_b64).decode("utf-8")
         payload = json.loads(payload_json)
-        args = payload.get('args', [])
-        kwargs = payload.get('kwargs', {})
-        
+        args = payload.get("args", [])
+        kwargs = payload.get("kwargs", {})
+
         target_func = _resolve_func(target_func_path)
-        
+
         return_value = target_func(*args, **kwargs)
-        
+
         # Wrap the return value in a JSON structure
         output = {"return_value": return_value}
         print(json.dumps(output))
-        
+
         sys.exit(0)
     except Exception:
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

@@ -1,4 +1,5 @@
 from typing import List
+
 from fastapi import APIRouter, HTTPException, Query
 
 from modules.scheduler import service
@@ -8,8 +9,16 @@ logger = logger_util.get_logger(__name__)
 
 router = APIRouter()
 
-@router.get("/filesystem/list-dirs", response_model=List[str], tags=["Filesystem"], summary="List Subdirectories in Work Directory")
-def list_work_dir_subdirectories(path: str = Query("", description="The relative path within the work directory to scan.")):
+
+@router.get(
+    "/filesystem/list-dirs",
+    response_model=List[str],
+    tags=["Filesystem"],
+    summary="List Subdirectories in Work Directory",
+)
+def list_work_dir_subdirectories(
+    path: str = Query("", description="The relative path within the work directory to scan."),
+) -> List[str]:
     """
     Lists subdirectories within the configured scheduler work_dir.
     This is useful for providing autocompletion for the 'cwd' field in a UI.

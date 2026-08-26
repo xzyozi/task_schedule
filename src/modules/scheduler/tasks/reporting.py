@@ -1,6 +1,7 @@
 import logging
-from ..task_utils import task
+from typing import Any
+
 
 # @task(name="Send Daily Report", description="Generates and sends a daily report.")
-def send_daily_report(email: str, **kwargs):
+def send_daily_report(email: str, **kwargs: Any) -> None:
     logging.info(f"Sending daily report to {email}.")

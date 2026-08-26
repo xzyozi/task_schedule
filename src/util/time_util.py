@@ -2,10 +2,12 @@
 from datetime import datetime, timezone, tzinfo
 from typing import Optional
 
+
 # A timezone-aware equivalent of datetime.now()
 def get_current_utc_time() -> datetime:
     """Returns the current time as a timezone-aware datetime object in UTC."""
     return datetime.now(timezone.utc)
+
 
 def to_utc(dt: datetime) -> datetime:
     """
@@ -19,6 +21,7 @@ def to_utc(dt: datetime) -> datetime:
     # If already aware, just convert to UTC
     return dt.astimezone(timezone.utc)
 
+
 def to_local_tz(dt_utc: datetime, local_tz: Optional[tzinfo] = None) -> datetime:
     """
     Converts a timezone-aware UTC datetime object to a local timezone.
@@ -28,12 +31,13 @@ def to_local_tz(dt_utc: datetime, local_tz: Optional[tzinfo] = None) -> datetime
     """
     if dt_utc.tzinfo is None:
         raise ValueError("Input datetime must be timezone-aware.")
-    
+
     # If no specific timezone is given, convert to the system's local timezone
     if local_tz is None:
         return dt_utc.astimezone()
-    
+
     return dt_utc.astimezone(local_tz)
+
 
 def ensure_aware(dt: datetime) -> datetime:
     """

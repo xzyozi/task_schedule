@@ -1,0 +1,53 @@
+name: Branch Cleanup
+
+on:
+  schedule:
+    # 毎週月曜 午前 0:00 (UTC) に実行
+    - cron: '0 0 * * 1'
+  # GitHub UI または API から手動実行を可能にする
+  workflow_dispatch:
+
+jobs:
+  cleanup-branches:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cleanup merged branches
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "=== Fetching all remote branches ==="
+          git fetch --prune --all
+
+          # 保護ブランチ（削除対象外）
+          PROTECTED_BRANCHES=("main" "develop" "HEAD")
+
+          echo "=== Checking branches merged into develop ==="
+          # develop または main にマージ済みのリモートブランチを取得
+          MERGED_BRANCHES=$(git branch -r --merged origin/develop | sed 's/origin\///' | sed 's/^[ \t]*//')
+
+          for branch in $MERGED_BRANCHES; do
+            # 保護ブランチかチェック
+            IS_PROTECTED=false
+            for protected in "${PROTECTED_BRANCHES[@]}"; do
+              if [[ "$branch" == "$protected" ]]; then
+                IS_PROTECTED=true
+                break
+              fi
+            done
+
+            if [ "$IS_PROTECTED" = false ]; then
+              echo "Deleting merged remote branch: $branch"
+              git push origin --delete "$branch" || echo "Failed to delete $branch (it may already be deleted)"
+            else
+              echo "Skipping protected branch: $branch"
+            fi
+          done

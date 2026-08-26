@@ -1,6 +1,8 @@
 old/
 **/__pycache__/
 .*
+!.github/
+!.github/**
 venv/
 env/
 ENV/

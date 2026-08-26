@@ -1,17 +1,16 @@
-import os
 from pathlib import Path
 import sys
 
 # プロジェクトのルートディレクトリをPythonのパスに追加
 # このスクリプトがtoolディレクトリにあることを考慮
 project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root / 'src'))
+sys.path.insert(0, str(project_root / "src"))
 
-from modules.scheduler import loader
 from core import database
+from modules.scheduler import loader
 
 # loaderの中でmodelsがインポートされるので、ここで明示的にインポートする必要はない
-# from src.modules.scheduler import models 
+# from src.modules.scheduler import models
 
 print("Initializing database...")
 database.init_db()

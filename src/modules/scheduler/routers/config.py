@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Body
-from typing import Dict, Any
-from util.config_util import config, get_notification_settings, update_notification_settings
+from typing import Any, Dict
+
+from fastapi import APIRouter, Body, HTTPException
+
 from util import logger_util
+from util.config_util import config, get_notification_settings, update_notification_settings
 
 logger = logger_util.get_logger(__name__)
 
@@ -10,8 +12,9 @@ router = APIRouter(
     tags=["Configuration"],
 )
 
+
 @router.get("/ui", response_model=Dict[str, Any])
-def get_ui_config():
+def get_ui_config() -> Dict[str, Any]:
     """
     Get the UI-specific configuration.
     """
@@ -21,8 +24,9 @@ def get_ui_config():
         logger.error(f"Failed to retrieve UI configuration: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to retrieve UI configuration")
 
+
 @router.get("/notification-settings")
-def get_settings():
+def get_settings() -> Dict[str, Any]:
     """
     Get current notification settings (email recipients, webhook URL).
     """
@@ -33,10 +37,13 @@ def get_settings():
         logger.error(f"Failed to get notification settings: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get notification settings")
 
+
 @router.post("/notification-settings")
 def update_settings(
-    settings: Dict[str, str] = Body(..., example={"email_recipients": "user@example.com", "webhook_url": "https://hooks.example.com/..."})
-):
+    settings: Dict[str, str] = Body(
+        ..., example={"email_recipients": "user@example.com", "webhook_url": "https://hooks.example.com/..."}
+    ),
+) -> Dict[str, str]:
     """
     Update notification settings.
     """

@@ -1,9 +1,11 @@
-import yaml
-from pathlib import Path
 import json
 import os
+from pathlib import Path
 import re
 from typing import Any, Optional
+
+import yaml
+
 from util import logger_util
 
 logger = logger_util.get_logger(__name__)
@@ -13,21 +15,23 @@ _default_project_root = Path(__file__).parent.parent.parent
 PROJECT_ROOT = Path(os.getenv("TASK_SCHEDULER_PROJECT_ROOT", str(_default_project_root)))
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 
+
 class AppConfig:
     """A singleton-like class to manage application configuration from a YAML file."""
+
     _instance = None
     _config = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> "AppConfig":
         if not cls._instance:
             cls._instance = super(AppConfig, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, config_path=CONFIG_PATH):
+    def __init__(self, config_path: str | Path = CONFIG_PATH) -> None:
         if self._config is None:
             if not Path(config_path).exists():
                 raise FileNotFoundError(f"Configuration file not found at: {config_path}")
-            with open(config_path, 'r') as f:
+            with open(config_path, "r") as f:
                 self._config = yaml.safe_load(f)
             self._config = self._replace_env_vars(self._config)
 
@@ -38,15 +42,13 @@ class AppConfig:
         elif isinstance(config_item, list):
             return [self._replace_env_vars(i) for i in config_item]
         elif isinstance(config_item, str):
-            return re.sub(r'\$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}?',
-                          lambda match: os.getenv(match.group(1), ''),
-                          config_item)
+            return re.sub(r"\$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}?", lambda match: os.getenv(match.group(1), ""), config_item)
         else:
             return config_item
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         """Gets a configuration value using dot notation."""
-        keys = key.split('.')
+        keys = key.split(".")
         value = self._config
         for k in keys:
             if isinstance(value, dict):
@@ -57,15 +59,15 @@ class AppConfig:
 
     @property
     def api_scheme(self) -> str:
-        return self.get('api.scheme', 'http')
+        return self.get("api.scheme", "http")
 
     @property
     def api_host(self) -> str:
-        return self.get('api.host', '127.0.0.1')
+        return self.get("api.host", "127.0.0.1")
 
     @property
     def api_port(self) -> int:
-        return int(self.get('api.port', 8000))
+        return int(self.get("api.port", 8000))
 
     @property
     def api_base_url(self) -> str:
@@ -77,20 +79,20 @@ class AppConfig:
         APIアクセス用のキー。未設定(空文字)の場合は None を返し、
         呼び出し側で認証を無効化(かつ警告)する判断に使う。
         """
-        value = self.get('api.api_key', '')
+        value = self.get("api.api_key", "")
         return value if value else None
 
     @property
     def webgui_scheme(self) -> str:
-        return self.get('webgui.scheme', 'http')
+        return self.get("webgui.scheme", "http")
 
     @property
     def webgui_host(self) -> str:
-        return self.get('webgui.host', '127.0.0.1')
+        return self.get("webgui.host", "127.0.0.1")
 
     @property
     def webgui_port(self) -> int:
-        return int(self.get('webgui.port', 5012))
+        return int(self.get("webgui.port", 5012))
 
     @property
     def webgui_base_url(self) -> str:
@@ -106,23 +108,23 @@ class AppConfig:
 
     @property
     def database_url(self) -> str:
-        db_url = self.get('core.database_url', 'sqlite:///jobs.sqlite')
-        if db_url.startswith('sqlite:///'):
-            db_file = db_url[len('sqlite:///'):]
-            if db_file and not os.path.isabs(db_file) and db_file != ':memory:':
+        db_url = self.get("core.database_url", "sqlite:///jobs.sqlite")
+        if db_url.startswith("sqlite:///"):
+            db_file = db_url[len("sqlite:///") :]
+            if db_file and not os.path.isabs(db_file) and db_file != ":memory:":
                 abs_db_path = (PROJECT_ROOT / db_file).resolve()
-                return f'sqlite:///{abs_db_path}'
+                return f"sqlite:///{abs_db_path}"
         return db_url
 
     @property
     def scheduler_work_dir(self) -> Path:
-        path_str = self.get('scheduler.work_dir', '~/.task_schedule/work_list')
+        path_str = self.get("scheduler.work_dir", "~/.task_schedule/work_list")
         # Expand user home directory and resolve to an absolute path
         resolved_path = Path(path_str).expanduser().resolve()
-        
+
         # Create the directory if it doesn't exist
         resolved_path.mkdir(parents=True, exist_ok=True)
-        
+
         return resolved_path
 
     def resolve_sandboxed_path(self, relative_path: str) -> Optional[Path]:
@@ -146,27 +148,29 @@ class AppConfig:
 
     @property
     def delete_orphaned_jobs_on_sync(self) -> bool:
-        return self.get('development.delete_orphaned_jobs_on_sync', False)
+        return self.get("development.delete_orphaned_jobs_on_sync", False)
 
     @property
     def enable_db_sync(self) -> bool:
-        return self.get('scheduler.enable_db_sync', False)
+        return self.get("scheduler.enable_db_sync", False)
 
     @property
     def email_config(self) -> dict:
-        email_conf = self.get('email', {})
-        password = os.getenv('EMAIL_SENDER_PASSWORD')
-        if not password and email_conf.get('smtp_server'):
+        email_conf = self.get("email", {})
+        password = os.getenv("EMAIL_SENDER_PASSWORD")
+        if not password and email_conf.get("smtp_server"):
             logger.warning("EMAIL_SENDER_PASSWORD environment variable is not set. Email sending may fail.")
-        email_conf['smtp_password'] = password
+        email_conf["smtp_password"] = password
         return email_conf
 
     @property
     def task_ui_config(self) -> dict:
-        return self.get('task_ui_config', {})
+        return self.get("task_ui_config", {})
+
 
 # Create a single, importable instance for the application to use.
 config = AppConfig()
+
 
 def read_jobs_yaml_content() -> str:
     """
@@ -180,7 +184,9 @@ def read_jobs_yaml_content() -> str:
         content = f.read()
     return content
 
+
 NOTIFICATION_SETTINGS_FILE = "notification_settings.json"
+
 
 def get_notification_settings() -> dict:
     """
@@ -199,6 +205,7 @@ def get_notification_settings() -> dict:
         # Re-raise as a more generic exception or handle as appropriate
         raise IOError(f"Failed to read notification settings from {settings_path}: {e}")
 
+
 def update_notification_settings(settings: dict) -> None:
     """
     Updates the notification settings in the JSON file.
@@ -213,5 +220,7 @@ def update_notification_settings(settings: dict) -> None:
         logger.error(f"Failed to write notification settings to {settings_path}: {e}", exc_info=True)
         raise
     except Exception as e:
-        logger.error(f"An unexpected error occurred while writing notification settings to {settings_path}: {e}", exc_info=True)
+        logger.error(
+            f"An unexpected error occurred while writing notification settings to {settings_path}: {e}", exc_info=True
+        )
         raise
