@@ -61,9 +61,6 @@ def start_scheduler() -> None:
     atexit.register(shutdown_scheduler)
 
 
-import sys
-
-
 def shutdown_scheduler() -> None:
     try:
         if scheduler.running:
