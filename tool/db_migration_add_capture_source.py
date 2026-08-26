@@ -12,7 +12,7 @@ TABLE_NAME = "workflow_steps"
 COLUMN_NAME = "output_capture_source"
 
 
-def migrate():
+def migrate() -> None:
     """
     Adds the 'output_capture_source' column to the 'workflow_steps' table
     in the SQLite database if it doesn't already exist.
