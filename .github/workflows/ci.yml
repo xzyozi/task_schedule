@@ -27,6 +27,10 @@ jobs:
         run: |
           uv pip install --system -e ".[dev]"
 
+      - name: Install Playwright Browsers
+        run: |
+          uv run playwright install --with-deps chromium
+
       - name: Run Ruff (Linter)
         run: |
           uv run ruff check .
@@ -39,6 +43,6 @@ jobs:
         run: |
           uv run mypy .
 
-      - name: Run Pytest
+      - name: Run Pytest (Unit, API, JS Utilities & E2E)
         run: |
           uv run pytest

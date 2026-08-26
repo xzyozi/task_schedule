@@ -56,18 +56,15 @@ scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
 
 
 def start_scheduler() -> None:
-    logger.info("Starting scheduler...")
-    scheduler.start()
-    atexit.register(shutdown_scheduler)
+    if not scheduler.running:
+        logger.info("Starting scheduler...")
+        scheduler.start()
+        atexit.register(shutdown_scheduler)
 
 
 def shutdown_scheduler() -> None:
     try:
-        logger.info("Shutting down scheduler...")
         if scheduler.running:
-            scheduler.shutdown()
-        logger.info("Scheduler shut down.")
+            scheduler.shutdown(wait=False)
     except Exception:
-        # Broadly catch exceptions during shutdown, as the logging context may be torn down.
-        # This is acceptable in an atexit handler.
         pass
