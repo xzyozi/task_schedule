@@ -5,7 +5,9 @@ echo Starting development servers for debugging...
 set "PROJECT_ROOT=%~dp0.."
 pushd "%PROJECT_ROOT%"
 
-IF EXIST "venv\Scripts\activate.bat" (
+IF EXIST ".venv\Scripts\activate.bat" (
+    CALL ".venv\Scripts\activate.bat"
+) ELSE IF EXIST "venv\Scripts\activate.bat" (
     CALL "venv\Scripts\activate.bat"
 )
 
