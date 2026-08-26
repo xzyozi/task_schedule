@@ -42,6 +42,17 @@ def test_webgui_index_page(test_client):
     assert "ダッシュボード" in response.text
 
 
+def test_webgui_job_detail_page(test_client):
+    response = test_client.get("/jobs/test_job_123")
+    assert response.status_code == 200
+    assert "test_job_123" in response.text
+
+
+def test_webgui_workflow_detail_page(test_client):
+    response = test_client.get("/workflows/1")
+    assert response.status_code == 200
+
+
 def test_webgui_logs_page(test_client):
     response = test_client.get("/logs")
     assert response.status_code == 200

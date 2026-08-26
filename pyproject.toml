@@ -36,6 +36,7 @@ dev = [
     "ruff>=0.4.0",
     "mypy>=1.0.0",
     "httpx",
+    "pytest-playwright",
 ]
 
 [project.scripts]
