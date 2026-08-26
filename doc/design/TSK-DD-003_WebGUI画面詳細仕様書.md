@@ -32,6 +32,10 @@
 ### 3.1 ダッシュボード画面 (`/`)
 - **SSR 初回レンダリング**:
   - FastAPI ルーティング (`router.py`) の `index` エンドポイントが Jinja2 テンプレートコンテキストに `summary` (`total_jobs`, `running_jobs`, `successful_runs`, `failed_runs`) を渡して初回レンダリング。
+- **SSR 初期値と JS ポーリングの同期挙動**:
+  - 初回アクセス時は SSR により即座に HTML カードへ初期値が埋め込まれ、DOM の空白表示やちらつきを防止する。
+  - DOM 構築完了 (`DOMContentLoaded`) 後、`script.js` が非同期で `/api/dashboard/summary` を取得し、以降 5 秒周期の `setInterval` ポーリングで最新状態に更新・同期する。
+  - API 通信エラー時は、過去値の誤表示を防ぐためサマリー数値を `N/A` へ安全に切替表示する。
 - **サマリーカード**:
   - `Total Jobs` (青), `Running Jobs` (シアン), `Successful Runs` (緑), `Failed Runs` (赤) の 4 カードを配置。
   - フロントエンド JS (`script.js`) により `/api/dashboard/summary` から 5 秒間隔のポーリングでデータ動的更新。
