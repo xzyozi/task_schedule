@@ -23,6 +23,7 @@ dependencies = [
     "fastapi",
     "uvicorn[standard]",
     "tenacity",
+    "tzdata", # zoneinfo用。CI/コンテナ等、OS側にtzdataが無い環境でのタイムゾーン解決に必要
     "watchdog",
     "Flask", # Added for WebGUI
     "requests", # Added for WebGUI to API communication
