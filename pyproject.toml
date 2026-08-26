@@ -61,6 +61,7 @@ exclude = [
     "venv",
     ".venv",
     "test", # Exclude test folder from linting for now, as it might have specific test patterns
+    "doc", # ドキュメント内のコード例はスタイル整形の対象外とする(ruff>=0.16でMarkdown内コードブロックも整形対象になるため)
 ]
 
 [tool.ruff.lint]
