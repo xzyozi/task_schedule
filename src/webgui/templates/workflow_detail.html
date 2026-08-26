@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Workflow Details - Task Scheduler{% endblock %}
+
+{% block page_title %}ワークフロー詳細{% endblock %}
+
+{% block content %}
+<input type="hidden" id="workflow-id-hidden" value="{{ workflow_id }}">
+
+<div class="row">
+    <div class="col-lg-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2 id="workflow-name">Workflow Name</h2>
+            </div>
+            <div class="card-body">
+                <p><strong>説明:</strong> <span id="workflow-description"></span></p>
+                <p><strong>スケジュール:</strong> <span id="workflow-schedule"></span></p>
+                <p><strong>ステータス:</strong> <span id="workflow-status"></span></p>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3>ステップ</h3>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>順序</th>
+                            <th>ステップ名</th>
+                            <th>タイプ</th>
+                            <th>ターゲット</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workflow-steps-body">
+                        <!-- Steps will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h3>実行履歴</h3>
+            </div>
+            <div class="card-body">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>実行ID</th>
+                            <th>ステータス</th>
+                            <th>開始時刻</th>
+                            <th>終了時刻</th>
+                            <th>詳細</th>
+                        </tr>
+                    </thead>
+                    <tbody id="workflow-runs-body">
+                        <!-- Workflow runs will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+    <!-- Log Display Section -->
+    <div class="col-lg-12" id="log-display-section" style="display: none;">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h3>ログ詳細: <span id="log-detail-id"></span></h3>
+            </div>
+            <div class="card-body">
+                <ul class="nav nav-tabs" id="logTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="stdout-tab" data-bs-toggle="tab" data-bs-target="#stdout-content" type="button" role="tab" aria-controls="stdout-content" aria-selected="true">標準出力 (stdout)</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="stderr-tab" data-bs-toggle="tab" data-bs-target="#stderr-content" type="button" role="tab" aria-controls="stderr-content" aria-selected="false">標準エラー出力 (stderr)</button>
+                    </li>
+                </ul>
+                <div class="tab-content mt-3">
+                    <div class="tab-pane fade show active" id="stdout-content" role="tabpanel" aria-labelledby="stdout-tab">
+                        <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: scroll;"><code id="log-stdout"></code></pre>
+                    </div>
+                    <div class="tab-pane fade" id="stderr-content" role="tabpanel" aria-labelledby="stderr-tab">
+                        <pre class="bg-light p-3 rounded" style="max-height: 300px; overflow-y: scroll;"><code id="log-stderr"></code></pre>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary mt-3" id="copy-log-btn">ログをコピー</button>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script type="module" src="{{ url_for('static', filename='workflow_detail.js') }}"></script>
+{% endblock %}

@@ -1,31 +1,40 @@
-// src/webgui/static/jobs.js
+import { fetchConfig, getApiBaseUrl, escapeHtml } from './api_config.js';
 
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = 'http://127.0.0.1:8000';
-    
-    // Main elements
+document.addEventListener('DOMContentLoaded', async function () {
+    // Remove: let API_BASE_URL = ''; // Will be fetched dynamically
+
+    // Fetch config first
+    await fetchConfig(); // This now calls the imported fetchConfig
+
+    // --- Global State ---
+    let availableTasks = [];
+    let jobsData = []; // Cache for jobs data
+
+    // --- Element Selectors ---
     const jobsListBody = document.getElementById('jobs-list-body');
     const searchInput = document.getElementById('job-search-input');
-    
+    const newJobBtn = document.getElementById('new-job-btn');
+
     // Form elements
     const jobForm = document.getElementById('job-form');
-    const jobIdInput = document.getElementById('job-id');
-    const jobFuncInput = document.getElementById('job-func');
+    const jobFormTitle = document.getElementById('job-form-title');
+    const jobIdHidden = document.getElementById('job-id-hidden');
+    const jobNameInput = document.getElementById('job-name');
     const jobDescriptionInput = document.getElementById('job-description');
     const jobEnabledCheckbox = document.getElementById('job-enabled');
+    const clearFormBtn = document.getElementById('clear-form-btn');
+
+    // Task parameter elements (dynamic)
+    const taskSelect = document.getElementById('task-select');
+    const dynamicParamsContainer = document.getElementById('dynamic-params-container');
+
+    // Trigger elements
     const triggerTypeSelect = document.getElementById('trigger-type');
     const cronFieldsDiv = document.getElementById('cron-fields');
     const intervalFieldsDiv = document.getElementById('interval-fields');
-    const clearFormBtn = document.getElementById('clear-form-btn');
-    const jobFormTitle = document.getElementById('job-form-title');
-    const jobIdHidden = document.getElementById('job-id-hidden');
-
-    // Cron fields
     const cronMinuteInput = document.getElementById('cron-minute');
     const cronHourInput = document.getElementById('cron-hour');
     const cronDayOfWeekInput = document.getElementById('cron-day-of-week');
-
-    // Interval fields
     const intervalWeeksInput = document.getElementById('interval-weeks');
     const intervalDaysInput = document.getElementById('interval-days');
     const intervalHoursInput = document.getElementById('interval-hours');
@@ -38,8 +47,120 @@ document.addEventListener('DOMContentLoaded', function() {
     const bulkResumeBtn = document.getElementById('bulk-resume-btn');
     const bulkDeleteBtn = document.getElementById('bulk-delete-btn');
 
-
     // --- Utility Functions ---
+
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast show position-fixed top-0 end-0 p-3 ${type === 'success' ? 'bg-success' : 'bg-danger'} text-white`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
+    }
+
+    function parseJsonInput(value, paramName, defaultValue) {
+        if (!value.trim()) return defaultValue;
+        try {
+            return JSON.parse(value);
+        } catch (e) {
+            alert(`Parameter "${paramName}" has invalid JSON: ${e.message}`);
+            throw e; // Stop form submission
+        }
+    }
+
+    // --- Dynamic Form Generation ---
+
+    function generateFormField(param) {
+        const formGroup = document.createElement('div');
+        formGroup.className = 'mb-3';
+
+        const label = document.createElement('label');
+        label.htmlFor = `param-${param.name}`;
+        label.className = 'form-label';
+        label.textContent = param.label;
+        if (param.required) {
+            const requiredSpan = document.createElement('span');
+            requiredSpan.className = 'text-danger';
+            requiredSpan.textContent = ' *';
+            label.appendChild(requiredSpan);
+        }
+        formGroup.appendChild(label);
+
+        let input;
+        const inputId = `param-${param.name}`;
+        const isJson = param.type.includes('Dict') || param.type.includes('List');
+        const isBool = param.type.toLowerCase().includes('bool');
+        const isLiteral = param.type.startsWith('Literal');
+
+        if (isBool) {
+            input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'form-check-input';
+        } else if (isLiteral) {
+            input = document.createElement('select');
+            input.className = 'form-select';
+
+            // Extract options from Literal['option1', 'option2']
+            const optionsMatch = param.type.match(/\[(.*)\]/);
+            if (optionsMatch && optionsMatch[1]) {
+                const options = optionsMatch[1].replace(/['"]/g, '').split(',').map(s => s.trim());
+                options.forEach(optionText => {
+                    const option = document.createElement('option');
+                    option.value = optionText;
+                    option.textContent = optionText;
+                    input.appendChild(option);
+                });
+            }
+        } else if (isJson) {
+            input = document.createElement('textarea');
+            input.rows = 3;
+            input.placeholder = `Enter JSON for ${param.name}`;
+            input.className = 'form-control';
+        } else {
+            input = document.createElement('input');
+            input.type = param.type.toLowerCase().includes('int') ? 'number' : 'text';
+            input.className = 'form-control';
+        }
+
+        input.id = inputId;
+        input.name = param.name;
+        if (param.required) {
+            input.required = true;
+        }
+
+        formGroup.appendChild(input);
+
+        if (param.description) {
+            const helpText = document.createElement('div');
+            helpText.className = 'form-text';
+            helpText.textContent = param.description;
+            formGroup.appendChild(helpText);
+        }
+        return formGroup;
+    }
+
+    function generateParamsForm(taskId) {
+        dynamicParamsContainer.innerHTML = '';
+        const selectedTask = availableTasks.find(t => t.id === taskId);
+
+        if (!selectedTask || !selectedTask.parameters || selectedTask.parameters.length === 0) {
+            dynamicParamsContainer.classList.add('d-none');
+            return;
+        }
+
+        selectedTask.parameters.forEach(param => {
+            const field = generateFormField(param);
+            dynamicParamsContainer.appendChild(field);
+        });
+        dynamicParamsContainer.classList.remove('d-none');
+    }
+
+    // --- Form Logic ---
 
     function showTriggerFields(type) {
         cronFieldsDiv.classList.toggle('d-none', type !== 'cron');
@@ -48,246 +169,266 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function clearForm() {
         jobForm.reset();
-        jobIdInput.value = '';
-        jobFuncInput.value = '';
-        jobDescriptionInput.value = '';
-        jobEnabledCheckbox.checked = true;
-        triggerTypeSelect.value = 'cron';
-        cronMinuteInput.value = '*'
-        cronHourInput.value = '*'
-        cronDayOfWeekInput.value = '*'
-        intervalWeeksInput.value = 0;
-        intervalDaysInput.value = 0;
-        intervalHoursInput.value = 0;
-        intervalMinutesInput.value = 5;
-        jobFormTitle.textContent = '新規ジョブ作成';
-        jobIdInput.readOnly = false;
         jobIdHidden.value = '';
+        jobFormTitle.textContent = '新規ジョブ作成';
+
+        taskSelect.value = '';
+        taskSelect.disabled = false;
+        dynamicParamsContainer.innerHTML = '';
+        dynamicParamsContainer.classList.add('d-none');
+
+        triggerTypeSelect.value = 'cron';
         showTriggerFields('cron');
     }
 
-    function populateFormForEdit(jobId) {
-        fetch(`${API_BASE_URL}/api/jobs/${jobId}`)
-            .then(response => {
-                if (!response.ok) throw new Error('ジョブ定義の取得に失敗しました。');
-                return response.json();
-            })
-            .then(job => {
-                jobIdInput.value = job.id;
-                jobIdInput.readOnly = true;
-                jobIdHidden.value = job.id;
-                jobFuncInput.value = job.func;
-                jobDescriptionInput.value = job.description || '';
-                jobEnabledCheckbox.checked = job.is_enabled;
-                triggerTypeSelect.value = job.trigger.type;
+    async function populateFormForEdit(jobId) {
+        // Ensure tasks are loaded before populating
+        if (availableTasks.length === 0) {
+            await fetchAvailableTasks();
+        }
 
-                showTriggerFields(job.trigger.type);
+        const job = jobsData.find(j => j.id === jobId);
+        if (!job) {
+            alert('ジョブが見つかりません。');
+            return;
+        }
 
-                if (job.trigger.type === 'cron') {
-                    cronMinuteInput.value = job.trigger.minute || '*'
-                    cronHourInput.value = job.trigger.hour || '*'
-                    cronDayOfWeekInput.value = job.trigger.day_of_week || '*'
-                } else if (job.trigger.type === 'interval') {
-                    intervalWeeksInput.value = job.trigger.weeks || 0;
-                    intervalDaysInput.value = job.trigger.days || 0;
-                    intervalHoursInput.value = job.trigger.hours || 0;
-                    intervalMinutesInput.value = job.trigger.minutes || 0;
+        clearForm();
+        jobIdHidden.value = job.id;
+        jobNameInput.value = job.name;
+        jobDescriptionInput.value = job.description || '';
+        jobEnabledCheckbox.checked = job.is_enabled;
+
+        const params = job.task_parameters;
+        let taskId;
+        if (params.task_type === 'python') {
+            taskId = `python:${params.module}:${params.function}`;
+        } else {
+            taskId = params.task_type;
+        }
+
+        taskSelect.value = taskId;
+        generateParamsForm(taskId);
+        taskSelect.disabled = true; // Don't allow changing task type on edit
+
+        // Populate dynamic fields
+        if (params) {
+            for (const [key, value] of Object.entries(params)) {
+                const input = document.getElementById(`param-${key}`);
+                if (!input) continue;
+
+                if (input.type === 'checkbox') {
+                    input.checked = !!value;
+                } else if (input.tagName === 'TEXTAREA') {
+                    input.value = JSON.stringify(value, null, 2);
+                } else {
+                    input.value = value;
                 }
-                jobFormTitle.textContent = `ジョブ編集: ${job.id}`;
-                window.scrollTo(0, document.body.scrollHeight);
-            })
-            .catch(error => {
-                console.error('Error fetching job for edit:', error);
-                alert(`ジョブの編集データを取得できませんでした: ${error.message}`);
+            }
+        }
+
+        triggerTypeSelect.value = job.trigger.type;
+        showTriggerFields(job.trigger.type);
+        const trigger = job.trigger;
+        if (trigger.type === 'cron') {
+            cronMinuteInput.value = trigger.minute || '*';
+            cronHourInput.value = trigger.hour || '*';
+            cronDayOfWeekInput.value = trigger.day_of_week || '*';
+        } else if (trigger.type === 'interval') {
+            intervalWeeksInput.value = trigger.weeks || 0;
+            intervalDaysInput.value = trigger.days || 0;
+            intervalHoursInput.value = trigger.hours || 0;
+            intervalMinutesInput.value = trigger.minutes || 0;
+        }
+
+        jobFormTitle.textContent = `ジョブ編集: ${job.name}`;
+        window.scrollTo(0, document.body.scrollHeight); // Scroll to form
+    }
+
+    // --- API and Display Logic ---
+
+    async function fetchAvailableTasks() {
+        taskSelect.disabled = true;
+        try {
+            const response = await fetch(`${getApiBaseUrl()}/api/available-tasks`); // Use getApiBaseUrl()
+            if (!response.ok) throw new Error('Failed to fetch tasks');
+            availableTasks = await response.json();
+
+            taskSelect.innerHTML = '<option value="" selected disabled>タスクを選択...</option>';
+            availableTasks.forEach(task => {
+                const option = document.createElement('option');
+                option.value = task.id;
+                option.textContent = task.name;
+                taskSelect.appendChild(option);
             });
+            taskSelect.disabled = false;
+
+        } catch (error) {
+            console.error('Error fetching available tasks:', error);
+            taskSelect.innerHTML = '<option value="" selected disabled>タスクの読み込みに失敗しました。</option>';
+        }
+    }
+
+    function formatTask(taskParams) {
+        if (!taskParams) return 'N/A';
+        switch (taskParams.task_type) {
+            case 'python':
+                return `<span class="badge bg-primary">Py</span> ${escapeHtml(taskParams.module)}:${escapeHtml(taskParams.function)}`;
+            case 'shell':
+                return `<span class="badge bg-secondary">Sh</span> ${escapeHtml(taskParams.command.substring(0, 50))}...`;
+            case 'email':
+                return `<span class="badge bg-info">Mail</span> To: ${escapeHtml(taskParams.to_email)}`;
+            default:
+                return 'Unknown Task';
+        }
     }
 
     function formatTrigger(trigger) {
         if (!trigger) return 'N/A';
         if (trigger.type === 'cron') {
             return `Cron: ${trigger.minute || '*'} ${trigger.hour || '*'} * * ${trigger.day_of_week || '*'}`;
-        } else if (trigger.type === 'interval') {
+        }
+        if (trigger.type === 'interval') {
             let parts = [];
             if (trigger.weeks) parts.push(`${trigger.weeks}w`);
             if (trigger.days) parts.push(`${trigger.days}d`);
             if (trigger.hours) parts.push(`${trigger.hours}h`);
             if (trigger.minutes) parts.push(`${trigger.minutes}m`);
             if (trigger.seconds) parts.push(`${trigger.seconds}s`);
-            return `Interval: ${parts.join(' ')}`;
+            return `Interval: ${parts.join(' ') || 'N/A'}`;
         }
         return 'Unknown';
     }
-    
+
     function formatDateTime(isoString) {
-        if (!isoString) return '---';
+        if (!isoString) return '--';
         try {
-            const date = new Date(isoString);
-            return date.toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            return new Date(isoString).toLocaleString('ja-JP');
         } catch (e) {
             return isoString;
         }
     }
 
-    function updateBulkActions() {
-        const selectedCheckboxes = jobsListBody.querySelectorAll('.job-checkbox:checked');
-        const allCheckboxes = jobsListBody.querySelectorAll('.job-checkbox');
-        
-        if (selectedCheckboxes.length > 0) {
-            bulkActionsGroup.style.display = 'inline-flex';
-        } else {
-            bulkActionsGroup.style.display = 'none';
-        }
-
-        if (allCheckboxes.length > 0 && selectedCheckboxes.length === allCheckboxes.length) {
-            selectAllCheckbox.checked = true;
-        } else {
-            selectAllCheckbox.checked = false;
-        }
-    }
-
-    // --- Main Fetch and Display Function ---
-
     function fetchAndDisplayJobs() {
-        fetch(`${API_BASE_URL}/api/scheduler/jobs`)
-            .then(response => {
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                return response.json();
-            })
+        fetch(`${getApiBaseUrl()}/api/jobs`) // Use getApiBaseUrl()
+            .then(response => response.json())
             .then(jobs => {
+                jobsData = jobs; // Cache the data
                 jobsListBody.innerHTML = '';
                 if (jobs.length === 0) {
-                    jobsListBody.innerHTML = `<tr><td colspan="7" class="text-center">スケジュールされたジョブはありません。</td></tr>`;
+                    jobsListBody.innerHTML = `<tr><td colspan="7" class="text-center">登録済みのジョブはありません。</td></tr>`;
                     return;
                 }
                 jobs.forEach(job => {
-                    const isPaused = job.next_run_time === null;
                     const row = document.createElement('tr');
+                    const status = job.is_enabled ? '<span class="badge bg-success">有効</span>' : '<span class="badge bg-secondary">無効</span>';
+                    const safeId = escapeHtml(job.id);
                     row.innerHTML = `
-                        <td><input type="checkbox" class="form-check-input job-checkbox" data-job-id="${job.id}"></td>
-                        <td>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input status-toggle" type="checkbox" role="switch" 
-                                       data-job-id="${job.id}" ${isPaused ? '' : 'checked'}>
-                                <label class="form-check-label">
-                                    ${isPaused ? '<span class="badge bg-secondary">停止中</span>' : '<span class="badge bg-success">実行中</span>'}
-                                </label>
-                            </div>
-                        </td>
-                        <td><a href="/jobs/${job.id}">${job.id}</a></td>
+                        <td><input type="checkbox" class="form-check-input job-checkbox" data-job-id="${safeId}"></td>
+                        <td>${status}</td>
+                        <td><a href="#" class="job-name-link" data-job-id="${safeId}">${escapeHtml(job.name)}</a><br><small class="text-muted">${safeId}</small></td>
                         <td>${formatTrigger(job.trigger)}</td>
                         <td>${formatDateTime(job.next_run_time)}</td>
-                        <td class="text-break">${job.func}</td>
+                        <td class="text-break">${formatTask(job.task_parameters)}</td>
                         <td>
-                            <button class="btn btn-sm btn-primary btn-run" data-job-id="${job.id}" title="今すぐ実行">実行</button>
-                            <button class="btn btn-sm btn-info btn-edit" data-job-id="${job.id}" title="編集">編集</button>
-                            <button class="btn btn-sm btn-danger btn-delete" data-job-id="${job.id}" title="削除">削除</button>
+                            <button class="btn btn-sm btn-info btn-edit" data-job-id="${safeId}" title="編集">編集</button>
+                            <button class="btn btn-sm btn-danger btn-delete" data-job-id="${safeId}" title="削除">削除</button>
                         </td>
                     `;
                     jobsListBody.appendChild(row);
                 });
-                updateBulkActions(); // Reset bulk actions on refresh
             })
             .catch(error => {
-                console.error('Error fetching scheduled jobs:', error);
+                console.error('Error fetching jobs:', error);
                 jobsListBody.innerHTML = `<tr><td colspan="7" class="text-center text-danger">ジョブの読み込みに失敗しました。</td></tr>`;
             });
     }
 
-    // --- Bulk Action Logic ---
-    function performBulkAction(action, url, confirmationText) {
-        const selectedJobIds = Array.from(jobsListBody.querySelectorAll('.job-checkbox:checked'))
-                                    .map(cb => cb.dataset.jobId);
+    // --- Event Listeners ---
 
-        if (selectedJobIds.length === 0) {
-            alert('操作対象のジョブを選択してください。');
+    taskSelect.addEventListener('change', (e) => generateParamsForm(e.target.value));
+    triggerTypeSelect.addEventListener('change', (e) => showTriggerFields(e.target.value));
+    newJobBtn.addEventListener('click', clearForm);
+    clearFormBtn.addEventListener('click', clearForm);
+
+    jobForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        const selectedTaskId = taskSelect.value;
+        if (!selectedTaskId) {
+            alert('タスクを選択してください。');
             return;
         }
 
-        if (confirm(`${selectedJobIds.length}件のジョブを${confirmationText}してもよろしいですか？`)) {
-            fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ job_ids: selectedJobIds })
-            })
-            .then(response => {
-                if (!response.ok) throw new Error(`${confirmationText}に失敗しました。`);
-                return response.json();
-            })
-            .then(data => {
-                alert(data.message || `${confirmationText}が完了しました。`);
-                fetchAndDisplayJobs();
-            })
-            .catch(error => {
-                alert(`エラー: ${error.message}`);
-                fetchAndDisplayJobs();
-            });
-        }
-    }
-
-    // --- Event Listeners ---
-
-    searchInput.addEventListener('keyup', function() {
-        const searchTerm = searchInput.value.toLowerCase();
-        const rows = jobsListBody.getElementsByTagName('tr');
-        for (const row of rows) {
-            const jobIdCell = row.cells[2]; // Index updated for checkbox
-            const funcCell = row.cells[5];  // Index updated for checkbox
-            if (jobIdCell && funcCell) {
-                const match = jobIdCell.textContent.toLowerCase().includes(searchTerm) || 
-                              funcCell.textContent.toLowerCase().includes(searchTerm);
-                row.style.display = match ? '' : 'none';
-            }
-        }
-    });
-
-    selectAllCheckbox.addEventListener('change', function() {
-        const isChecked = selectAllCheckbox.checked;
-        jobsListBody.querySelectorAll('.job-checkbox').forEach(checkbox => {
-            checkbox.checked = isChecked;
-        });
-        updateBulkActions();
-    });
-
-    bulkPauseBtn.addEventListener('click', () => performBulkAction('pause', `${API_BASE_URL}/api/scheduler/jobs/bulk/pause`, '一括停止'));
-    bulkResumeBtn.addEventListener('click', () => performBulkAction('resume', `${API_BASE_URL}/api/scheduler/jobs/bulk/resume`, '一括再開'));
-    bulkDeleteBtn.addEventListener('click', () => performBulkAction('delete', `${API_BASE_URL}/api/jobs/bulk/delete`, '一括削除'));
-
-    triggerTypeSelect.addEventListener('change', (event) => {
-        showTriggerFields(event.target.value);
-    });
-
-    clearFormBtn.addEventListener('click', clearForm);
-
-    const newJobBtn = document.getElementById('new-job-btn');
-    if (newJobBtn) {
-        newJobBtn.addEventListener('click', clearForm);
-    }
-
-    jobForm.addEventListener('submit', function(event) {
-        event.preventDefault();
+        const selectedTask = availableTasks.find(t => t.id === selectedTaskId);
         const isEdit = !!jobIdHidden.value;
         const method = isEdit ? 'PUT' : 'POST';
-        const url = isEdit ? `${API_BASE_URL}/api/jobs/${jobIdHidden.value}` : `${API_BASE_URL}/api/jobs`;
+        const url = isEdit ? `${getApiBaseUrl()}/api/jobs/${jobIdHidden.value}` : `${getApiBaseUrl()}/api/jobs`; // Use getApiBaseUrl()
+
+        let task_parameters = {
+            task_type: selectedTask.task_type
+        };
+
+        // For python tasks, add module and function
+        if (selectedTask.task_type === 'python') {
+            task_parameters.module = selectedTask.module;
+            task_parameters.function = selectedTask.function;
+        }
+
+        try {
+            // Dynamically gather parameters from the generated form
+            selectedTask.parameters.forEach(param => {
+                const input = document.getElementById(`param-${param.name}`);
+                if (!input) return;
+
+                let value;
+                if (input.type === 'checkbox') {
+                    value = input.checked;
+                } else if (input.tagName === 'TEXTAREA') {
+                    const isJson = param.type.includes('Dict') || param.type.includes('List');
+                    if (isJson) {
+                        value = parseJsonInput(input.value, param.name, isJson && param.type.includes('List') ? [] : {});
+                    } else {
+                        value = input.value;
+                    }
+                } else {
+                    value = input.value;
+                }
+
+                if (input.required && !value && input.type !== 'checkbox') {
+                    throw new Error(`必須パラメータ "${param.label}" が空です。`);
+                }
+
+                // Only include the parameter if it has a value or is required
+                if (value !== null && value !== '' || param.required) {
+                    task_parameters[param.name] = value;
+                }
+            });
+        } catch (e) {
+            alert(e.message);
+            return; // Stop submission
+        }
 
         const jobData = {
-            id: jobIdInput.value,
-            func: jobFuncInput.value,
+            name: jobNameInput.value,
             description: jobDescriptionInput.value,
             is_enabled: jobEnabledCheckbox.checked,
             trigger: { type: triggerTypeSelect.value },
-            args: [],
-            kwargs: {},
-            max_instances: 3,
-            coalesce: true,
-            misfire_grace_time: 3600,
-            replace_existing: true,
+            task_parameters: task_parameters,
         };
+
+        if (!isEdit) {
+            jobData.id = jobNameInput.value.trim().replace(/\s+/g, '_');
+            if (!jobData.id) {
+                alert('ジョブ名は必須です。');
+                return;
+            }
+        }
 
         if (jobData.trigger.type === 'cron') {
             jobData.trigger.minute = cronMinuteInput.value;
             jobData.trigger.hour = cronHourInput.value;
             jobData.trigger.day_of_week = cronDayOfWeekInput.value;
-        } else if (jobData.trigger.type === 'interval') {
+        } else {
             jobData.trigger.weeks = parseInt(intervalWeeksInput.value) || 0;
             jobData.trigger.days = parseInt(intervalDaysInput.value) || 0;
             jobData.trigger.hours = parseInt(intervalHoursInput.value) || 0;
@@ -299,86 +440,45 @@ document.addEventListener('DOMContentLoaded', function() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(jobData),
         })
-        .then(response => {
-            if (!response.ok) return response.json().then(err => { throw new Error(err.detail || 'Unknown error'); });
-            return response.json();
-        })
-        .then(data => {
-            alert(`ジョブ定義 '${data.id}' が${isEdit ? '更新' : '作成'}されました。`);
-            clearForm();
-            setTimeout(fetchAndDisplayJobs, 500);
-        })
-        .catch(error => {
-            console.error('Error saving job definition:', error);
-            alert(`ジョブ定義の保存に失敗しました: ${error.message}`);
-        });
-    });
-
-    jobsListBody.addEventListener('click', function(event) {
-        const target = event.target;
-        const jobId = target.dataset.jobId;
-
-        if (target.classList.contains('job-checkbox')) {
-            updateBulkActions();
-            return;
-        }
-
-        if (!jobId) return;
-
-        if (target.classList.contains('btn-run')) {
-            if (confirm(`ジョブ '${jobId}' を今すぐ実行しますか？`)) {
-                fetch(`${API_BASE_URL}/api/scheduler/jobs/${jobId}/run`, { method: 'POST' })
-                    .then(response => {
-                        if (!response.ok) throw new Error('実行リクエストに失敗しました。');
-                        return response.json();
-                    })
-                    .then(() => {
-                        alert(`ジョブ '${jobId}' はすぐに実行されます。`);
-                        setTimeout(fetchAndDisplayJobs, 500);
-                    })
-                    .catch(error => alert(`エラー: ${error.message}`));
-            }
-        } 
-        else if (target.classList.contains('btn-delete')) {
-            if (confirm(`ジョブ定義 '${jobId}' を削除してもよろしいですか？
-この操作は元に戻せません。`)) {
-                fetch(`${API_BASE_URL}/api/jobs/${jobId}`, { method: 'DELETE' })
-                    .then(response => {
-                        if (!response.ok) throw new Error('削除に失敗しました。');
-                        alert(`ジョブ定義 '${jobId}' が削除されました。`);
-                        setTimeout(fetchAndDisplayJobs, 500);
-                    })
-                    .catch(error => alert(`エラー: ${error.message}`));
-            }
-        } 
-        else if (target.classList.contains('btn-edit')) {
-            populateFormForEdit(jobId);
-        }
-    });
-    
-    jobsListBody.addEventListener('change', function(event) {
-        const target = event.target;
-        const jobId = target.dataset.jobId;
-
-        if (!jobId || !target.classList.contains('status-toggle')) return;
-
-        const action = target.checked ? 'resume' : 'pause';
-        
-        fetch(`${API_BASE_URL}/api/scheduler/jobs/${jobId}/${action}`, { method: 'POST' })
-            .then(response => {
-                if (!response.ok) throw new Error('ステータスの変更に失敗しました。');
-                return response.json();
-            })
-            .then(() => {
+            .then(response => response.ok ? response.json() : response.json().then(err => Promise.reject(err)))
+            .then(data => {
+                showToast(`ジョブ '${data.name}' が${isEdit ? '更新' : '作成'}されました。`);
+                clearForm();
                 fetchAndDisplayJobs();
             })
             .catch(error => {
-                alert(`エラー: ${error.message}`);
-                target.checked = !target.checked;
+                const errorMessage = error.detail ? JSON.stringify(error.detail) : error.message;
+                alert(`ジョブの保存に失敗しました:\n${errorMessage}`);
             });
     });
 
+    jobsListBody.addEventListener('click', function (event) {
+        const target = event.target;
+        const jobId = target.dataset.jobId;
+        if (!jobId) return;
+
+        if (target.classList.contains('btn-edit') || target.classList.contains('job-name-link')) {
+            event.preventDefault();
+            populateFormForEdit(jobId);
+        } else if (target.classList.contains('btn-delete')) {
+            if (confirm(`ジョブ定義 '${jobId}' を削除してもよろしいですか？\nこの操作は元に戻せません。`)) {
+                fetch(`${getApiBaseUrl()}/api/jobs/${jobId}`, { method: 'DELETE' }) // Use getApiBaseUrl()
+                    .then(response => {
+                        if (!response.ok) throw new Error('削除に失敗しました。');
+                        showToast(`ジョブ定義 '${jobId}' が削除されました。`);
+                        fetchAndDisplayJobs();
+                    })
+                    .catch(error => alert(`エラー: ${error.message}`));
+            }
+        }
+    });
+
     // --- Initial Load ---
-    showTriggerFields('cron');
-    fetchAndDisplayJobs();
+    // Ensure config is loaded before initial updates
+    (async () => {
+        await fetchConfig();
+        showTriggerFields('cron');
+        fetchAndDisplayJobs();
+        fetchAvailableTasks();
+    })();
 });

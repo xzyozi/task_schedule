@@ -2,12 +2,15 @@ import yaml
 from pathlib import Path
 import json
 import os
+import re
+from typing import Any, Optional
 from util import logger_util
 
 logger = logger_util.get_logger(__name__)
 
 # Assuming this file is in src/util, the project root is three levels up.
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+_default_project_root = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(os.getenv("TASK_SCHEDULER_PROJECT_ROOT", str(_default_project_root)))
 CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 
 class AppConfig:
@@ -26,6 +29,20 @@ class AppConfig:
                 raise FileNotFoundError(f"Configuration file not found at: {config_path}")
             with open(config_path, 'r') as f:
                 self._config = yaml.safe_load(f)
+            self._config = self._replace_env_vars(self._config)
+
+    def _replace_env_vars(self, config_item: Any) -> Any:
+        """Recursively replaces ${VAR} or $VAR with environment variable values."""
+        if isinstance(config_item, dict):
+            return {k: self._replace_env_vars(v) for k, v in config_item.items()}
+        elif isinstance(config_item, list):
+            return [self._replace_env_vars(i) for i in config_item]
+        elif isinstance(config_item, str):
+            return re.sub(r'\$\{?([a-zA-Z_][a-zA-Z0-9_]*)\}?',
+                          lambda match: os.getenv(match.group(1), ''),
+                          config_item)
+        else:
+            return config_item
 
     def get(self, key, default=None):
         """Gets a configuration value using dot notation."""
@@ -55,6 +72,15 @@ class AppConfig:
         return f"{self.api_scheme}://{self.api_host}:{self.api_port}"
 
     @property
+    def api_key(self) -> Optional[str]:
+        """
+        APIアクセス用のキー。未設定(空文字)の場合は None を返し、
+        呼び出し側で認証を無効化(かつ警告)する判断に使う。
+        """
+        value = self.get('api.api_key', '')
+        return value if value else None
+
+    @property
     def webgui_scheme(self) -> str:
         return self.get('webgui.scheme', 'http')
 
@@ -71,8 +97,73 @@ class AppConfig:
         return f"{self.webgui_scheme}://{self.webgui_host}:{self.webgui_port}"
 
     @property
+    def internal_api_key(self) -> Optional[str]:
+        """
+        WebGUI(Flask)がバックエンドAPI(FastAPI)へのプロキシ時に使う内部用APIキー。
+        api.api_key と同じ値を共有する。
+        """
+        return self.api_key
+
+    @property
     def database_url(self) -> str:
-        return self.get('core.database_url', 'sqlite:///jobs.sqlite')
+        db_url = self.get('core.database_url', 'sqlite:///jobs.sqlite')
+        if db_url.startswith('sqlite:///'):
+            db_file = db_url[len('sqlite:///'):]
+            if db_file and not os.path.isabs(db_file) and db_file != ':memory:':
+                abs_db_path = (PROJECT_ROOT / db_file).resolve()
+                return f'sqlite:///{abs_db_path}'
+        return db_url
+
+    @property
+    def scheduler_work_dir(self) -> Path:
+        path_str = self.get('scheduler.work_dir', '~/.task_schedule/work_list')
+        # Expand user home directory and resolve to an absolute path
+        resolved_path = Path(path_str).expanduser().resolve()
+        
+        # Create the directory if it doesn't exist
+        resolved_path.mkdir(parents=True, exist_ok=True)
+        
+        return resolved_path
+
+    def resolve_sandboxed_path(self, relative_path: str) -> Optional[Path]:
+        """
+        scheduler_work_dir を起点に relative_path を解決し、サンドボックス外に
+        出ないことを検証したうえで絶対パスを返す。サンドボックス外に解決される
+        場合は None を返す。
+
+        単純な '..' や os.path.isabs() のチェックだけでは、Windowsの
+        ドライブ相対パス（例: 'D:temp'）のようにチェックを回避しつつ
+        別ドライブへ解決されるケースを防げないため、必ず resolve() 後の
+        パスが work_dir 配下であることを確認する。
+        """
+        work_dir = self.scheduler_work_dir
+        candidate = work_dir.joinpath(relative_path).resolve()
+
+        if candidate != work_dir and work_dir not in candidate.parents:
+            return None
+
+        return candidate
+
+    @property
+    def delete_orphaned_jobs_on_sync(self) -> bool:
+        return self.get('development.delete_orphaned_jobs_on_sync', False)
+
+    @property
+    def enable_db_sync(self) -> bool:
+        return self.get('scheduler.enable_db_sync', False)
+
+    @property
+    def email_config(self) -> dict:
+        email_conf = self.get('email', {})
+        password = os.getenv('EMAIL_SENDER_PASSWORD')
+        if not password and email_conf.get('smtp_server'):
+            logger.warning("EMAIL_SENDER_PASSWORD environment variable is not set. Email sending may fail.")
+        email_conf['smtp_password'] = password
+        return email_conf
+
+    @property
+    def task_ui_config(self) -> dict:
+        return self.get('task_ui_config', {})
 
 # Create a single, importable instance for the application to use.
 config = AppConfig()

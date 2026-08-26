@@ -51,7 +51,8 @@
         <table class="table table-striped table-hover">
             <thead>
                 <tr>
-                    <th scope="col">ジョブID</th>
+                    <th scope="col">名前</th>
+                    <th scope="col">スケジュール</th>
                     <th scope="col">次に実行</th>
                     <th scope="col">ステータス</th>
                     <th scope="col">操作</th>
@@ -79,6 +80,6 @@
 {% block scripts %}
 <script type="text/javascript" src="https://unpkg.com/vis-timeline@latest/standalone/umd/vis-timeline-graph2d.min.js"></script>
 <link href="https://unpkg.com/vis-timeline@latest/styles/vis-timeline-graph2d.min.css" rel="stylesheet" type="text/css" />
-<script src="{{ url_for('static', filename='script.js') }}"></script>
-<script src="{{ url_for('static', filename='timeline.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='script.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='timeline.js') }}"></script>
 {% endblock %}

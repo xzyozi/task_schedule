@@ -7,7 +7,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR
 
 from core.config import settings
-from util import logger_util
+from util import logger_util, time_util
 
 logger = logger_util.get_logger(__name__)
 
@@ -31,7 +31,8 @@ job_defaults = {
 scheduler = BackgroundScheduler(
     jobstores=jobstores,
     executors=executors,
-    job_defaults=job_defaults
+    job_defaults=job_defaults,
+    timezone='utc'
 )
 
 def job_error_listener(event):
@@ -44,7 +45,7 @@ def job_error_listener(event):
             new_kwargs['retry_count'] = current_retries + 1
             job_func_kwargs = new_kwargs.copy()
             job_func_kwargs.pop('retry_count', None)
-            retry_time = datetime.now() + timedelta(seconds=RETRY_DELAY_SECONDS)
+            retry_time = time_util.get_current_utc_time() + timedelta(seconds=RETRY_DELAY_SECONDS)
             scheduler.add_job(
                 job.func,
                 'date',
@@ -66,6 +67,12 @@ def start_scheduler():
     atexit.register(shutdown_scheduler)
 
 def shutdown_scheduler():
-    logger.info("Shutting down scheduler...")
-    if scheduler.running:
-        scheduler.shutdown()
+    try:
+        logger.info("Shutting down scheduler...")
+        if scheduler.running:
+            scheduler.shutdown()
+        logger.info("Scheduler shut down.")
+    except Exception:
+        # Broadly catch exceptions during shutdown, as the logging context may be torn down.
+        # This is acceptable in an atexit handler.
+        pass

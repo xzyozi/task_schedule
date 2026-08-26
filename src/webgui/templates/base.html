@@ -19,6 +19,7 @@
                 <a href="{{ url_for('index') }}" class="list-group-item list-group-item-action bg-light">ダッシュボード</a>
                 <a href="{{ url_for('logs') }}" class="list-group-item list-group-item-action bg-light">実行ログ</a>
                 <a href="{{ url_for('jobs') }}" class="list-group-item list-group-item-action bg-light">ジョブ管理</a>
+                <a href="{{ url_for('workflows') }}" class="list-group-item list-group-item-action bg-light">ワークフロー管理</a>
                 <a href="{{ url_for('settings') }}" class="list-group-item list-group-item-action bg-light">設定</a>
             </div>
         </div>
@@ -43,6 +44,7 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JavaScript for dynamic updates -->
+    <script type="module" src="{{ url_for('static', filename='api_config.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -53,19 +53,35 @@
                 <h2 id="job-form-title">新規ジョブ作成</h2>
             </div>
             <div class="card-body">
-                <form id="job-form">
+                <form id="job-form" novalidate>
                     <input type="hidden" id="job-id-hidden">
-                    <div class="mb-3">
-                        <label for="job-id" class="form-label">ジョブID</label>
-                        <input type="text" class="form-control" id="job-id" required>
+                    
+                    <!-- Basic Job Details -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="job-name" class="form-label">ジョブ名</label>
+                            <input type="text" class="form-control" id="job-name" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="job-description" class="form-label">説明</label>
+                            <input type="text" class="form-control" id="job-description">
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="job-func" class="form-label">実行関数</label>
-                        <input type="text" class="form-control" id="job-func" placeholder="e.g., scheduler.tasks.sample_tasks:print_current_time" required>
+
+                    <hr>
+
+                    <!-- Task Type and Parameters -->
+                    <h5>タスク設定</h5>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="task-select" class="form-label">タスク</label>
+                            <select class="form-select" id="task-select">
+                                <option value="" selected disabled>利用可能なタスクを読み込み中...</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="job-description" class="form-label">説明</label>
-                        <input type="text" class="form-control" id="job-description">
+                    <div id="dynamic-params-container" class="p-3 border rounded bg-light d-none">
+                        <!-- Parameters will be dynamically inserted here -->
                     </div>
                     
                     <hr>
@@ -136,5 +152,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='jobs.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='jobs.js') }}"></script>
 {% endblock %}

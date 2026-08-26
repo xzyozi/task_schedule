@@ -1,11 +1,15 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = 'http://127.0.0.1:8000';
-    const jobId = document.getElementById('job-id-hidden').value; // Get job_id from hidden input
+import { fetchConfig, getApiBaseUrl, escapeHtml } from './api_config.js';
+
+document.addEventListener('DOMContentLoaded', async function () {
+    await fetchConfig();
+
+    const jobId = document.getElementById('job-id-hidden').value;
 
     // Job Definition Elements
     const jobIdInput = document.getElementById('job-id');
-    const jobFuncInput = document.getElementById('job-func');
+    const jobTaskTypeInput = document.getElementById('job-task-type');
     const jobDescriptionInput = document.getElementById('job-description');
+    const taskParametersCode = document.getElementById('job-task-parameters');
     const jobEnabledCheckbox = document.getElementById('job-enabled');
     const triggerTypeInput = document.getElementById('trigger-type');
     const cronFieldsDiv = document.getElementById('cron-fields-detail');
@@ -27,8 +31,23 @@ document.addEventListener('DOMContentLoaded', function() {
     const logStdoutCode = document.getElementById('log-stdout');
     const logStderrCode = document.getElementById('log-stderr');
     const copyLogBtn = document.getElementById('copy-log-btn');
+    const runJobNowBtn = document.getElementById('run-job-now-btn');
 
     // --- Utility Functions ---
+
+    function showToast(message, type = 'success') {
+        const toast = document.createElement('div');
+        toast.className = `toast show position-fixed top-0 end-0 p-3 ${type === 'success' ? 'bg-success' : 'bg-danger'} text-white`;
+        toast.setAttribute('role', 'alert');
+        toast.setAttribute('aria-live', 'assertive');
+        toast.setAttribute('aria-atomic', 'true');
+        toast.textContent = message;
+        document.body.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 500);
+        }, 3000);
+    }
 
     function showTriggerFields(type) {
         cronFieldsDiv.classList.toggle('d-none', type !== 'cron');
@@ -56,24 +75,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- Fetch and Display Functions ---
 
     function fetchJobDetails() {
-        fetch(`${API_BASE_URL}/jobs/${jobId}`)
+        fetch(`${getApiBaseUrl()}/api/jobs/${jobId}`)
             .then(response => {
                 if (!response.ok) throw new Error('ジョブ定義の取得に失敗しました。');
                 return response.json();
             })
             .then(job => {
                 jobIdInput.value = job.id;
-                jobFuncInput.value = job.func;
+                jobTaskTypeInput.value = job.task_type;
                 jobDescriptionInput.value = job.description || '';
                 jobEnabledCheckbox.checked = job.is_enabled;
                 triggerTypeInput.value = job.trigger.type;
 
+                if (job.task_parameters) {
+                    taskParametersCode.textContent = JSON.stringify(job.task_parameters, null, 2);
+                } else {
+                    taskParametersCode.textContent = '{}';
+                }
+
                 showTriggerFields(job.trigger.type);
 
                 if (job.trigger.type === 'cron') {
-                    cronMinuteInput.value = job.trigger.minute || '*'
-                    cronHourInput.value = job.trigger.hour || '*'
-                    cronDayOfWeekInput.value = job.trigger.day_of_week || '*'
+                    cronMinuteInput.value = job.trigger.minute || '*';
+                    cronHourInput.value = job.trigger.hour || '*';
+                    cronDayOfWeekInput.value = job.trigger.day_of_week || '*';
                 } else if (job.trigger.type === 'interval') {
                     intervalWeeksInput.value = job.trigger.weeks || 0;
                     intervalDaysInput.value = job.trigger.days || 0;
@@ -88,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function fetchExecutionHistory() {
-        fetch(`${API_BASE_URL}/api/jobs/${jobId}/history`)
+        fetch(`${getApiBaseUrl()}/api/jobs/${jobId}/history`)
             .then(response => {
                 if (!response.ok) throw new Error('実行履歴の取得に失敗しました。');
                 return response.json();
@@ -102,18 +127,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 history.forEach(log => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${log.id}</td>
-                        <td><span class="badge bg-${log.status === 'COMPLETED' ? 'success' : log.status === 'FAILED' ? 'danger' : 'info'}">${log.status}</span></td>
+                        <td>${escapeHtml(log.id)}</td>
+                        <td><span class="badge bg-${log.status === 'COMPLETED' ? 'success' : log.status === 'FAILED' ? 'danger' : 'info'}">${escapeHtml(log.status)}</span></td>
                         <td>${formatDateTime(log.start_time)}</td>
                         <td>${formatDateTime(log.end_time)}</td>
                         <td>${formatDuration(log.start_time, log.end_time)}</td>
                         <td>
-                            <button class="btn btn-sm btn-secondary btn-view-log" data-log-id="${log.id}" 
-                                data-stdout="${log.stdout || ''}" data-stderr="${log.stderr || ''}">
+                            <button class="btn btn-sm btn-secondary btn-view-log" data-log-id="${escapeHtml(log.id)}">
                                 ログ表示
                             </button>
                         </td>
                     `;
+                    // Use dataset assignment (not template interpolation) to avoid
+                    // attribute-breaking injection when log output contains quotes.
+                    const viewLogBtn = row.querySelector('.btn-view-log');
+                    viewLogBtn.dataset.stdout = log.stdout || '';
+                    viewLogBtn.dataset.stderr = log.stderr || '';
                     executionHistoryBody.appendChild(row);
                 });
             })
@@ -125,7 +154,35 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Event Listeners ---
 
-    executionHistoryBody.addEventListener('click', function(event) {
+    runJobNowBtn.addEventListener('click', function () {
+        if (!jobId) return;
+
+        if (!confirm(`ジョブ '${jobId}' を今すぐ実行しますか？`)) {
+            return;
+        }
+
+        fetch(`${getApiBaseUrl()}/api/scheduler/jobs/${jobId}/run`, {
+            method: 'POST'
+        })
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => Promise.reject(err));
+                }
+                return response.json();
+            })
+            .then(data => {
+                showToast(data.message || `ジョブ '${jobId}' の即時実行を要求しました。`);
+                // Optionally, refresh history after a delay
+                setTimeout(fetchExecutionHistory, 2000);
+            })
+            .catch(error => {
+                console.error('Error running job immediately:', error);
+                const errorMessage = error.detail || 'ジョブの実行に失敗しました。';
+                showToast(errorMessage, 'danger');
+            });
+    });
+
+    executionHistoryBody.addEventListener('click', function (event) {
         const target = event.target;
         if (target.classList.contains('btn-view-log')) {
             const logId = target.dataset.logId;
@@ -142,7 +199,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    copyLogBtn.addEventListener('click', function() {
+    copyLogBtn.addEventListener('click', function () {
         const activeTabContent = document.querySelector('#logTabs .nav-link.active').getAttribute('aria-controls');
         let textToCopy = '';
         if (activeTabContent === 'stdout-content') {
@@ -152,9 +209,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (navigator.clipboard) {
-            navigator.clipboard.writeText(textToCopy).then(function() {
+            navigator.clipboard.writeText(textToCopy).then(function () {
                 alert('ログがクリップボードにコピーされました。');
-            }, function(err) {
+            }, function (err) {
                 console.error('ログのコピーに失敗しました: ', err);
                 alert('ログのコピーに失敗しました。');
             });
@@ -163,6 +220,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const textArea = document.createElement("textarea");
             textArea.value = textToCopy;
             textArea.style.position = "fixed"; // Avoid scrolling to bottom
+            textArea.style.left = "-9999px"; // Hide from view
             document.body.appendChild(textArea);
             textArea.focus();
             textArea.select();

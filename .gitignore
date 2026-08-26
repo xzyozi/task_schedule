@@ -10,7 +10,7 @@ jobs.sqlite
 test/subprocessTest.py
 test/test.conf
 test/test.txt
-
+src/bk
 # logs
 log/*
 
@@ -37,3 +37,18 @@ coverage.xml
 test/Book1(自動回復済み).xlsx
 test/test_plan_filtering.csv
 test/test_plan_bulk_operations.csv
+
+# SQLite database files
+jobs.sqlite-journal
+jobs.sqlite-shm
+jobs.sqlite-wal
+# IDEs and editors
+
+# temp files
+temp/*
+# SOURCETEAIL
+task_schedule.srctrlprj
+task_schedule.srctrldb
+task_schedule.srctrlbm
+task_schedule.srctrldb_tmp
+*コピー*

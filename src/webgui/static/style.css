@@ -107,11 +107,25 @@ body {
 /* Style for groups (job IDs) */
 .vis-group {
     background-color: #f8f9fa; /* Light gray for group background */
-    border-bottom: 1px solid #e9ecef;
-    padding: 5px;
     font-weight: bold;
+    min-height: 30px;   /* ラベル行の高さを固定 */
+    line-height: 30px;  /* テキストを縦中央に */
+    padding: 0 5px;     /* 横だけ余白を残す */
 }
 
 .vis-group .vis-group-content {
     padding-left: 10px;
+}
+
+.vis-time-axis .vis-grid.vis-minor {
+    border-width: 0;
+}
+
+/* Remove the default border from the vis-timeline container */
+.vis-timeline {
+    border: none;
+}
+
+.vis-group:empty {
+    display: none;
 }

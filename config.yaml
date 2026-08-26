@@ -12,6 +12,11 @@ api:
   host: 127.0.0.1
   # The port number for the API server.
   port: 8000
+  # API key required to access the API (sent via the X-API-Key header).
+  # Set via the API_KEY environment variable. If unset, authentication is
+  # disabled and a warning is logged at startup (acceptable only when
+  # api.host is bound to 127.0.0.1 for local-only access).
+  api_key: "${API_KEY}"
 
 # --------------------------------------------------------------------------- #
 # Web GUI Configuration
@@ -34,3 +39,105 @@ core:
   # For SQLite, use: 'sqlite:///your_database_file.sqlite'
   # For PostgreSQL, use: 'postgresql://user:password@host:port/database'
   database_url: "sqlite:///jobs.sqlite"
+
+# --------------------------------------------------------------------------- #
+# Scheduler Settings
+# --------------------------------------------------------------------------- #
+scheduler:
+  # The base directory for shell command jobs.
+  # Using '~' resolves to the user's home directory.
+  # This acts as a sandbox for all shell commands.
+  work_dir: "~/.task_schedule/work_list"
+  # If true, the scheduler will periodically sync jobs from the database.
+  # This is a feature for testing and is disabled by default.
+  enable_db_sync: false
+
+# --------------------------------------------------------------------------- #
+# Email Settings
+# --------------------------------------------------------------------------- #
+# Configuration for sending emails.
+# The user account (smtp_user) can be set here or via the SMTP_USER environment variable.
+# The password must be provided via the EMAIL_SENDER_PASSWORD environment variable.
+# --------------------------------------------------------------------------- #
+email:
+  smtp_user: "${SMTP_USER}"                # The user account for SMTP authentication
+  smtp_server: "smtp.gmail.com"            # SMTP server address
+  smtp_port: 587                           # SMTP server port (e.g., 587 for STARTTLS, 465 for SSL)
+
+
+# --------------------------------------------------------------------------- #
+# Development Settings
+# --------------------------------------------------------------------------- #
+development:
+  # If true, jobs/workflows found in the database but NOT in the YAML files
+  # will be deleted from the database during a YAML sync.
+  # Set to false to allow jobs created via the UI to persist even if they
+  # are not defined in the YAML files.
+  delete_orphaned_jobs_on_sync: false
+
+# --------------------------------------------------------------------------- #
+# Task UI Configuration
+# --------------------------------------------------------------------------- #
+# This section defines which parameters for built-in tasks (like Shell and
+# Email) are displayed in the Web UI. This allows simplifying the UI by
+# hiding complex or unused parameters.
+# To hide a parameter, simply comment it out or remove it from the list.
+# --------------------------------------------------------------------------- #
+task_ui_config:
+  shell:
+    enabled: true
+    parameters:
+      - name: "command"
+        label: "Command"
+        type: "str"
+        required: true
+        description: "The shell command to execute."
+      - name: "cwd"
+        label: "Working Directory"
+        type: "str"
+        required: false
+        description: "Optional: A relative path within the project work_dir."
+      - name: "env"
+        label: "Environment Variables"
+        type: "Dict[str, str]"
+        required: false
+        description: "Optional: Environment variables for the command (JSON format)."
+
+  email:
+    enabled: true
+    parameters:
+      - name: "to_email"
+        label: "To Email"
+        type: "EmailStr"
+        required: true
+        description: "Recipient's email address."
+      - name: "subject"
+        label: "Subject"
+        type: "str"
+        required: true
+        description: "Email subject."
+      - name: "body"
+        label: "Body"
+        type: "str"
+        required: false
+        description: "Email body content. Use this or a template."
+      - name: "template_name"
+        label: "Template Name"
+        type: "str"
+        required: false
+        description: "Name of the email template file in the templates/emails directory."
+      - name: "template_context"
+        label: "Template Context"
+        type: "Dict[str, Any]"
+        required: false
+        description: "JSON object with data for the template."
+      # - name: "body_type"
+      #   label: "Body Type"
+      #   type: "str"
+      #   required: false
+      #   description: "Type of email body (plain or html). Defaults to plain."
+      # - name: "image_paths"
+      #   label: "Image Paths"
+      #   type: "List[str]"
+      #   required: false
+      #   description: "List of image file paths to attach (JSON format)."

@@ -1,5 +1,10 @@
-document.addEventListener('DOMContentLoaded', function() {
-    const API_BASE_URL = "http://localhost:8000"; // Ensure this matches your backend API URL
+import { fetchConfig, getApiBaseUrl } from './api_config.js'; // Add this import
+
+document.addEventListener('DOMContentLoaded', async function() { 
+    // Remove: const API_BASE_URL = 'http://127.0.0.1:8000'; // This will be relative to the current host, or can be set explicitly if needed.
+    // const API_BASE_URL = "http://localhost:8000"; // Ensure this matches your backend API URL
+
+    await fetchConfig(); // Fetch config first
 
     // --- Scheduler Control ---
     const pauseSchedulerBtn = document.getElementById('pauseScheduler');
@@ -7,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (pauseSchedulerBtn) {
         pauseSchedulerBtn.addEventListener('click', function() {
-            fetch(`${API_BASE_URL}/api/scheduler/pause`, {
+            fetch(`${getApiBaseUrl()}/api/scheduler/pause`, { // Use getApiBaseUrl()
                 method: 'POST'
             })
             .then(response => response.json())
@@ -29,7 +34,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (downloadJobsYamlBtn) {
         downloadJobsYamlBtn.addEventListener('click', function() {
-            fetch(`${API_BASE_URL}/api/jobs_yaml`)
+            fetch(`${getApiBaseUrl()}/api/jobs_yaml`) // Use getApiBaseUrl()
                 .then(response => {
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
