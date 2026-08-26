@@ -61,7 +61,16 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
         Update a workflow and its steps.
         """
         # Update workflow fields
-        update_data = obj_in.model_dump(exclude={"steps", "name"})  # name is not updatable
+        if obj_in.name != db_obj.name:
+            existing = self.get_by_name(db, name=obj_in.name)
+            if existing and existing.id != db_obj.id:
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=409, detail=f"Workflow with name '{obj_in.name}' already exists."
+                )
+            db_obj.name = obj_in.name
+
+        update_data = obj_in.model_dump(exclude={"steps", "name"})
         for field, value in update_data.items():
             setattr(db_obj, field, value)
 
