@@ -48,9 +48,7 @@ def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
     except Exception as e:
         logger.error(f"Failed to fetch dashboard summary for WebGUI: {e}", exc_info=True)
 
-    return templates.TemplateResponse(
-        request=request, name="index.html", context={"summary": summary_data}
-    )
+    return templates.TemplateResponse(request=request, name="index.html", context={"summary": summary_data})
 
 
 @router.get("/logs", response_class=HTMLResponse, name="logs")
@@ -82,9 +80,7 @@ def workflow_detail(request: Request, workflow_id: int) -> HTMLResponse:
 @router.get("/jobs/{job_id}", response_class=HTMLResponse, name="job_detail")
 def job_detail(request: Request, job_id: str) -> HTMLResponse:
     """ジョブ詳細画面。"""
-    return templates.TemplateResponse(
-        request=request, name="job_detail.html", context={"job_id": job_id}
-    )
+    return templates.TemplateResponse(request=request, name="job_detail.html", context={"job_id": job_id})
 
 
 @router.get("/settings", response_class=HTMLResponse, name="settings")

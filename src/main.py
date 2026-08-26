@@ -58,7 +58,6 @@ app.include_router(scheduler_router, dependencies=[Depends(verify_api_key)])
 app.include_router(webgui_router)
 
 
-
 if __name__ == "__main__":
     import uvicorn
 
