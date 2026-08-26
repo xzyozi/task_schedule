@@ -14,17 +14,17 @@ WebGUI の品質維持のため、以下の 3 レベルでテストを実施・�
        / \
       / E2E \       Level 3: Playwright による E2E ブラウザ自動化テスト
      /-------r\
-    / Backend  \    Level 2: FastAPI TestClient による API/静的ファイルテスト
+    / JS Unit  \    Level 2: JS フロントエンドユーティリティ検証
    /------------\
-  / JS Unit/Logic\  Level 1: JS フロントエンドユーティリティ検証
+  / FastAPI Test \  Level 1: FastAPI TestClient による API/静的ファイルテスト
  /----------------\
 ```
 
 | テスト階層 | テスト対象 | 主要ツール | 目的・検証内容 |
 | :--- | :--- | :--- | :--- |
-| **Level 1: API / ルーティングテスト** | FastAPI WebGUI エンドポイント | `pytest` + `fastapi.testclient.TestClient` | 静的ファイル・Jinja2テンプレート返クスステータス 200 や JSON 構造の正常性 |
-| **Level 2: E2E ブラウザテスト** | 画面全体・UI操作・JS非同期動作 | `playwright` (Python/Node.js) | ブラウザでの実際のボタンクリック、モーダル操作、データ更新、表示崩れの自動検証 |
-| **Level 3: JS ロジックテスト** | `api_config.js` ユーティリティ | `vitest` / `node:test` (オプション) | XSS エスケープ (`escapeHtml`) や API URL 動的生成の単体テスト |
+| **Level 1: API / ルーティングテスト** | FastAPI WebGUI エンドポイント | `pytest` + `fastapi.testclient.TestClient` | 静的ファイル・Jinja2テンプレート返却ステータス 200 や JSON 構造の正常性 |
+| **Level 2: JS ロジックテスト** | `api_config.js` ユーティリティ | `vitest` / `node:test` (オプション) | XSS エスケープ (`escapeHtml`) や API URL 動的生成の単体テスト |
+| **Level 3: E2E ブラウザテスト** | 画面全体・UI操作・JS非同期動作 | `playwright` (Python/Node.js) | ブラウザでの実際のボタンクリック、モーダル操作、データ更新、表示崩れの自動検証 |
 
 ---
 

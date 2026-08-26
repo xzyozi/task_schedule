@@ -19,9 +19,9 @@
 | :--- | :--- | :--- | :--- | :--- |
 | **ダッシュボード** | `/` | `index.html` | `script.js`, `timeline.js`, `api_config.js` | 全体サマリー、ジョブ一覧、タイムライン表示 |
 | **ジョブ管理** | `/jobs` | `jobs.html` | `jobs.js`, `api_config.js` | 登録ジョブ一覧、フィルタリング、一括操作、新規作成 |
-| **ジョブ詳細** | `/jobs/{id}` | `job_detail.html` | `job_detail.js`, `api_config.js` | 個別ジョブ定義確認、実行履歴、ログ表示 |
+| **ジョブ詳細** | `/jobs/{job_id}` | `job_detail.html` | `job_detail.js`, `api_config.js` | 個別ジョブ定義確認、実行履歴、ログ表示 |
 | **ワークフロー管理** | `/workflows` | `workflows.html` | `workflows.js`, `api_config.js` | ワークフロー一覧、新規登録 |
-| **ワークフロー詳細** | `/workflows/{id}` | `workflow_detail.html` | `workflow_detail.js`, `api_config.js` | ワークフロー構成ステップ、依存関係表示、ログ |
+| **ワークフロー詳細** | `/workflows/{workflow_id}` | `workflow_detail.html` | `workflow_detail.js`, `api_config.js` | ワークフロー構成ステップ、依存関係表示、ログ |
 | **実行ログ** | `/logs` | `logs.html` | `logs.js`, `api_config.js` | システム全体の実行ログ検索・フィルター |
 | **設定** | `/settings` | `settings.html` | `settings.js`, `api_config.js` | `jobs.yaml` 設定閲覧・直接更新・スケジューラ制御 |
 
@@ -30,11 +30,17 @@
 ## 3. 画面詳細仕様
 
 ### 3.1 ダッシュボード画面 (`/`)
+- **SSR 初回レンダリング**:
+  - FastAPI ルーティング (`router.py`) の `index` エンドポイントが Jinja2 テンプレートコンテキストに `summary` (`total_jobs`, `running_jobs`, `successful_runs`, `failed_runs`) を渡して初回レンダリング。
 - **サマリーカード**:
   - `Total Jobs` (青), `Running Jobs` (シアン), `Successful Runs` (緑), `Failed Runs` (赤) の 4 カードを配置。
-  - `/api/dashboard/summary` から 5 秒間隔のポーリングでデータ更新。
-- **タイムライン表示**:
-  - `vis-timeline` ライブラリを使用して `Upcoming` および `Recent` ジョブの時系列表示。
+  - フロントエンド JS (`script.js`) により `/api/dashboard/summary` から 5 秒間隔のポーリングでデータ動的更新。
+- **タイムライン表示 (`timeline.js`)**:
+  - `vis-timeline` (vis.js) ライブラリを使用。
+  - **日時範囲**: 過去 1 日前 (`vis.moment().add(-1, 'day')`) から 未来 3 日後 (`vis.moment().add(3, 'day')`)。
+  - **ズーム制御**: `zoomMin: 10分`, `zoomMax: 3ヶ月`, `editable: false`。
+  - **グループ表示**: 単体ジョブ (`Job: {groupId}`), ワークフロー (`WF: {wfName}`) ごとに並べて可視化。
+  - `/api/timeline-items` から取得し `timeline.fit()` で自動スケール。
 - **統合ジョブテーブル**:
   - `/api/unified-jobs` から取得。単体ジョブとワークフローを一覧表示。
   - 各行に `Run` (即時実行), `Pause` (一時停止), `Resume` (再開) アクションボタンを配置。
@@ -88,6 +94,15 @@ src/webgui/static/
 
 ## 5. UI インタラクション & デザイン標準
 
-- **レスポンシブ**: Bootstrap 5 のグリッドシステムを使用し、モバイル/デスクトップ双方に対応。
-- **ステータスバッジ**:
+- **レスポンシブデザイン**: Bootstrap 5 のブレイクポイント（`col-md-*`, `col-lg-*`）を使用し、モバイル/デスクトップ双方に対応。
+- **ステータスバッジ規格**:
   - 有効 (`bg-success`), 無効 (`bg-secondary`), 一時停止 (`bg-warning`), 実行中 (`bg-info`), 失敗 (`bg-danger`)。
+- **ボタン共通仕様**:
+  - アクションボタンは原則として `.btn-sm` を使用。
+  - 破壊的変更（削除等）はダイアログによる事前確認を必須とする。
+
+---
+
+## 6. まとめ
+
+本詳細仕様書に基づき、FastAPI によるサーバーサイドレンダリング (SSR) と Vanilla JS によるフロントエンド動的非同期通信を統一ルールで構築・保守します。
