@@ -1,3 +1,5 @@
+from typing import Any, Dict, Tuple, Union
+
 from flask import Flask, Response, jsonify, render_template, request
 import requests
 
@@ -19,13 +21,13 @@ def _backend_headers() -> dict:
 
 
 @app.route("/webgui-config")
-def webgui_config():
+def webgui_config() -> Response:
     return jsonify({"API_BASE_URL": API_BASE_URL})
 
 
 @app.route("/")
-def index():
-    summary_data = {"total_jobs": 0, "running_jobs": 0, "successful_runs": 0, "failed_runs": 0}
+def index() -> str:
+    summary_data: Dict[str, Any] = {"total_jobs": 0, "running_jobs": 0, "successful_runs": 0, "failed_runs": 0}
     try:
         response = requests.get(f"{API_BASE_URL}/api/dashboard/summary", headers=_backend_headers())
         response.raise_for_status()  # Raise an exception for bad status codes
@@ -40,32 +42,32 @@ def index():
 
 
 @app.route("/logs")
-def logs():
+def logs() -> str:
     return render_template("logs.html")
 
 
 @app.route("/jobs")
-def jobs():
+def jobs() -> str:
     return render_template("jobs.html")
 
 
 @app.route("/workflows")
-def workflows():
+def workflows() -> str:
     return render_template("workflows.html")
 
 
 @app.route("/workflows/<int:workflow_id>")
-def workflow_detail(workflow_id):
+def workflow_detail(workflow_id: int) -> str:
     return render_template("workflow_detail.html", workflow_id=workflow_id)
 
 
 @app.route("/jobs/<job_id>")
-def job_detail(job_id):
+def job_detail(job_id: str) -> str:
     return render_template("job_detail.html", job_id=job_id)
 
 
 @app.route("/api/timeline-data")
-def timeline_data():
+def timeline_data() -> Union[Response, Tuple[Response, int]]:
     try:
         response = requests.get(f"{API_BASE_URL}/api/timeline/data", headers=_backend_headers())
         response.raise_for_status()
@@ -76,7 +78,7 @@ def timeline_data():
 
 
 @app.route("/api/<path:path>", methods=["GET", "POST", "PUT", "DELETE"])
-def api_proxy(path):
+def api_proxy(path: str) -> Union[Response, Tuple[Response, int]]:
     """A generic proxy for all /api/ requests."""
     try:
         # Construct the full API URL
@@ -113,11 +115,11 @@ def api_proxy(path):
 
 
 @app.route("/settings")
-def settings():
+def settings() -> str:
     return render_template("settings.html")
 
 
-def run_webgui():
+def run_webgui() -> None:
     # The extra_files parameter makes the dev server watch config.yaml for changes.
     app.run(
         host=config.webgui_host,

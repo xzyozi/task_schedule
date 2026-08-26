@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +20,7 @@ logger = logger_util.get_logger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Application startup...")
     database.init_db()
     database.Base.metadata.create_all(bind=database.engine)
@@ -53,7 +54,7 @@ app.include_router(scheduler_router, dependencies=[Depends(verify_api_key)])
 
 
 @app.get("/")
-def read_root():
+def read_root() -> dict:
     return {"message": "Welcome to the Task Scheduler API"}
 
 
