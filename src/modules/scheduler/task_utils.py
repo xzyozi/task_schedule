@@ -1,10 +1,13 @@
 import functools
 import inspect
+from typing import Any, Callable, Optional
 
 from pydantic import BaseModel
 
 
-def task(enabled=True, name=None, description=None):
+def task(
+    enabled: bool = True, name: Optional[str] = None, description: Optional[str] = None
+) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """
     A decorator to mark a function as a discoverable task for the scheduler UI.
 
@@ -16,9 +19,9 @@ def task(enabled=True, name=None, description=None):
                                      If not provided, the function's docstring is used.
     """
 
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             sig = inspect.signature(func)
             func_params = sig.parameters
 
@@ -48,7 +51,7 @@ def task(enabled=True, name=None, description=None):
             return func(*args, **kwargs)
 
         # Attach metadata to the function object for discovery
-        wrapper._task_meta = {"enabled": enabled, "name": name, "description": description}
+        wrapper._task_meta = {"enabled": enabled, "name": name, "description": description}  # type: ignore[attr-defined]
         return wrapper
 
     return decorator

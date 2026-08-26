@@ -1,6 +1,7 @@
-from typing import List
+from typing import Any, List
 
 from apscheduler.jobstores.base import JobLookupError
+from apscheduler.schedulers.base import BaseScheduler
 from pydantic import ValidationError
 from watchdog.events import PatternMatchingEventHandler
 from watchdog.observers import Observer
@@ -14,7 +15,7 @@ from util.config_util import config
 logger = logger_util.get_logger(__name__)
 
 
-def apply_job_config(scheduler, job_configs: List[schemas.Job]):
+def apply_job_config(scheduler: BaseScheduler, job_configs: List[schemas.Job]) -> None:
     """
     Applies a list of job configurations to the scheduler, adding, updating,
     and removing jobs as necessary.
@@ -73,7 +74,7 @@ def apply_job_config(scheduler, job_configs: List[schemas.Job]):
             logger.error(f"Error applying job config for '{cfg.id}': {e}", exc_info=True)
 
 
-def sync_jobs_from_db():
+def sync_jobs_from_db() -> None:
     """
     Loads all job definitions from the database and applies them to the scheduler.
     """
@@ -91,7 +92,7 @@ def sync_jobs_from_db():
         db.close()
 
 
-def seed_db_from_yaml(yaml_path: str):
+def seed_db_from_yaml(yaml_path: str) -> None:
     """
     Seeds the database from a YAML file.
     """
@@ -164,26 +165,26 @@ def seed_db_from_yaml(yaml_path: str):
 
 
 class ConfigChangeHandler(PatternMatchingEventHandler):
-    def __init__(self, scheduler, path):
+    def __init__(self, scheduler: BaseScheduler, path: str):
         super().__init__(patterns=[path])
         self.scheduler = scheduler
         self.path = path
 
-    def on_modified(self, event):
+    def on_modified(self, event: Any) -> None:
         logger.info(
             f"YAML file {self.path} was modified, but auto-reloading from YAML is disabled. Syncing from DB instead."
         )
         sync_jobs_from_db()
 
 
-def start_config_watcher(scheduler, path):
+def start_config_watcher(scheduler: BaseScheduler, path: str) -> Observer:
     observer = Observer()
     observer.schedule(ConfigChangeHandler(scheduler, path), ".", recursive=False)
     observer.start()
     return observer
 
 
-def schedule_workflow(workflow: models.Workflow):
+def schedule_workflow(workflow: models.Workflow) -> None:
     """
     Schedules a workflow as a single job in APScheduler.
     The job will call the run_workflow executor.
@@ -232,7 +233,7 @@ def schedule_workflow(workflow: models.Workflow):
         logger.error(f"Failed to schedule workflow '{workflow.name}': {e}", exc_info=True)
 
 
-def sync_workflows_from_db():
+def sync_workflows_from_db() -> None:
     """
     Loads all enabled workflows from the database and schedules them.
     """
@@ -246,7 +247,7 @@ def sync_workflows_from_db():
         db.close()
 
 
-def remove_workflow_job(workflow_id: int):
+def remove_workflow_job(workflow_id: int) -> None:
     """Removes a workflow job from the scheduler."""
     job_id = f"workflow_{workflow_id}"
     try:

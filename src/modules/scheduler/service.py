@@ -3,7 +3,7 @@ import importlib
 import inspect
 import os
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 import uuid
 
 from apscheduler.jobstores.base import JobLookupError
@@ -101,7 +101,7 @@ class WorkflowCRUD(CRUDBase[models.Workflow, schemas.WorkflowCreate, schemas.Wor
 workflow_service = WorkflowCRUD(models.Workflow)
 
 
-def create_job_from_schema(db: Session, *, job_in: schemas.JobCreate) -> models.JobDefinition:
+def create_job_from_schema(db: Session, *, job_in: schemas.JobCreate) -> Optional[models.JobDefinition]:
     """
     Creates a JobDefinition in the database from the new JobCreate Pydantic schema.
     """
@@ -213,6 +213,13 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
             return dt.replace(tzinfo=timezone.utc)
         return dt
 
+    def _make_aware_required(dt: Optional[datetime]) -> datetime:
+        """start_time等、DBのserver_defaultにより常に値が入る前提のカラム用。"""
+        aware = _make_aware(dt)
+        if aware is None:
+            raise ValueError("Expected a non-null datetime value.")
+        return aware
+
     timeline_items: List[schemas.TimelineItem] = []
     now = datetime.now(timezone.utc)
     seven_days_ago = now - timedelta(days=7)
@@ -222,7 +229,7 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
     scheduled_jobs = scheduler_instance.scheduler.get_jobs()
     for job in scheduled_jobs:
         if job.next_run_time:
-            start_time_aware = _make_aware(job.next_run_time)
+            start_time_aware = _make_aware_required(job.next_run_time)
             content = job.id
             group = job.id
             item_id = f"scheduled-{job.id}"
@@ -260,7 +267,7 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
             schemas.TimelineItem(
                 id=f"wf_run-{run.id}",
                 content=run.workflow.name if run.workflow else f"Workflow {run.workflow_id} (deleted)",
-                start=_make_aware(run.start_time),
+                start=_make_aware_required(run.start_time),
                 end=_make_aware(run.end_time) or (now if run.status == "RUNNING" else None),
                 status=run.status.lower(),
                 group=f"workflow_{run.workflow_id}",
@@ -285,7 +292,7 @@ def get_timeline_data(db: Session) -> List[schemas.TimelineItem]:
             schemas.TimelineItem(
                 id=f"log-{log.id}",
                 content=log.job_id,
-                start=_make_aware(log.start_time),
+                start=_make_aware_required(log.start_time),
                 end=_make_aware(log.end_time) or (now if log.status == "RUNNING" else None),
                 status=log.status.lower(),
                 group=log.job_id,
@@ -365,7 +372,7 @@ def delete_bulk_jobs(db: Session, job_ids: List[str]) -> int:
     return deleted_count
 
 
-def pause_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
+def pause_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, Any]:
     """
     Pauses a list of scheduled jobs.
     Returns a dictionary with lists of successfully paused and failed job IDs.
@@ -381,7 +388,7 @@ def pause_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
     return {"paused": paused_ids, "failed": failed_ids}
 
 
-def resume_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, list]:
+def resume_bulk_scheduled_jobs(job_ids: List[str]) -> Dict[str, Any]:
     """
     Resumes a list of scheduled jobs.
     Returns a dictionary with lists of successfully resumed and failed job IDs.
@@ -506,7 +513,7 @@ def get_unified_jobs_list(db: Session) -> List[schemas.UnifiedJobItem]:
     return unified_list
 
 
-def run_workflow_immediately(db: Session, workflow_id: int):
+def run_workflow_immediately(db: Session, workflow_id: int) -> Dict[str, str]:
     """
     Schedules a one-off, immediate execution of a workflow.
     """

@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import requests
 
@@ -6,7 +7,7 @@ from ..task_utils import task
 
 
 @task(name="Check API Status", description="Checks the health of an API endpoint.")
-def check_api_status(api_endpoint: str, timeout_seconds: int, job_id: str = None):
+def check_api_status(api_endpoint: str, timeout_seconds: int, job_id: Optional[str] = None) -> str:
     """
     Checks the health of an API endpoint.
     This function is intended to be called by the scheduler.

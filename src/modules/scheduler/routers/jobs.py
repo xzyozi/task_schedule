@@ -1,4 +1,5 @@
-from typing import List
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from apscheduler.jobstores.base import JobLookupError
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -20,7 +21,7 @@ router = APIRouter()
     tags=["Job Definitions"],
     summary="List Available Tasks",
 )
-def get_available_tasks():
+def get_available_tasks() -> List[schemas.AvailableTask]:
     """
     Returns a list of all available task types (Python, Shell, etc.)
     that can be used to create jobs, including their parameters.
@@ -32,14 +33,16 @@ def get_available_tasks():
         raise HTTPException(status_code=500, detail="Failed to fetch available tasks")
 
 
-def _get_next_run_time(job_id: str):
+def _get_next_run_time(job_id: str) -> Optional[datetime]:
     """Safely retrieves the next run time for a job."""
     job = scheduler_instance.scheduler.get_job(job_id)
     return job.next_run_time if job else None
 
 
 @router.get("/jobs", response_model=List[schemas.JobOut], tags=["Job Definitions"], summary="List All Job Definitions")
-def read_jobs(db: Session = Depends(get_db), skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)):
+def read_jobs(
+    db: Session = Depends(get_db), skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=500)
+) -> List[schemas.JobOut]:
     jobs = job_definition_service.get_multi(db, skip=skip, limit=limit)
 
     results = []
@@ -57,7 +60,7 @@ def read_jobs(db: Session = Depends(get_db), skip: int = Query(0, ge=0), limit: 
     tags=["Job Definitions"],
     summary="Create a New Job Definition",
 )
-def create_job(job_in: schemas.JobCreate, db: Session = Depends(get_db)):
+def create_job(job_in: schemas.JobCreate, db: Session = Depends(get_db)) -> schemas.JobOut:
     """
     Creates a new job definition in the database and adds it to the scheduler.
     The input is validated against the `JobCreate` schema, which uses a discriminated
@@ -75,7 +78,7 @@ def create_job(job_in: schemas.JobCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/jobs/{job_id}", response_model=schemas.JobOut, tags=["Job Definitions"])
-def read_job(job_id: str, db: Session = Depends(get_db)):
+def read_job(job_id: str, db: Session = Depends(get_db)) -> schemas.JobOut:
     db_job = job_definition_service.get(db, id=job_id)
     if db_job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -86,7 +89,7 @@ def read_job(job_id: str, db: Session = Depends(get_db)):
 
 
 @router.put("/jobs/{job_id}", response_model=schemas.JobOut, tags=["Job Definitions"])
-def update_job(job_id: str, job_in: schemas.JobUpdate, db: Session = Depends(get_db)):
+def update_job(job_id: str, job_in: schemas.JobUpdate, db: Session = Depends(get_db)) -> schemas.JobOut:
     db_job = job_definition_service.get(db, id=job_id)
     if db_job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -99,7 +102,7 @@ def update_job(job_id: str, job_in: schemas.JobUpdate, db: Session = Depends(get
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Job Definitions"])
-def delete_job(job_id: str, db: Session = Depends(get_db)):
+def delete_job(job_id: str, db: Session = Depends(get_db)) -> Response:
     db_job = job_definition_service.remove(db, id=job_id)
     if db_job is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -114,7 +117,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/jobs/bulk/delete", status_code=status.HTTP_200_OK, tags=["Job Definitions"])
-def delete_bulk_jobs(payload: schemas.BulkJobUpdate, db: Session = Depends(get_db)):
+def delete_bulk_jobs(payload: schemas.BulkJobUpdate, db: Session = Depends(get_db)) -> Dict[str, Any]:
     job_ids = payload.job_ids
     if not job_ids:
         raise HTTPException(status_code=400, detail="No job IDs provided")
@@ -130,7 +133,7 @@ def delete_bulk_jobs(payload: schemas.BulkJobUpdate, db: Session = Depends(get_d
 
 
 @router.get("/jobs/{job_id}/history", response_model=List[schemas.ProcessExecutionLogInfo], tags=["Job Details"])
-def get_job_execution_history(job_id: str, db: Session = Depends(get_db)):
+def get_job_execution_history(job_id: str, db: Session = Depends(get_db)) -> List[Any]:
     try:
         return service.get_job_execution_history(db, job_id=job_id)
     except Exception as e:

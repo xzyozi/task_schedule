@@ -62,7 +62,7 @@ def _log_job_start(
     return log_entry
 
 
-def _log_job_end(log_entry: models.ProcessExecutionLog, exit_code: int, stdout: str = "", stderr: str = ""):
+def _log_job_end(log_entry: models.ProcessExecutionLog, exit_code: int, stdout: str = "", stderr: str = "") -> None:
     """Updates a log entry with the job's final status and output."""
     log_entry.end_time = time_util.get_current_utc_time()
     log_entry.exit_code = exit_code
@@ -157,14 +157,14 @@ def execute_shell_job(
             logger.error(f"Invalid parameters for shell job '{job_id}': {e}")
             result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
             if log_entry:
-                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != "return_value"})
+                _log_job_end(log_entry, exit_code=1, stdout="", stderr=str(e))
             db_session.commit()
             return result
         except Exception as e:
             logger.error(f"Error in execute_shell_job for job '{job_id}': {e}", exc_info=True)
             result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
             if log_entry:
-                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != "return_value"})
+                _log_job_end(log_entry, exit_code=1, stdout="", stderr=traceback.format_exc())
             db_session.commit()
             return result
     finally:
@@ -208,22 +208,26 @@ def execute_python_job(
             except (TypeError, OverflowError) as e:
                 err_msg = f"Failed to serialize arguments for Python job: {e}. Arguments must be JSON-serializable."
                 result = {"stdout": "", "stderr": err_msg, "exit_code": 1, "return_value": None}
-                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != "return_value"})
+                _log_job_end(log_entry, exit_code=1, stdout="", stderr=err_msg)
                 db_session.commit()
                 return result
 
             wrapper_path = Path(__file__).parent.joinpath("python_job_wrapper.py")
             command_to_run = [sys.executable, str(wrapper_path), target_func_path, encoded_payload]
 
-            result = _execute_subprocess(command_to_run=command_to_run)
+            subprocess_result = _execute_subprocess(command_to_run=command_to_run)
+
+            exit_code = int(subprocess_result["exit_code"])
+            raw_stdout = str(subprocess_result["stdout"])
+            raw_stderr = str(subprocess_result["stderr"])
 
             return_value = None
-            final_stdout = result["stdout"]  # Default to raw stdout
+            final_stdout = raw_stdout  # Default to raw stdout
 
-            if result["exit_code"] == 0 and result["stdout"]:
+            if exit_code == 0 and raw_stdout:
                 try:
                     # The wrapper script outputs a JSON with 'return_value'
-                    output_data = json.loads(result["stdout"])
+                    output_data = json.loads(raw_stdout)
                     return_value = output_data.get("return_value")
                     # For logging and DB storage, use the cleaner, unescaped return value.
                     # Coerce to string just in case the return value isn't a string itself.
@@ -232,21 +236,21 @@ def execute_python_job(
                     # Output wasn't JSON, so the raw stdout is the only thing we have.
                     pass
 
-            result["return_value"] = return_value
+            subprocess_result["return_value"] = return_value
 
             # Log the "real" output for the user to see
-            if result["exit_code"] == 0:
+            if exit_code == 0:
                 logger.info(f"Python job '{job_id}' completed successfully. Output:\n{final_stdout}")
 
-            _log_job_end(log_entry, exit_code=result["exit_code"], stdout=final_stdout, stderr=result["stderr"])
+            _log_job_end(log_entry, exit_code=exit_code, stdout=final_stdout, stderr=raw_stderr)
             db_session.commit()
-            return result
+            return subprocess_result
 
         except Exception as e:
             logger.error(f"Error in execute_python_job for job '{job_id}': {e}", exc_info=True)
             result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
             if log_entry:
-                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != "return_value"})
+                _log_job_end(log_entry, exit_code=1, stdout="", stderr=traceback.format_exc())
             db_session.commit()
             return result
     finally:
@@ -274,11 +278,11 @@ def execute_email_job(
                 email_kwargs["job_id"] = job_id
                 email_tasks.send_email_task(**email_kwargs)
                 result = {"stdout": "Email sent successfully.", "stderr": "", "exit_code": 0, "return_value": None}
-                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != "return_value"})
+                _log_job_end(log_entry, exit_code=0, stdout="Email sent successfully.", stderr="")
             except Exception as e:
                 logger.error(f"Email sending failed for job '{job_id}': {e}", exc_info=True)
                 result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
-                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != "return_value"})
+                _log_job_end(log_entry, exit_code=1, stdout="", stderr=traceback.format_exc())
 
             db_session.commit()
             return result
@@ -286,14 +290,14 @@ def execute_email_job(
             logger.error(f"Invalid parameters for email job '{job_id}': {e}")
             result = {"stdout": "", "stderr": str(e), "exit_code": 1, "return_value": None}
             if log_entry:
-                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != "return_value"})
+                _log_job_end(log_entry, exit_code=1, stdout="", stderr=str(e))
             db_session.commit()
             return result
         except Exception as e:
             logger.error(f"Error in execute_email_job for job '{job_id}': {e}", exc_info=True)
             result = {"stdout": "", "stderr": traceback.format_exc(), "exit_code": 1, "return_value": None}
             if log_entry:
-                _log_job_end(log_entry, **{k: v for k, v in result.items() if k != "return_value"})
+                _log_job_end(log_entry, exit_code=1, stdout="", stderr=traceback.format_exc())
             db_session.commit()
             return result
     finally:
@@ -307,7 +311,7 @@ def execute_email_job(
 # という単純な直列実行のみを提供する。
 
 
-def run_workflow(workflow_id: int, job_id: str = None, db: Optional[Session] = None):
+def run_workflow(workflow_id: int, job_id: Optional[str] = None, db: Optional[Session] = None) -> None:
     db_session = db if db else next(database.get_db())
     local_session = not db
     workflow_run = None

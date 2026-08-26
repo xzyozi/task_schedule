@@ -3,9 +3,10 @@ import importlib
 import json
 import sys
 import traceback
+from typing import Any, Callable
 
 
-def _resolve_func(path):
+def _resolve_func(path: str) -> Callable[..., Any]:
     """Resolves a function from a string path."""
     if ":" not in path:
         raise ValueError("Invalid function path format. Expected 'module.path:function_name'")
@@ -14,7 +15,7 @@ def _resolve_func(path):
     return getattr(module, func_name)
 
 
-def main():
+def main() -> None:
     """
     Wrapper to execute a Python function with serialized arguments.
     Expects two command-line arguments:

@@ -18,7 +18,7 @@ router = APIRouter()
 )
 def list_work_dir_subdirectories(
     path: str = Query("", description="The relative path within the work directory to scan."),
-):
+) -> List[str]:
     """
     Lists subdirectories within the configured scheduler work_dir.
     This is useful for providing autocompletion for the 'cwd' field in a UI.

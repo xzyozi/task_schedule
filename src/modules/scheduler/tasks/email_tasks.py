@@ -35,7 +35,7 @@ def send_email_task(
     image_paths: Optional[List[str]] = None,
     job_id: Optional[str] = None,
     workflow_run_id: Optional[str] = None,
-):
+) -> None:
     """
     汎用的なメール送信タスク。Jinja2テンプレートまたは直接指定された本文を使用します。
     環境変数 EMAIL_SENDER_PASSWORD からパスワードを取得します。
@@ -143,7 +143,7 @@ def send_task_failure_notification(
     log_url: Optional[str] = None,
     job_id: Optional[str] = None,
     workflow_run_id: Optional[str] = None,
-):
+) -> None:
     """
     タスク失敗時に管理者へ通知メールを送信するヘルパー関数。
     """
@@ -193,8 +193,8 @@ def send_notification_email(
     call_to_action_text: Optional[str] = None,
     recipient_name: Optional[str] = None,  # For template greeting
     image_paths: Optional[List[str]] = None,
-    **kwargs,  # Catch any extra arguments passed by the scheduler (e.g., job_id, workflow_run_id)
-):
+    **kwargs: Any,  # Catch any extra arguments passed by the scheduler (e.g., job_id, workflow_run_id)
+) -> None:
     """
     汎用的な通知メールを送信するヘルパー関数。
     notification_email.html テンプレートを使用し、共通のメール設定を適用します。

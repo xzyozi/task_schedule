@@ -1,5 +1,6 @@
 import atexit
 from datetime import timedelta
+from typing import Any
 
 from apscheduler.events import EVENT_JOB_ERROR
 from apscheduler.executors.pool import ProcessPoolExecutor, ThreadPoolExecutor
@@ -26,7 +27,7 @@ job_defaults = {"coalesce": False, "max_instances": 3}
 scheduler = BackgroundScheduler(jobstores=jobstores, executors=executors, job_defaults=job_defaults, timezone="utc")
 
 
-def job_error_listener(event):
+def job_error_listener(event: Any) -> None:
     job = scheduler.get_job(event.job_id)
     if event.exception and job:
         current_retries = job.kwargs.get("retry_count", 0)
@@ -54,13 +55,13 @@ def job_error_listener(event):
 scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
 
 
-def start_scheduler():
+def start_scheduler() -> None:
     logger.info("Starting scheduler...")
     scheduler.start()
     atexit.register(shutdown_scheduler)
 
 
-def shutdown_scheduler():
+def shutdown_scheduler() -> None:
     try:
         logger.info("Shutting down scheduler...")
         if scheduler.running:

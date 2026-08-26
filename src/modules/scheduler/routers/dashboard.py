@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from modules.scheduler import schemas, service
+from modules.scheduler import models, schemas, service
 from util import logger_util
 
 logger = logger_util.get_logger(__name__)
@@ -19,7 +19,7 @@ router = APIRouter()
     summary="Get Dashboard Summary",
     description="Provides a high-level summary of job statuses.",
 )
-def get_dashboard_summary(db: Session = Depends(get_db)):
+def get_dashboard_summary(db: Session = Depends(get_db)) -> schemas.DashboardSummary:
     try:
         return service.get_dashboard_summary(db)
     except Exception as e:
@@ -36,7 +36,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
 )
 def get_execution_logs(
     skip: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=200), db: Session = Depends(get_db)
-):
+) -> List[models.ProcessExecutionLog]:
     try:
         return service.get_execution_logs(db, skip=skip, limit=limit)
     except Exception as e:
@@ -51,7 +51,7 @@ def get_execution_logs(
     summary="Get Timeline Data",
     description="Provides data for the job execution timeline, including scheduled and historical runs.",
 )
-def get_timeline_data(db: Session = Depends(get_db)):
+def get_timeline_data(db: Session = Depends(get_db)) -> List[schemas.TimelineItem]:
     try:
         return service.get_timeline_data(db)
     except Exception as e:
@@ -60,7 +60,7 @@ def get_timeline_data(db: Session = Depends(get_db)):
 
 
 @router.get("/unified-jobs", response_model=List[schemas.UnifiedJobItem], tags=["Dashboard"])
-def get_unified_jobs(db: Session = Depends(get_db)):
+def get_unified_jobs(db: Session = Depends(get_db)) -> List[schemas.UnifiedJobItem]:
     """
     Retrieves a unified list of all jobs and workflows.
     """

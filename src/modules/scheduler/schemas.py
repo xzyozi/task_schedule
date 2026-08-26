@@ -75,7 +75,7 @@ class ShellJobParams(BaseModel):
     env: Optional[Dict[str, str]] = Field(None, description="Environment variables for the command.")
 
     @field_validator("cwd")
-    def validate_cwd(cls, v):
+    def validate_cwd(cls, v: Optional[str]) -> Optional[str]:
         # ここでの isabs / '..' チェックは、明らかに不正な入力を早期に拒否するための
         # 一次チェックにすぎない。Windowsのドライブ相対パス（例: 'D:temp'）は
         # isabs() が False を返すためこのチェックを通過してしまうが、実行時に
@@ -101,7 +101,7 @@ class EmailJobParams(BaseModel):
     image_paths: Optional[List[str]] = Field(default_factory=list, description="List of image file paths to attach")
 
     @model_validator(mode="after")
-    def check_body_or_template(self):
+    def check_body_or_template(self) -> "EmailJobParams":
         if not self.template_name and not self.body:
             raise ValueError("Either 'template_name' or 'body' must be provided.")
         return self

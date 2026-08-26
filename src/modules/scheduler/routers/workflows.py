@@ -1,4 +1,4 @@
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -15,7 +15,7 @@ router = APIRouter()
 @router.post(
     "/workflows", response_model=schemas.Workflow, status_code=status.HTTP_201_CREATED, tags=["Workflow Definitions"]
 )
-def create_workflow(workflow_in: schemas.WorkflowCreate, db: Session = Depends(get_db)):
+def create_workflow(workflow_in: schemas.WorkflowCreate, db: Session = Depends(get_db)) -> models.Workflow:
     existing_workflow = service.workflow_service.get_by_name(db, name=workflow_in.name)
     if existing_workflow:
         raise HTTPException(
@@ -27,13 +27,13 @@ def create_workflow(workflow_in: schemas.WorkflowCreate, db: Session = Depends(g
 
 
 @router.get("/workflows", response_model=List[schemas.Workflow], tags=["Workflow Definitions"])
-def read_workflows(db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
+def read_workflows(db: Session = Depends(get_db), skip: int = 0, limit: int = 100) -> List[models.Workflow]:
     workflows = service.workflow_service.get_multi(db, skip=skip, limit=limit)
     return workflows
 
 
 @router.get("/workflows/{workflow_id}", response_model=schemas.Workflow, tags=["Workflow Definitions"])
-def read_workflow(workflow_id: int, db: Session = Depends(get_db)):
+def read_workflow(workflow_id: int, db: Session = Depends(get_db)) -> models.Workflow:
     db_workflow = service.workflow_service.get(db, id=workflow_id)
     if db_workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -41,7 +41,9 @@ def read_workflow(workflow_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/workflows/{workflow_id}", response_model=schemas.Workflow, tags=["Workflow Definitions"])
-def update_workflow(workflow_id: int, workflow_in: schemas.WorkflowCreate, db: Session = Depends(get_db)):
+def update_workflow(
+    workflow_id: int, workflow_in: schemas.WorkflowCreate, db: Session = Depends(get_db)
+) -> models.Workflow:
     db_workflow = service.workflow_service.get(db, id=workflow_id)
     if db_workflow is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
@@ -51,7 +53,7 @@ def update_workflow(workflow_id: int, workflow_in: schemas.WorkflowCreate, db: S
 
 
 @router.delete("/workflows/{workflow_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Workflow Definitions"])
-def delete_workflow(workflow_id: int, db: Session = Depends(get_db)):
+def delete_workflow(workflow_id: int, db: Session = Depends(get_db)) -> None:
     db_workflow = service.workflow_service.remove(db, id=workflow_id)
     if db_workflow is None:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -60,7 +62,7 @@ def delete_workflow(workflow_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/workflows/{workflow_id}/pause", tags=["Workflow Control"], summary="Pause a Workflow")
-def pause_workflow(workflow_id: int, db: Session = Depends(get_db)):
+def pause_workflow(workflow_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
     """
     Pauses a workflow by removing its job from the scheduler and marking it as disabled.
     """
@@ -74,7 +76,7 @@ def pause_workflow(workflow_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/workflows/{workflow_id}/resume", tags=["Workflow Control"], summary="Resume a Workflow")
-def resume_workflow(workflow_id: int, db: Session = Depends(get_db)):
+def resume_workflow(workflow_id: int, db: Session = Depends(get_db)) -> Dict[str, str]:
     """
     Resumes a workflow by scheduling it and marking it as enabled.
     """
@@ -91,7 +93,7 @@ def resume_workflow(workflow_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/workflows/{workflow_id}/run", tags=["Workflow Control"], summary="Run a Workflow Immediately")
-def run_workflow_immediately(workflow_id: int, db: Session = Depends(get_db)):
+def run_workflow_immediately(workflow_id: int, db: Session = Depends(get_db)) -> Optional[Dict[str, Any]]:
     """
     Triggers an immediate, one-off execution of a workflow.
     """
@@ -110,7 +112,7 @@ def run_workflow_immediately(workflow_id: int, db: Session = Depends(get_db)):
 @router.get(
     "/workflow-runs/{run_id}/logs", response_model=List[schemas.ProcessExecutionLogInfo], tags=["Workflow Runs"]
 )
-def get_workflow_run_logs(run_id: int, db: Session = Depends(get_db)):
+def get_workflow_run_logs(run_id: int, db: Session = Depends(get_db)) -> List[models.ProcessExecutionLog]:
     """
     Retrieves all execution logs for a specific workflow run.
     """

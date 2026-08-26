@@ -8,7 +8,7 @@ from ..task_utils import task
 @task(
     name="Git: Clone or Pull", description="Clones a git repository, or pulls the latest changes if it already exists."
 )
-def clone_or_pull_repo(repo_url: str):
+def clone_or_pull_repo(repo_url: str) -> str:
     """
     Clones a git repository into the current working directory if it doesn't exist,
     or pulls the latest changes if it does.
