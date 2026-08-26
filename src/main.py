@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from core import database
 from core.auth import verify_api_key
@@ -14,6 +15,7 @@ from modules.scheduler import loader, scheduler_instance
 from modules.scheduler.router import router as scheduler_router
 from util import logger_util
 from util.config_util import config
+from webgui.router import router as webgui_router
 
 logger_util.setup_logging(log_file_path="log/app.log")
 logger = logger_util.get_logger(__name__)
@@ -50,12 +52,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/static", StaticFiles(directory="src/webgui/static"), name="static")
+
 app.include_router(scheduler_router, dependencies=[Depends(verify_api_key)])
-
-
-@app.get("/")
-def read_root() -> dict:
-    return {"message": "Welcome to the Task Scheduler API"}
+app.include_router(webgui_router)
 
 
 if __name__ == "__main__":

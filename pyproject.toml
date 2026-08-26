@@ -25,8 +25,8 @@ dependencies = [
     "tenacity",
     "tzdata", # zoneinfo用。CI/コンテナ等、OS側にtzdataが無い環境でのタイムゾーン解決に必要
     "watchdog",
-    "Flask", # Added for WebGUI
-    "requests", # Added for WebGUI to API communication
+    "jinja2",
+    "requests",
     "feedparser",
 ]
 
@@ -73,7 +73,7 @@ ignore = []
 [tool.ruff.lint.per-file-ignores]
 "src/core/__init__.py" = ["F401"]
 "src/main.py" = ["E402"]
-"src/webgui/app.py" = ["E402"]
+"src/webgui/router.py" = ["E402"]
 "tool/add_jobs.py" = ["E402"]
 "tool/db_migration_add_capture_source.py" = ["E402"]
 

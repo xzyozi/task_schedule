@@ -134,7 +134,6 @@ def _execute_subprocess(
 def execute_shell_job(
     job_id: str, task_params: dict, db: Optional[Session] = None, workflow_run_id: Optional[int] = None
 ) -> Dict[str, Any]:
-
     db_session = db if db else next(database.get_db())
     local_session = not db
 
@@ -175,7 +174,6 @@ def execute_shell_job(
 def execute_python_job(
     job_id: str, task_params: dict, db: Optional[Session] = None, workflow_run_id: Optional[int] = None
 ) -> Dict[str, Any]:
-
     db_session = db if db else next(database.get_db())
     local_session = not db
 
@@ -261,7 +259,6 @@ def execute_python_job(
 def execute_email_job(
     job_id: str, task_params: dict, db: Optional[Session] = None, workflow_run_id: Optional[int] = None
 ) -> Dict[str, Any]:
-
     db_session = db if db else next(database.get_db())
     local_session = not db
 
