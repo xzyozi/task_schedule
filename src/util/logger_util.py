@@ -21,7 +21,7 @@ class ColoredFormatter(logging.Formatter):
         "RESET": "\033[0m",  # RESET COLOR
     }
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         colored_record = copy.copy(record)
         levelname = colored_record.levelname
         seq = self.COLORS.get(levelname, self.COLORS["RESET"])
@@ -29,7 +29,12 @@ class ColoredFormatter(logging.Formatter):
         return super().format(colored_record)
 
 
-def setup_logging(log_file_path="app.log", use_colors=True, console_level=logging.INFO, file_level=logging.DEBUG):
+def setup_logging(
+    log_file_path: str = "app.log",
+    use_colors: bool = True,
+    console_level: int = logging.INFO,
+    file_level: int = logging.DEBUG,
+) -> None:
     """
     Configures a logger that outputs to both console and a rotating file.
     This function should ideally be called once at the application's entry point.
@@ -92,7 +97,7 @@ def setup_logging(log_file_path="app.log", use_colors=True, console_level=loggin
     logger.info("Logging initialized.")
 
 
-def get_logger(name):
+def get_logger(name: str) -> logging.Logger:
     """
     Returns a named logger. Assumes setup_logging has been called.
     """

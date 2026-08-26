@@ -22,12 +22,12 @@ class AppConfig:
     _instance = None
     _config = None
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> "AppConfig":
         if not cls._instance:
             cls._instance = super(AppConfig, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, config_path=CONFIG_PATH):
+    def __init__(self, config_path: str | Path = CONFIG_PATH) -> None:
         if self._config is None:
             if not Path(config_path).exists():
                 raise FileNotFoundError(f"Configuration file not found at: {config_path}")
@@ -46,7 +46,7 @@ class AppConfig:
         else:
             return config_item
 
-    def get(self, key, default=None):
+    def get(self, key: str, default: Any = None) -> Any:
         """Gets a configuration value using dot notation."""
         keys = key.split(".")
         value = self._config
