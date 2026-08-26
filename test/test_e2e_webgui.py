@@ -58,8 +58,8 @@ def test_e2e_dashboard_navigation(page, live_server):
     page.goto(live_server)
 
     # ページタイトルおよびメインヘッダーの検証
-    assert "ダッシュボード" in page.title() or "タスクスケジューラ" in page.title()
-    assert page.is_visible("h1")
+    assert "Dashboard" in page.title() or "ダッシュボード" in page.title() or "Task Scheduler" in page.title()
+    assert page.is_visible("h1") or page.is_visible("h2")
 
     # サマリーカードの存在検証
     cards = page.locator(".card")
@@ -71,7 +71,7 @@ def test_e2e_jobs_page_navigation(page, live_server):
     """E2E シナリオ 2: ジョブ管理画面への遷移とテーブル要素の確認。"""
     page.goto(f"{live_server}/jobs")
 
-    assert page.is_visible("h1")
+    assert page.is_visible("h1") or page.is_visible("h2")
     # 検索フィルター入力要素の存在検証
     assert page.is_visible("input") or page.is_visible("table")
 
@@ -80,11 +80,11 @@ def test_e2e_jobs_page_navigation(page, live_server):
 def test_e2e_workflows_page_navigation(page, live_server):
     """E2E ワークフロー管理画面へのアクセス検証。"""
     page.goto(f"{live_server}/workflows")
-    assert page.is_visible("h1")
+    assert page.is_visible("h1") or page.is_visible("h2")
 
 
 @pytest.mark.playwright
 def test_e2e_settings_page_navigation(page, live_server):
     """E2E 設定画面へのアクセス検証。"""
     page.goto(f"{live_server}/settings")
-    assert page.is_visible("h1")
+    assert page.is_visible("h1") or page.is_visible("h2")

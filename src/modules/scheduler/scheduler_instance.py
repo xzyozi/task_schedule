@@ -56,9 +56,10 @@ scheduler.add_listener(job_error_listener, EVENT_JOB_ERROR)
 
 
 def start_scheduler() -> None:
-    logger.info("Starting scheduler...")
-    scheduler.start()
-    atexit.register(shutdown_scheduler)
+    if not scheduler.running:
+        logger.info("Starting scheduler...")
+        scheduler.start()
+        atexit.register(shutdown_scheduler)
 
 
 def shutdown_scheduler() -> None:
