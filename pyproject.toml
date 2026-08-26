@@ -105,12 +105,28 @@ exclude = [
     "venv/",
     "\\.venv/",
     "old/",
-    "test/",
+    "src/bk/",
+    "temp/",
 ]
 
 [[tool.mypy.overrides]]
 module = "modules.scheduler.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "test_api_handling",
+    "test_e2e_webgui",
+    "test_job_executors",
+    "test_js_utilities",
+    "test_schemas",
+    "test_webgui_router",
+    "test_workflow_execution",
+    "test_workflow_step_configurations",
+    "call",
+]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
 
 # ==========================================
 # Testing (Pytest)

@@ -1,8 +1,8 @@
-import pytest
+import os
 import sys
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from pathlib import Path
+
+import pytest
 
 # Add src to path to allow imports
 sys.path.insert(0, str(Path(__file__).parent.parent.joinpath("src")))
@@ -11,26 +11,6 @@ from core.database import Base
 from modules.scheduler import models, schemas, service
 from modules.scheduler.job_executors import run_workflow
 
-# --- Test Setup and Fixtures ---
-
-@pytest.fixture(scope="session")
-def SessionLocal():
-    """Create a sessionmaker for a temporary in-memory SQLite database."""
-    engine = create_engine("sqlite:///:memory:")
-    Base.metadata.create_all(bind=engine)
-    return sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-@pytest.fixture(scope="function")
-def db_session(SessionLocal):
-    """Yield a new database session for a test, rolling back changes afterwards."""
-    session = SessionLocal()
-    try:
-        yield session
-    finally:
-        session.rollback()
-        session.close()
-
-import os
 
 @pytest.fixture(scope="function")
 def test_tasks_module(tmp_path, monkeypatch):
